@@ -2135,61 +2135,11 @@ async function importTsvPaste() {
   });
   if (overwriteCount > 0) { saveTermsToLocalStorage(); applyFilters(); }
 
-  const hasData = newRows.filter(t => t.def_ko || t.def_en || t.usmle);
-  const needsAI = newRows.filter(t => !t.def_ko && !t.def_en && !t.usmle);
-
-  // 신규 + 정의 있는 것 → 즉시 저장
-  hasData.forEach(t => TERMS.push(normalizeTermForStorage({ ...t, id: makeId() })));
-  if (hasData.length) { saveTermsToLocalStorage(); applyFilters(); }
-
-  // 정의 없는 것 → AI 자동완성 (순차 처리)
-  if (needsAI.length) {
-    showAIProgress(needsAI.length);
-    let done = 0;
-    const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey);
-
-    for (let i = 0; i < needsAI.length; i++) {
-      if (aiStopRequested) {
-        showToast(`⏹ 중지됨 — ${done}개 저장 완료`);
-        break;
-      }
-      const term = { ...needsAI[i], id: makeId() };
-      const termLabel = term.en || term.ko || '';
-      try {
-        if (canAI) {
-          const enriched = await enrichTermWithAI(term);
-          TERMS.push(normalizeTermForStorage({
-            ...term,
-            def_ko:   term.def_ko || enriched.def_ko || '',
-            def_en:   term.def_en || enriched.def_en || '',
-            def_uz:   term.def_uz || enriched.def_uz || '',
-            usmle:    term.usmle  || enriched.usmle  || '',
-            ipa:      term.ipa    || enriched.ipa     || '',
-            category: (() => {
-              if (term.category && term.category !== '기타') return term.category;
-              const ai = (enriched.category || '').trim();
-              return VALID_CATS.includes(ai) ? ai : (ai && ai !== '기타' ? ai : '기타');
-            })(),
-            refs:       enriched.refs       || [],
-            icd11:      enriched.icd11      || null,
-            fdaDrug:    enriched.fdaDrug    || null,
-            rxclassATC: enriched.rxclassATC || null,
-            trials:     enriched.trials     || null,
-          }));
-        } else {
-          TERMS.push(normalizeTermForStorage(term));
-        }
-      } catch (e) {
-        console.warn('AI enrichment failed for', term.en, e);
-        TERMS.push(normalizeTermForStorage(term));
-      }
-      done++;
-      updateAIProgress(done, needsAI.length, termLabel);
-      saveTermsToLocalStorage();
-      applyFilters();
-    }
-    hideAIProgress();
-  }
+  // 전부 즉시 저장 (AI 없음 — 내보내기 탭 '일괄 빈칸 채우기'로 별도 실행)
+  newRows.forEach(t => TERMS.push(normalizeTermForStorage({ ...t, id: makeId() })));
+  saveTermsToLocalStorage();
+  applyFilters();
+  updateBookmarkCount();
 
   updateBookmarkCount();
   saveTermsToLocalStorage();
@@ -3711,60 +3661,19 @@ async function handleFileUpload(e, mode = 'replace') {
       if (rows.length === 0) { showToast('⚠️ 추가할 새 용어가 없습니다'); return; }
     }
 
-    const needsAI = rows.filter(t => !t.def_ko || !t.usmle);
-    const hasData = rows.filter(t => t.def_ko && t.usmle);
-
-    TERMS.push(...hasData.map(normalizeTermForStorage));
-    if (hasData.length > 0) { saveTermsToLocalStorage(); applyFilters(); showToast(`✅ ${hasData.length}개 용어 즉시 추가·자동저장됨`); }
-
-    if (needsAI.length === 0) {
-      saveTermsToLocalStorage();
-      updateBookmarkCount();
-      showToast(`✅ 총 ${rows.length}개 용어 추가·자동저장 완료`);
-      return;
-    }
-
-    showAIProgress(needsAI.length);
-    let done = 0;
-    const BATCH = 3;
-
-    for (let i = 0; i < needsAI.length; i += BATCH) {
-      const batch = needsAI.slice(i, i + BATCH);
-      await Promise.all(batch.map(async (term) => {
-        try {
-          const enriched = await enrichTermWithAI(term);
-          TERMS.push(normalizeTermForStorage({
-            ...term,
-            ko:         term.ko         || enriched.ko         || '',
-            en:         term.en         || enriched.en         || '',
-            uz:         term.uz         || enriched.uz         || '',
-            category:   term.category   || enriched.category   || '기타',
-            ipa:        term.ipa         || enriched.ipa        || '',
-            def_ko:     term.def_ko     || enriched.def_ko     || '',
-            def_en:     term.def_en     || enriched.def_en     || '',
-            def_uz:     term.def_uz     || enriched.def_uz     || '',
-            usmle:      term.usmle      || enriched.usmle      || '',
-            refs:       enriched.refs       || [],
-            icd11:      enriched.icd11      || null,
-            fdaDrug:    enriched.fdaDrug    || null,
-            rxclassATC: enriched.rxclassATC || null,
-            trials:     enriched.trials     || null,
-          }));
-        } catch {
-          TERMS.push(normalizeTermForStorage({ ...term, category: term.category || '기타' }));
-        }
-        saveTermsToLocalStorage();
-        done++;
-        updateAIProgress(done, needsAI.length);
-        applyFilters();
-      }));
-    }
-
-    hideAIProgress();
+    // 업로드 시 AI 자동완성 없이 전부 즉시 저장
+    // (빈 칸 채우기는 내보내기 탭 → '일괄 빈칸 채우기'로 별도 실행)
+    TERMS.push(...rows.map(t => normalizeTermForStorage({ ...t, category: t.category || '기타' })));
     saveTermsToLocalStorage();
-    updateBookmarkCount();
-    showToast(`🤖 AI 자동완성·자동저장 완료 — 총 ${rows.length}개 용어`);
     applyFilters();
+    updateBookmarkCount();
+
+    const emptyCount = rows.filter(t => !t.def_ko || !t.usmle).length;
+    const msg = emptyCount > 0
+      ? `✅ ${rows.length}개 저장 완료! (빈 칸 ${emptyCount}개 → 내보내기 탭에서 '일괄 빈칸 채우기'로 완성 가능)`
+      : `✅ ${rows.length}개 저장 완료!`;
+    showToast(msg);
+
   };
 
   if (isExcel) reader.readAsArrayBuffer(file);
