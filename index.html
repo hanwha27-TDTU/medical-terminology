@@ -1199,10 +1199,29 @@ function renderTerms(terms, bookmarkDivider = 0) {
   updateCounts(terms.length);
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function highlight(text, query) {
-  if (!query) return text;
-  const regex = new RegExp(`(${query})`, 'gi');
-  return text.replace(regex, '<span class="highlight">$1</span>');
+  if (!query || !text) return escapeHtml(text);
+  try {
+    const safeQuery = escapeRegExp(query);
+    const regex = new RegExp(`(${safeQuery})`, 'gi');
+    return escapeHtml(text).replace(regex, '<span class="highlight">$1</span>');
+  } catch(e) {
+    return escapeHtml(text);
+  }
 }
 
 function toggleCard(id) {
@@ -1456,11 +1475,14 @@ function migrateOldAIConfig(cfg) {
 function getAIConfig() {
   const cfg = migrateOldAIConfig(safeJsonParse(localStorage.getItem(AI_CONFIG_STORAGE_KEY), null) || {});
   return {
-    route: cfg.route || cfg.provider || 'openai',
-    openaiKey: cfg.openaiKey || '',
-    anthropicKey: cfg.anthropicKey || '',
-    modelOpenAI: cfg.modelOpenAI || 'gpt-5.5',
+    route:          cfg.route          || cfg.provider || 'auto',
+    openaiKey:      cfg.openaiKey      || '',
+    anthropicKey:   cfg.anthropicKey   || '',
+    geminiKey:      cfg.geminiKey      || '',
+    umlsKey:        cfg.umlsKey        || localStorage.getItem('kma_umls_key') || '',
+    modelOpenAI:    cfg.modelOpenAI    || 'gpt-4o-mini',
     modelAnthropic: cfg.modelAnthropic || 'claude-sonnet-4-6',
+    modelGemini:    cfg.modelGemini    || 'gemini-2.0-flash',
   };
 }
 
@@ -1879,7 +1901,7 @@ async function callAIText(prompt, maxTokens = 800, task = 'general', forceProvid
 }
 
 // ─── Add Term Form ───
-const CATEGORIES = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','Endocrine','Neurology','Hematology & Oncology','Infectious Disease','Musculoskeletal','Dermatology','Reproductive','Psychiatry','Immunology'];
+const CATEGORIES = VALID_CATS; // VALID_CATS와 동기화 유지
 
 function showAddTermForm() {
   const main = document.getElementById('mainContent');
@@ -2271,6 +2293,7 @@ async function submitAddTerm() {
       trials:     enriched.trials     || null,
     }));
     saveTermsToLocalStorage();
+    saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${finalKo || finalEn || finalUz}" AI 자동완성 추가 완료!`);
     switchTab('search', document.querySelector('.nav-btn'));
     expandedId = TERMS[TERMS.length - 1].id;
@@ -2280,6 +2303,7 @@ async function submitAddTerm() {
     // AI 실패해도 기본 데이터로 저장
     TERMS.push(normalizeTermForStorage(newTerm));
     saveTermsToLocalStorage();
+    saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`⚠️ AI 실패 — "${ko || en || uz}" 기본 저장됨. ✏️ 편집으로 내용 추가 가능`);
     switchTab('search', document.querySelector('.nav-btn'));
     expandedId = TERMS[TERMS.length - 1].id;
