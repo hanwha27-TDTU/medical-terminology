@@ -1088,6 +1088,8 @@ function getStorageStatusText() {
 
 let currentFilter = 'all';
 let currentSort = 'default'; // 'default' | 'en_asc' | 'ko_asc' | 'uz_asc'
+let _idCounter = Date.now();
+function makeId() { return ++_idCounter; }
 let aiStopRequested = false; // AI 중지 플래그
 const VALID_CATS = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','Endocrine',
   'Neurology','Hematology & Oncology','Infectious Disease','Musculoskeletal',
@@ -1123,7 +1125,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
           <div class="term-english"><span onclick="copyTermText(event,'${(t.en||'').replace(/'/g,"\\'")}','영어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(88,166,255,0.12)'" onmouseleave="this.style.background=''">${highlight(t.en, query)}</span></div>
           ${t.uz ? `<div class="term-uzbek"><span onclick="copyTermText(event,'${(t.uz||'').replace(/'/g,"\\'")}','우즈베크어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(251,191,36,0.12)'" onmouseleave="this.style.background=''"> ${highlight(t.uz, query)}</span></div>` : ''}
         </div>
-        <span class="term-category">${t.category}</span>
+        <span class="term-category">${escapeHtml(t.category)}</span>
         ${(() => {
           const missing = [];
           if (!t.ko)     missing.push('KO');
@@ -1159,7 +1161,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
           ${t.ipa ? `
           <div class="ipa-block">
             <span class="ipa-label">IPA</span>
-            <span class="ipa-text">${t.ipa}</span>
+            <span class="ipa-text">${escapeHtml(t.ipa)}</span>
           </div>
           <div class="ipa-tip">Cambridge 방식 · 강세: ˈ(1차) ˌ(2차) · 장모음: ː</div>` : ''}
           <div class="detail-text">${escapeHtml(t.def_en)}</div>
@@ -2108,9 +2110,6 @@ async function importTsvPaste() {
   if (!rows.length) { showToast('⚠️ 파싱할 데이터가 없습니다'); return; }
 
   // 영어 기준으로 중복 분류: 덮어쓰기 vs 신규
-  let _idCounter = Date.now();
-  const makeId = () => ++_idCounter;
-
   const overwriteRows = [];  // 기존 용어 덮어쓰기
   const newRows = [];        // 신규 추가
   const seenInBatch = new Set(); // 같은 배치 내 중복 방지
@@ -2771,14 +2770,14 @@ function showDuplicateManager() {
         style="border:2px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;margin-bottom:8px;background:var(--surface2);transition:border-color 0.2s">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
           <div>
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${t.ko || '—'}</div>
-            <div style="font-size:12px;color:#58a6ff">${t.en || '—'}</div>
-            ${t.uz ? `<div style="font-size:11px;color:#fbbf24">${t.uz}</div>` : ''}
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(t.ko || '—')}</div>
+            <div style="font-size:12px;color:#58a6ff">${escapeHtml(t.en || '—')}</div>
+            ${t.uz ? `<div style="font-size:11px;color:#fbbf24">${escapeHtml(t.uz)}</div>` : ''}
           </div>
           <span style="font-size:10px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px">${t.category||'기타'}</span>
         </div>
         <div style="font-size:10px;color:var(--text3);line-height:1.5">
-          ${t.def_ko ? `<div>📖 ${t.def_ko.slice(0,60)}...</div>` : '<div style="color:#6e7681">정의 없음</div>'}
+          ${t.def_ko ? `<div>📖 ${escapeHtml(t.def_ko.slice(0,60))}...</div>` : '<div style="color:#6e7681">정의 없음</div>'}
           ${t.usmle ? `<div>🏥 USMLE: ${t.usmle.slice(0,50)}...</div>` : ''}
           ${t.ipa ? `<div>🔊 ${t.ipa}</div>` : ''}
         </div>
@@ -2942,7 +2941,7 @@ async function bulkDeleteTerms() {
 
 // ─── 일괄 빈칸 채우기 (기능2) ───
 async function bulkReclassify() {
-  const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey);
+  const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey || getAIConfig().geminiKey);
   if (!canAI) { showToast('⚠️ AI 키 필요 — AI탭에서 등록해주세요'); return; }
 
   const targets = TERMS.filter(t => !t.category || t.category === '기타');
@@ -3457,9 +3456,9 @@ function renderQuizStep() {
 
       <!-- Term card -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px 20px;text-align:center;margin-bottom:12px">
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${t.category}</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${escapeHtml(t.category)}</div>
         <div style="font-size:28px;font-family:'Playfair Display',serif;color:var(--accent);margin:8px 0 4px">${t.en}</div>
-        ${t.ipa ? `<div style="font-size:13px;color:var(--accent3);margin-bottom:4px">${t.ipa}</div>` : ''}
+        ${t.ipa ? `<div style="font-size:13px;color:var(--accent3);margin-bottom:4px">${escapeHtml(t.ipa)}</div>` : ''}
         <button onclick="event.stopPropagation();speakEnglish('${t.en.replace(/'/g,"\\'")}');" style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:8px;padding:4px 14px;color:#74b0ff;font-size:12px;cursor:pointer;margin:6px 0">🔊 발음 듣기</button>
         <div style="font-size:11px;color:var(--text3);margin-top:6px">${step.question}</div>
       </div>
