@@ -3871,14 +3871,16 @@ async function handleFileUpload(e, mode = 'replace') {
     rows = rows.map((t, i) => ({ ...t, id: startId + i, updatedAt: new Date().toISOString() }));
 
     if (mode === 'append') {
-      const seen = new Set(TERMS.map(t => `${(t.en || '').toLowerCase()}||${t.ko || ''}`));
+      // 영어 기준 중복 체크 (영어 없으면 한국어 기준)
+      const seen = new Set(TERMS.map(t => (t.en || t.ko || '').toLowerCase().trim()));
       rows = rows.filter(t => {
-        const key = `${(t.en || '').toLowerCase()}||${t.ko || ''}`;
+        const key = (t.en || t.ko || '').toLowerCase().trim();
+        if (!key) return false;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
-      if (rows.length === 0) { showToast('⚠️ 추가할 새 용어가 없습니다'); return; }
+      if (rows.length === 0) { showToast('⚠️ 추가할 새 용어가 없습니다 (전부 중복)'); return; }
     }
 
     // 업로드 시 AI 자동완성 없이 전부 즉시 저장
