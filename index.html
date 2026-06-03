@@ -1113,6 +1113,19 @@ function renderTerms(terms, bookmarkDivider = 0) {
           <div class="term-english">${highlight(t.en, query)}</div>
         </div>
         <span class="term-category">${t.category}</span>
+        ${(() => {
+          const missing = [];
+          if (!t.ko)     missing.push('KO');
+          if (!t.uz)     missing.push('UZ');
+          if (!t.def_ko) missing.push('정의');
+          if (!t.def_en) missing.push('Def');
+          if (!t.def_uz) missing.push('O'z');
+          if (!t.usmle)  missing.push('USMLE');
+          if (!t.ipa)    missing.push('IPA');
+          return missing.length
+            ? `<span title="빈 칸: ${missing.join(', ')}" style="font-size:10px;color:#f85149;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);border-radius:6px;padding:2px 6px;margin-right:4px;cursor:default;white-space:nowrap">✗ ${missing.join(' · ')}</span>`
+            : `<span title="모든 필드 완성" style="font-size:10px;color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:2px 6px;margin-right:4px;cursor:default">✓</span>`;
+        })()}
         <button class="bookmark-btn ${bookmarks.has(t.id) ? 'saved' : ''}" onclick="toggleBookmark(event, ${t.id})">${bookmarks.has(t.id) ? '⭐' : '☆'}</button>
         <button class="bookmark-btn" onclick="openEditModal(event, ${t.id})" title="편집" style="font-size:14px">✏️</button>
         <span class="chevron">▼</span>
