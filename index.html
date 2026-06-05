@@ -6,8 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dr Bugeon 의학용어</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -776,282 +775,6 @@
   }
 
   .trials-link:hover { background: rgba(34,197,94,0.15); }
-
-  /* ═══════════════════════════════════════
-     TERM DRAWER — 오른쪽 슬라이드 패널
-     모바일: 하단 Bottom Sheet
-  ═══════════════════════════════════════ */
-  .term-drawer-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0);
-    z-index: 400;
-    pointer-events: none;
-    transition: background 0.3s ease;
-  }
-  .term-drawer-overlay.open {
-    background: rgba(0,0,0,0.55);
-    pointer-events: all;
-  }
-
-  .term-drawer {
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100%;
-    width: min(480px, 92vw);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    z-index: 401;
-    display: flex;
-    flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.32s cubic-bezier(0.32,0,0,1);
-    box-shadow: -8px 0 40px rgba(0,0,0,0.45);
-    overflow: hidden;
-  }
-  .term-drawer.open {
-    transform: translateX(0);
-  }
-
-  /* 드로어 헤더 */
-  .drawer-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 18px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    flex-shrink: 0;
-    gap: 10px;
-  }
-  .drawer-header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-    flex: 1;
-  }
-  .drawer-title-ko {
-    font-family: 'Noto Serif KR', serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .drawer-title-en {
-    font-size: 13px;
-    color: var(--accent);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .drawer-header-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .drawer-action-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 14px;
-    color: var(--text2);
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .drawer-action-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .drawer-action-btn.starred { color: var(--accent3); border-color: var(--accent3); }
-  .drawer-close-btn {
-    background: none;
-    border: none;
-    color: var(--text3);
-    font-size: 22px;
-    cursor: pointer;
-    padding: 4px 6px;
-    line-height: 1;
-    border-radius: 6px;
-    transition: color 0.15s, background 0.15s;
-  }
-  .drawer-close-btn:hover { color: var(--text); background: var(--surface2); }
-
-  /* 드로어 네비게이션 (이전/다음) */
-  .drawer-nav {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    flex-shrink: 0;
-  }
-  .drawer-nav-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 5px 14px;
-    font-size: 12px;
-    color: var(--text2);
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: 'Noto Sans KR', sans-serif;
-  }
-  .drawer-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .drawer-nav-btn:disabled { opacity: 0.3; cursor: default; }
-  .drawer-nav-count {
-    flex: 1;
-    text-align: center;
-    font-size: 11px;
-    color: var(--text3);
-  }
-
-  /* 드로어 바디 */
-  .drawer-body {
-    flex: 1;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-  .drawer-body::-webkit-scrollbar { width: 4px; }
-  .drawer-body::-webkit-scrollbar-track { background: transparent; }
-  .drawer-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  .drawer-section {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-  }
-  .drawer-section:last-child { border-bottom: none; }
-  .drawer-lang-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    border-radius: 6px;
-    padding: 3px 10px;
-    margin-bottom: 10px;
-  }
-  .drawer-term-main {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 4px;
-    line-height: 1.35;
-  }
-  .drawer-term-def {
-    font-size: 13px;
-    color: var(--text2);
-    line-height: 1.65;
-  }
-  .drawer-ipa {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 5px 12px;
-    font-family: monospace;
-    font-size: 13px;
-    color: #c9a4ff;
-    margin: 6px 0 4px;
-  }
-  .drawer-ipa-tip {
-    font-size: 10px;
-    color: var(--text3);
-    margin-bottom: 6px;
-  }
-  .drawer-speak-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    flex-wrap: wrap;
-  }
-  .drawer-missing {
-    font-size: 11px;
-    color: var(--text3);
-    font-style: italic;
-    padding: 8px 0;
-  }
-  .drawer-usmle-text {
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--text2);
-    line-height: 1.7;
-    white-space: pre-wrap;
-  }
-  .drawer-links {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-top: 4px;
-  }
-  .drawer-link-btn {
-    text-decoration: none;
-    border-radius: 8px;
-    padding: 5px 11px;
-    font-size: 11px;
-    font-family: 'Noto Sans KR', sans-serif;
-    cursor: pointer;
-    border: 1px solid;
-    transition: opacity 0.15s;
-  }
-  .drawer-link-btn:hover { opacity: 0.8; }
-  .drawer-complete-badge {
-    font-size: 10px;
-    border-radius: 6px;
-    padding: 2px 8px;
-    border: 1px solid;
-  }
-
-  /* 모바일: Bottom Sheet */
-  @media (max-width: 600px) {
-    .term-drawer {
-      top: auto;
-      bottom: 0;
-      right: 0;
-      left: 0;
-      width: 100%;
-      height: 88vh;
-      border-left: none;
-      border-top: 1px solid var(--border);
-      border-radius: 18px 18px 0 0;
-      transform: translateY(100%);
-      box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
-    }
-    .term-drawer.open { transform: translateY(0); }
-    /* Bottom Sheet 핸들 */
-    .drawer-handle {
-      display: flex !important;
-    }
-  }
-  .drawer-handle {
-    display: none;
-    justify-content: center;
-    padding: 10px 0 2px;
-    background: var(--bg);
-    flex-shrink: 0;
-  }
-  .drawer-handle-bar {
-    width: 36px;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-  }
-
-  /* 카드 hover 커서 변경 (더이상 expand 아닌 drawer 열기) */
-  .term-card { cursor: pointer; }
-  .term-card .term-detail { display: none !important; }
-  .term-card .chevron { display: none !important; }
-  .term-card.expanded { border-color: var(--accent); }
-
 </style>
 </head>
 <body>
@@ -1503,7 +1226,6 @@ const VALID_CATS = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','E
 
 let bookmarks = new Set(JSON.parse(localStorage.getItem('kma_bookmarks') || '[]').map(Number));
 let expandedId = null;
-let _lastFilteredTerms = [];
 let currentTab = 'search';
 
 // ─── Render ───
@@ -1652,16 +1374,8 @@ function highlight(text, query) {
 }
 
 function toggleCard(id) {
-  // 드로어가 이미 이 카드로 열려있으면 닫기, 아니면 열기
-  if (_drawerTermId === id) {
-    closeDrawer();
-  } else {
-    openDrawer(id);
-    // 카드 강조 (리렌더 없이)
-    document.querySelectorAll('.term-card.expanded').forEach(el => el.classList.remove('expanded'));
-    const card = document.getElementById('card-' + id);
-    if (card) card.classList.add('expanded');
-  }
+  expandedId = expandedId === id ? null : id;
+  applyFilters();
 }
 
 function toggleBookmark(e, id) {
@@ -1717,7 +1431,6 @@ function applyFilters() {
     const bookmarked = TERMS.filter(t => bookmarks.has(t.id));
     const rest = TERMS.filter(t => !bookmarks.has(t.id));
     if (label) label.textContent = `⭐ 즐겨찾기 ${bookmarked.length}개 · 전체 ${TERMS.length}개`;
-    _lastFilteredTerms = [...bookmarked, ...rest];
     renderTerms([...bookmarked, ...rest], bookmarked.length);
     return;
   }
@@ -1730,7 +1443,6 @@ function applyFilters() {
   } else if (currentSort === 'uz_asc') {
     results = [...results].sort((a, b) => (a.uz || '').localeCompare(b.uz || '', 'uz'));
   }
-  _lastFilteredTerms = results;
   renderTerms(results);
 }
 
@@ -1746,7 +1458,6 @@ function renderHome() {
 
   if (bookmarked.length > 0) {
     if (label) label.textContent = `⭐ 즐겨찾기 — ${bookmarked.length}개`;
-    _lastFilteredTerms = bookmarked;
     renderTerms(bookmarked);
   } else {
     list.innerHTML = `
@@ -2712,8 +2423,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 AI탭에서 키 등록 시 자동완성 가능)`);
     switchTab('search', document.querySelector('.nav-btn'));
+    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
     return;
   }
 
@@ -2744,8 +2455,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${finalKo || finalEn || finalUz}" AI 자동완성 추가 완료!`);
     switchTab('search', document.querySelector('.nav-btn'));
+    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
   } catch (err) {
     console.error(err);
     // AI 실패해도 기본 데이터로 저장
@@ -2754,8 +2465,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`⚠️ AI 실패 — "${ko || en || uz}" 기본 저장됨. ✏️ 편집으로 내용 추가 가능`);
     switchTab('search', document.querySelector('.nav-btn'));
+    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
     if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 자동완성으로 추가'; }
   }
 }
@@ -2909,11 +2620,6 @@ function saveEdit(id) {
   document.getElementById('editModal')?.remove();
   showToast('✅ 수정 완료');
   applyFilters();
-  // 드로어가 이 용어로 열려있으면 내용 갱신
-  if (_drawerTermId === id) {
-    const updated = TERMS.find(x => x.id === id);
-    if (updated) _renderDrawerContent(updated);
-  }
 }
 
 function deleteTerm(id) {
@@ -2927,7 +2633,7 @@ function deleteTerm(id) {
     saveTermsToLocalStorage();
     deleteTermFromCloud(id);
     document.getElementById('editModal')?.remove();
-    if (expandedId === id) { expandedId = null; closeDrawer(); }
+    if (expandedId === id) expandedId = null;
     showToast('🗑️ 삭제 완료');
     updateBookmarkCount();
     applyFilters();
@@ -4911,228 +4617,6 @@ async function initApp() {
 }
 
 initApp();
-
-// ═══════════════════════════════════════════════════════
-//  TERM DRAWER
-// ═══════════════════════════════════════════════════════
-let _drawerTermId   = null;
-let _drawerTermList = [];
-
-function openDrawer(id) {
-  const t = TERMS.find(x => x.id === id);
-  if (!t) return;
-  _drawerTermId   = id;
-  expandedId      = id;
-  _drawerTermList = _lastFilteredTerms && _lastFilteredTerms.length ? _lastFilteredTerms : TERMS;
-  _renderDrawerContent(t);
-  _updateDrawerNav();
-  document.getElementById('drawerOverlay').classList.add('open');
-  document.getElementById('termDrawer').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  // 카드 강조
-  document.querySelectorAll('.term-card.expanded').forEach(el => el.classList.remove('expanded'));
-  const card = document.getElementById('card-' + id);
-  if (card) card.classList.add('expanded');
-}
-
-function closeDrawer() {
-  const overlay = document.getElementById('drawerOverlay');
-  const drawer  = document.getElementById('termDrawer');
-  if (overlay) overlay.classList.remove('open');
-  if (drawer)  drawer.classList.remove('open');
-  document.body.style.overflow = '';
-  expandedId    = null;
-  _drawerTermId = null;
-  document.querySelectorAll('.term-card.expanded').forEach(el => el.classList.remove('expanded'));
-}
-
-function drawerNavigate(dir) {
-  const idx = _drawerTermList.findIndex(x => x.id === _drawerTermId);
-  if (idx === -1) return;
-  const next = _drawerTermList[idx + dir];
-  if (!next) return;
-  openDrawer(next.id);
-  setTimeout(() => {
-    const card = document.getElementById('card-' + next.id);
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 80);
-}
-
-function _updateDrawerNav() {
-  const idx   = _drawerTermList.findIndex(x => x.id === _drawerTermId);
-  const total = _drawerTermList.length;
-  const countEl = document.getElementById('drawerNavCount');
-  const prevBtn = document.getElementById('drawerPrevBtn');
-  const nextBtn = document.getElementById('drawerNextBtn');
-  if (countEl) countEl.textContent = total ? (idx + 1) + ' / ' + total : '';
-  if (prevBtn) prevBtn.disabled = idx <= 0;
-  if (nextBtn) nextBtn.disabled = idx >= total - 1;
-}
-
-function drawerToggleBookmark() {
-  if (!_drawerTermId) return;
-  if (bookmarks.has(_drawerTermId)) {
-    bookmarks.delete(_drawerTermId);
-    showToast('즐겨찾기에서 제거됨');
-  } else {
-    bookmarks.add(_drawerTermId);
-    showToast('⭐ 즐겨찾기에 추가됨');
-  }
-  localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
-  updateBookmarkCount();
-  _syncDrawerBookmarkBtn();
-  const card = document.getElementById('card-' + _drawerTermId);
-  if (card) {
-    const btn = card.querySelector('.bookmark-btn');
-    if (btn) {
-      const saved = bookmarks.has(_drawerTermId);
-      btn.textContent = saved ? '⭐' : '☆';
-      btn.classList.toggle('saved', saved);
-    }
-  }
-}
-
-function _syncDrawerBookmarkBtn() {
-  const btn = document.getElementById('drawerBookmarkBtn');
-  if (!btn || !_drawerTermId) return;
-  const saved = bookmarks.has(_drawerTermId);
-  btn.textContent = saved ? '⭐' : '☆';
-  btn.classList.toggle('starred', saved);
-}
-
-function drawerOpenEdit() {
-  if (!_drawerTermId) return;
-  const id = _drawerTermId;
-  closeDrawer();
-  setTimeout(() => openEditModal({ stopPropagation: () => {} }, id), 150);
-}
-
-function _renderDrawerContent(t) {
-  const titleKo = document.getElementById('drawerTitleKo');
-  const titleEn = document.getElementById('drawerTitleEn');
-  if (titleKo) titleKo.textContent = t.ko || t.en || '—';
-  if (titleEn) titleEn.textContent = t.en || '';
-  _syncDrawerBookmarkBtn();
-
-  const missing = [];
-  if (!t.ko)     missing.push('KO');
-  if (!t.uz)     missing.push('UZ');
-  if (!t.def_ko) missing.push('정의');
-  if (!t.def_en) missing.push('Def');
-  if (!t.def_uz) missing.push('Uz');
-  if (!t.usmle)  missing.push('USMLE');
-  if (!t.ipa)    missing.push('IPA');
-
-  const badgeStyle = missing.length
-    ? 'color:#f85149;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3)'
-    : 'color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3)';
-  const badgeText = missing.length ? '✗ ' + missing.join(' · ') : '✓ 완성';
-
-  const safeEn  = (t.en  || '').replace(/'/g, "\'");
-  const safeDef = (t.def_en || '').replace(/'/g, "\'");
-  const safeEnKo = (t.ko || '').replace(/'/g, "\'");
-
-  const body = document.getElementById('drawerBody');
-  if (!body) return;
-
-  body.innerHTML = \`
-    <div class="drawer-section" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 18px">
-      <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">\${escapeHtml(t.category)}</span>
-      <span class="drawer-complete-badge" style="\${badgeStyle}">\${badgeText}</span>
-    </div>
-
-    <div class="drawer-section">
-      <div class="drawer-lang-badge" style="background:var(--tag-ko);color:#74b0ff;border:1px solid #1d4ed8">🇰🇷 한국어</div>
-      \${t.ko ? \`<div class="drawer-term-main" style="font-family:'Noto Serif KR',serif">\${escapeHtml(t.ko)}</div>\` : '<div class="drawer-missing">한국어 명칭 없음</div>'}
-      \${t.def_ko ? \`<div class="drawer-term-def" style="margin-top:6px">\${escapeHtml(t.def_ko)}</div>\` : '<div class="drawer-missing">한국어 정의 없음</div>'}
-    </div>
-
-    <div class="drawer-section">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-        <div class="drawer-lang-badge" style="background:var(--tag-en);color:#4ade80;border:1px solid #166534;margin-bottom:0">🇺🇸 English</div>
-        <button class="speak-btn" id="drawer-speak-term" onclick="speakText(event,'\${safeEn}','term',\${t.id})">
-          <div class="wave"><span></span><span></span><span></span><span></span></div>
-          발음 듣기
-        </button>
-      </div>
-      \${t.en ? \`<div class="drawer-term-main">\${escapeHtml(t.en)}</div>\` : '<div class="drawer-missing">영어 명칭 없음</div>'}
-      \${t.ipa ? \`
-        <div class="drawer-ipa"><span style="font-size:10px;color:var(--text3);font-family:'Noto Sans KR',sans-serif">IPA</span>\${escapeHtml(t.ipa)}</div>
-        <div class="drawer-ipa-tip">Cambridge 방식 · 강세: ˈ(1차) ˌ(2차) · 장모음: ː</div>\` : ''}
-      \${t.def_en ? \`<div class="drawer-term-def" style="margin-top:6px">\${escapeHtml(t.def_en)}</div>\` : '<div class="drawer-missing">영어 정의 없음</div>'}
-      <div class="drawer-speak-row">
-        <button class="speak-btn" id="drawer-speak-def" onclick="speakText(event,'\${safeDef}','def',\${t.id})" style="font-size:11px;padding:4px 10px">
-          <div class="wave"><span></span><span></span><span></span><span></span></div>
-          정의 읽기
-        </button>
-      </div>
-      <div class="tts-speed-row" style="margin-top:10px">
-        <span class="tts-speed-label">🐢 속도</span>
-        <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="\${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
-        <span class="tts-speed-val">\${ttsSpeed.toFixed(1)}×</span>
-      </div>
-    </div>
-
-    <div class="drawer-section">
-      <div class="drawer-lang-badge" style="background:var(--tag-uz);color:#fbbf24;border:1px solid #92400e">🇺🇿 O'zbek</div>
-      \${t.uz ? \`<div class="drawer-term-main">\${escapeHtml(t.uz)}</div>\` : '<div class="drawer-missing">우즈베크어 명칭 없음</div>'}
-      \${t.def_uz ? \`<div class="drawer-term-def" style="margin-top:6px">\${escapeHtml(t.def_uz)}</div>\` : '<div class="drawer-missing">우즈베크어 정의 없음</div>'}
-    </div>
-
-    <div class="drawer-section" style="background:rgba(88,166,255,0.03)">
-      <div class="drawer-lang-badge" style="background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid #1d3a5e">📋 USMLE High-Yield</div>
-      \${t.usmle ? \`<div class="drawer-usmle-text">\${escapeHtml(t.usmle)}</div>\` : '<div class="drawer-missing">USMLE 내용 없음</div>'}
-    </div>
-
-    <div class="drawer-section" style="background:rgba(0,0,0,0.08)">
-      <div class="drawer-lang-badge" style="background:rgba(255,255,255,0.05);color:var(--text3);border:1px solid var(--border)">🔗 더 알아보기</div>
-      <div class="drawer-links">
-        <a class="drawer-link-btn" href="https://pubmed.ncbi.nlm.nih.gov/?term=\${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(63,185,80,0.08);border-color:#166534;color:#4ade80">📚 PubMed</a>
-        <a class="drawer-link-btn" href="\${youtubeSearchUrl(t)}" target="_blank" rel="noopener noreferrer" style="background:rgba(255,0,0,0.08);border-color:#991b1b;color:#fca5a5">▶️ YouTube</a>
-        <a class="drawer-link-btn" href="\${googleUsageSearchUrl(t)}" target="_blank" rel="noopener noreferrer" style="background:rgba(251,191,36,0.08);border-color:#92400e;color:#fbbf24">🔎 Google 사용례</a>
-        <button class="drawer-link-btn" onclick="showICD11Popup('\${safeEn}','\${safeEnKo}');" style="background:rgba(139,92,246,0.08);border-color:#5b21b6;color:#a78bfa;font-family:'Noto Sans KR',sans-serif">🏷️ ICD-11</button>
-        <a class="drawer-link-btn" href="https://medlineplus.gov/search.html?query=\${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(88,166,255,0.08);border-color:#1d4ed8;color:#74b0ff">💊 MedlinePlus</a>
-        <a class="drawer-link-btn" href="https://clinicaltrials.gov/search?cond=\${encodeURIComponent(t.en)}&recrs=a" target="_blank" style="background:rgba(34,197,94,0.08);border-color:#166534;color:#4ade80">🔬 ClinicalTrials</a>
-        <a class="drawer-link-btn" href="https://www.fda.gov/search?s=\${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(248,81,73,0.08);border-color:#991b1b;color:#f87171">⚠️ FDA</a>
-      </div>
-    </div>
-  \`;
-}
-
-document.addEventListener('keydown', e => {
-  const drawer = document.getElementById('termDrawer');
-  if (!drawer || !drawer.classList.contains('open')) return;
-  if (e.key === 'Escape')     closeDrawer();
-  if (e.key === 'ArrowRight') { e.preventDefault(); drawerNavigate(1); }
-  if (e.key === 'ArrowLeft')  { e.preventDefault(); drawerNavigate(-1); }
-});
-// ═══════════════════════════════════════════════════════
-
 </script>
-
-  <!-- ═══════════ TERM DRAWER ═══════════ -->
-  <div class="term-drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-  <div class="term-drawer" id="termDrawer">
-    <div class="drawer-handle"><div class="drawer-handle-bar"></div></div>
-    <div class="drawer-header">
-      <div class="drawer-header-left">
-        <div class="drawer-title-ko" id="drawerTitleKo">—</div>
-        <div class="drawer-title-en" id="drawerTitleEn">—</div>
-      </div>
-      <div class="drawer-header-right">
-        <button class="drawer-action-btn" id="drawerBookmarkBtn" onclick="drawerToggleBookmark()" title="즐겨찾기">☆</button>
-        <button class="drawer-action-btn" onclick="drawerOpenEdit()" title="편집">✏️</button>
-        <button class="drawer-close-btn" onclick="closeDrawer()" title="닫기">×</button>
-      </div>
-    </div>
-    <div class="drawer-nav">
-      <button class="drawer-nav-btn" id="drawerPrevBtn" onclick="drawerNavigate(-1)">◀ 이전</button>
-      <div class="drawer-nav-count" id="drawerNavCount"></div>
-      <button class="drawer-nav-btn" id="drawerNextBtn" onclick="drawerNavigate(1)">다음 ▶</button>
-    </div>
-    <div class="drawer-body" id="drawerBody"></div>
-  </div>
-  <!-- ═══════════════════════════════════ -->
-
 </body>
 </html>
