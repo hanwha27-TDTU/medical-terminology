@@ -7,6 +7,224 @@
 <title>Dr Bugeon 의학용어</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════
+//  TERM DRAWER
+// ═══════════════════════════════════════════════════════
+let _drawerTermId   = null;   // 현재 열린 용어 ID
+let _drawerTermList = [];     // 현재 필터된 목록 (이전/다음 네비게이션용)
+
+function openDrawer(id) {
+  const t = TERMS.find(x => x.id === id);
+  if (!t) return;
+
+  _drawerTermId   = id;
+  expandedId      = id;  // 카드 강조 유지
+
+  // 현재 필터된 목록 스냅샷 (네비게이션용)
+  _drawerTermList = _lastFilteredTerms || TERMS;
+
+  _renderDrawerContent(t);
+  _updateDrawerNav();
+
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('termDrawer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('termDrawer').classList.remove('open');
+  document.body.style.overflow = '';
+  expandedId = null;
+  _drawerTermId = null;
+  // 카드 강조만 제거 (리렌더 없이)
+  document.querySelectorAll('.term-card.expanded').forEach(el => el.classList.remove('expanded'));
+}
+
+function drawerNavigate(dir) {
+  const idx = _drawerTermList.findIndex(x => x.id === _drawerTermId);
+  if (idx === -1) return;
+  const next = _drawerTermList[idx + dir];
+  if (!next) return;
+  openDrawer(next.id);
+  // 해당 카드로 부드럽게 스크롤
+  setTimeout(() => {
+    const card = document.getElementById('card-' + next.id);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 80);
+}
+
+function _updateDrawerNav() {
+  const idx   = _drawerTermList.findIndex(x => x.id === _drawerTermId);
+  const total = _drawerTermList.length;
+  document.getElementById('drawerNavCount').textContent = total ? `${idx + 1} / ${total}` : '';
+  document.getElementById('drawerPrevBtn').disabled = idx <= 0;
+  document.getElementById('drawerNextBtn').disabled = idx >= total - 1;
+}
+
+function drawerToggleBookmark() {
+  if (!_drawerTermId) return;
+  if (bookmarks.has(_drawerTermId)) {
+    bookmarks.delete(_drawerTermId);
+    showToast('즐겨찾기에서 제거됨');
+  } else {
+    bookmarks.add(_drawerTermId);
+    showToast('⭐ 즐겨찾기에 추가됨');
+  }
+  localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
+  updateLearningState(_drawerTermId, { bookmarked: bookmarks.has(_drawerTermId) });
+  updateBookmarkCount();
+  _syncDrawerBookmarkBtn();
+  // 목록 카드의 즐겨찾기 버튼도 갱신 (리렌더 없이)
+  const card = document.getElementById('card-' + _drawerTermId);
+  if (card) {
+    const btn = card.querySelector('.bookmark-btn');
+    if (btn) {
+      const saved = bookmarks.has(_drawerTermId);
+      btn.textContent = saved ? '⭐' : '☆';
+      btn.classList.toggle('saved', saved);
+    }
+  }
+}
+
+function _syncDrawerBookmarkBtn() {
+  const btn = document.getElementById('drawerBookmarkBtn');
+  if (!btn || !_drawerTermId) return;
+  const saved = bookmarks.has(_drawerTermId);
+  btn.textContent = saved ? '⭐' : '☆';
+  btn.classList.toggle('starred', saved);
+}
+
+function drawerOpenEdit() {
+  if (!_drawerTermId) return;
+  closeDrawer();
+  setTimeout(() => openEditModal({ stopPropagation: () => {} }, _drawerTermId), 120);
+}
+
+function _renderDrawerContent(t) {
+  // 헤더 업데이트
+  document.getElementById('drawerTitleKo').textContent = t.ko || t.en || '—';
+  document.getElementById('drawerTitleEn').textContent = t.en || '';
+  _syncDrawerBookmarkBtn();
+
+  // 완성도 배지
+  const missing = [];
+  if (!t.ko)     missing.push('KO');
+  if (!t.uz)     missing.push('UZ');
+  if (!t.def_ko) missing.push('정의');
+  if (!t.def_en) missing.push('Def');
+  if (!t.def_uz) missing.push('Uz');
+  if (!t.usmle)  missing.push('USMLE');
+  if (!t.ipa)    missing.push('IPA');
+  const badgeHtml = missing.length
+    ? `<span class="drawer-complete-badge" style="color:#f85149;background:rgba(248,81,73,0.1);border-color:rgba(248,81,73,0.3)">✗ ${missing.join(' · ')}</span>`
+    : `<span class="drawer-complete-badge" style="color:#3fb950;background:rgba(63,185,80,0.1);border-color:rgba(63,185,80,0.3)">✓ 완성</span>`;
+
+  // 카테고리 배지
+  const catHtml = `<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">${escapeHtml(t.category)}</span>`;
+
+  // 링크 버튼들
+  const linksHtml = `
+    <div class="drawer-links">
+      <a class="drawer-link-btn" href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(63,185,80,0.08);border-color:#166534;color:#4ade80">📚 PubMed</a>
+      <a class="drawer-link-btn" href="${youtubeSearchUrl(t)}" target="_blank" rel="noopener noreferrer" style="background:rgba(255,0,0,0.08);border-color:#991b1b;color:#fca5a5">▶️ YouTube</a>
+      <a class="drawer-link-btn" href="${googleUsageSearchUrl(t)}" target="_blank" rel="noopener noreferrer" style="background:rgba(251,191,36,0.08);border-color:#92400e;color:#fbbf24">🔎 Google 사용례</a>
+      <button class="drawer-link-btn" onclick="showICD11Popup('${escapeJsString(t.en)}','${escapeJsString(t.ko)}');" style="background:rgba(139,92,246,0.08);border-color:#5b21b6;color:#a78bfa;font-family:'Noto Sans KR',sans-serif">🏷️ ICD-11</button>
+      <a class="drawer-link-btn" href="https://medlineplus.gov/search.html?query=${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(88,166,255,0.08);border-color:#1d4ed8;color:#74b0ff">💊 MedlinePlus</a>
+      <a class="drawer-link-btn" href="https://clinicaltrials.gov/search?cond=${encodeURIComponent(t.en)}&recrs=a" target="_blank" style="background:rgba(34,197,94,0.08);border-color:#166534;color:#4ade80">🔬 ClinicalTrials</a>
+      <a class="drawer-link-btn" href="https://www.fda.gov/search?s=${encodeURIComponent(t.en)}" target="_blank" style="background:rgba(248,81,73,0.08);border-color:#991b1b;color:#f87171">⚠️ FDA</a>
+    </div>`;
+
+  document.getElementById('drawerBody').innerHTML = `
+    <!-- 상단 메타 -->
+    <div class="drawer-section" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 18px">
+      ${catHtml}
+      ${badgeHtml}
+    </div>
+
+    <!-- 한국어 -->
+    <div class="drawer-section">
+      <div class="drawer-lang-badge" style="background:var(--tag-ko);color:#74b0ff;border:1px solid #1d4ed8">🇰🇷 한국어</div>
+      ${t.ko
+        ? `<div class="drawer-term-main" style="font-family:'Noto Serif KR',serif">${escapeHtml(t.ko)}</div>`
+        : `<div class="drawer-missing">한국어 명칭 없음</div>`}
+      ${t.def_ko
+        ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(t.def_ko)}</div>`
+        : `<div class="drawer-missing">한국어 정의 없음</div>`}
+    </div>
+
+    <!-- 영어 -->
+    <div class="drawer-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        <div class="drawer-lang-badge" style="background:var(--tag-en);color:#4ade80;border:1px solid #166534;margin-bottom:0">🇺🇸 English</div>
+        <button class="speak-btn" id="drawer-speak-term" onclick="speakText(event,'${escapeJsString(t.en)}','term',${t.id})">
+          <div class="wave"><span></span><span></span><span></span><span></span></div>
+          발음 듣기
+        </button>
+      </div>
+      ${t.en
+        ? `<div class="drawer-term-main">${escapeHtml(t.en)}</div>`
+        : `<div class="drawer-missing">영어 명칭 없음</div>`}
+      ${t.ipa ? `
+        <div class="drawer-ipa">
+          <span style="font-size:10px;color:var(--text3);font-family:'Noto Sans KR',sans-serif">IPA</span>
+          ${escapeHtml(t.ipa)}
+        </div>
+        <div class="drawer-ipa-tip">Cambridge 방식 · 강세: ˈ(1차) ˌ(2차) · 장모음: ː</div>` : ''}
+      ${t.def_en
+        ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(t.def_en)}</div>`
+        : `<div class="drawer-missing">영어 정의 없음</div>`}
+      <div class="drawer-speak-row">
+        <button class="speak-btn" id="drawer-speak-def" onclick="speakText(event,'${escapeJsString(t.def_en)}','def',${t.id})" style="font-size:11px;padding:4px 10px">
+          <div class="wave"><span></span><span></span><span></span><span></span></div>
+          정의 읽기
+        </button>
+      </div>
+      <div class="tts-speed-row" style="margin-top:10px">
+        <span class="tts-speed-label">🐢 속도</span>
+        <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
+        <span class="tts-speed-val">${ttsSpeed.toFixed(1)}×</span>
+      </div>
+    </div>
+
+    <!-- 우즈베크어 -->
+    <div class="drawer-section">
+      <div class="drawer-lang-badge" style="background:var(--tag-uz);color:#fbbf24;border:1px solid #92400e">🇺🇿 O'zbek</div>
+      ${t.uz
+        ? `<div class="drawer-term-main">${escapeHtml(t.uz)}</div>`
+        : `<div class="drawer-missing">우즈베크어 명칭 없음</div>`}
+      ${t.def_uz
+        ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(t.def_uz)}</div>`
+        : `<div class="drawer-missing">우즈베크어 정의 없음</div>`}
+    </div>
+
+    <!-- USMLE -->
+    <div class="drawer-section" style="background:rgba(88,166,255,0.03)">
+      <div class="drawer-lang-badge" style="background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid #1d3a5e">📋 USMLE High-Yield</div>
+      ${t.usmle
+        ? `<div class="drawer-usmle-text">${escapeHtml(t.usmle)}</div>`
+        : `<div class="drawer-missing">USMLE 내용 없음</div>`}
+    </div>
+
+    <!-- 링크 -->
+    <div class="drawer-section" style="background:rgba(0,0,0,0.08)">
+      <div class="drawer-lang-badge" style="background:rgba(255,255,255,0.05);color:var(--text3);border:1px solid var(--border)">🔗 더 알아보기</div>
+      ${linksHtml}
+    </div>
+  `;
+}
+
+// 키보드 단축키: ESC=닫기, ←→=이전/다음
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('termDrawer').classList.contains('open')) return;
+  if (e.key === 'Escape')     closeDrawer();
+  if (e.key === 'ArrowRight') drawerNavigate(1);
+  if (e.key === 'ArrowLeft')  drawerNavigate(-1);
+});
+// ═══════════════════════════════════════════════════════
+
+</script>
 <style>
   :root {
     --bg: #0d1117;
@@ -72,6 +290,109 @@
     font-size: 11px;
     color: var(--text2);
     font-weight: 500;
+  }
+
+  .developer-header-btn {
+    margin-left: 0;
+    background: rgba(167,139,250,0.08);
+    border: 1px solid rgba(167,139,250,0.45);
+    border-radius: 9px;
+    padding: 8px 12px;
+    color: #c4b5fd;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+
+  .developer-header-btn:hover {
+    background: rgba(167,139,250,0.16);
+  }
+
+  .developer-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,0.82);
+    backdrop-filter: blur(7px);
+  }
+
+  .developer-modal {
+    width: min(760px, 100%);
+    max-height: 88vh;
+    overflow-y: auto;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+  }
+
+  .developer-modal-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    background: rgba(22,27,34,0.97);
+    border-bottom: 1px solid #30363d;
+  }
+
+  .developer-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 18px 20px 8px;
+  }
+
+  .developer-field {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .developer-field-label {
+    color: #6e7681;
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+
+  .developer-field-value {
+    color: #c9d1d9;
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  .update-history {
+    padding: 10px 20px 22px;
+  }
+
+  .update-history-card {
+    background: rgba(88,166,255,0.06);
+    border: 1px solid #30363d;
+    border-radius: 11px;
+    padding: 14px 16px;
+    margin-top: 10px;
+  }
+
+  .update-history-card.latest {
+    border-color: rgba(63,185,80,0.5);
+    background: rgba(63,185,80,0.06);
+  }
+
+  @media (max-width: 600px) {
+    .update-badge { display: none; }
+    .developer-header-btn { padding: 7px 9px; }
+    .developer-grid { grid-template-columns: 1fr; }
   }
 
   .logo-badge {
@@ -775,6 +1096,282 @@
   }
 
   .trials-link:hover { background: rgba(34,197,94,0.15); }
+
+  /* ═══════════════════════════════════════
+     TERM DRAWER — 오른쪽 슬라이드 패널
+     모바일: 하단 Bottom Sheet
+  ═══════════════════════════════════════ */
+  .term-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0);
+    z-index: 400;
+    pointer-events: none;
+    transition: background 0.3s ease;
+  }
+  .term-drawer-overlay.open {
+    background: rgba(0,0,0,0.55);
+    pointer-events: all;
+  }
+
+  .term-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: min(480px, 92vw);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 401;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.32,0,0,1);
+    box-shadow: -8px 0 40px rgba(0,0,0,0.45);
+    overflow: hidden;
+  }
+  .term-drawer.open {
+    transform: translateX(0);
+  }
+
+  /* 드로어 헤더 */
+  .drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+    gap: 10px;
+  }
+  .drawer-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+  .drawer-title-ko {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .drawer-title-en {
+    font-size: 13px;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .drawer-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .drawer-action-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .drawer-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .drawer-action-btn.starred { color: var(--accent3); border-color: var(--accent3); }
+  .drawer-close-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .drawer-close-btn:hover { color: var(--text); background: var(--surface2); }
+
+  /* 드로어 네비게이션 (이전/다음) */
+  .drawer-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .drawer-nav-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .drawer-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .drawer-nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .drawer-nav-count {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* 드로어 바디 */
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .drawer-body::-webkit-scrollbar { width: 4px; }
+  .drawer-body::-webkit-scrollbar-track { background: transparent; }
+  .drawer-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .drawer-section {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .drawer-section:last-child { border-bottom: none; }
+  .drawer-lang-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border-radius: 6px;
+    padding: 3px 10px;
+    margin-bottom: 10px;
+  }
+  .drawer-term-main {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.35;
+  }
+  .drawer-term-def {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.65;
+  }
+  .drawer-ipa {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-family: monospace;
+    font-size: 13px;
+    color: #c9a4ff;
+    margin: 6px 0 4px;
+  }
+  .drawer-ipa-tip {
+    font-size: 10px;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+  .drawer-speak-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .drawer-missing {
+    font-size: 11px;
+    color: var(--text3);
+    font-style: italic;
+    padding: 8px 0;
+  }
+  .drawer-usmle-text {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .drawer-links {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .drawer-link-btn {
+    text-decoration: none;
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 11px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    border: 1px solid;
+    transition: opacity 0.15s;
+  }
+  .drawer-link-btn:hover { opacity: 0.8; }
+  .drawer-complete-badge {
+    font-size: 10px;
+    border-radius: 6px;
+    padding: 2px 8px;
+    border: 1px solid;
+  }
+
+  /* 모바일: Bottom Sheet */
+  @media (max-width: 600px) {
+    .term-drawer {
+      top: auto;
+      bottom: 0;
+      right: 0;
+      left: 0;
+      width: 100%;
+      height: 88vh;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      transform: translateY(100%);
+      box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
+    }
+    .term-drawer.open { transform: translateY(0); }
+    /* Bottom Sheet 핸들 */
+    .drawer-handle {
+      display: flex !important;
+    }
+  }
+  .drawer-handle {
+    display: none;
+    justify-content: center;
+    padding: 10px 0 2px;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .drawer-handle-bar {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  /* 카드 hover 커서 변경 (더이상 expand 아닌 drawer 열기) */
+  .term-card { cursor: pointer; }
+  .term-card .term-detail { display: none !important; }
+  .term-card .chevron { display: none !important; }
+  .term-card.expanded { border-color: var(--accent); }
+
 </style>
 </head>
 <body>
@@ -790,6 +1387,7 @@
       <span>개발일자</span>
       <span id="updateDate"></span>
     </div>
+    <button class="developer-header-btn" onclick="showDeveloperInfo()" title="개발자 정보와 업데이트 내역 보기">👨‍💻 개발자</button>
   </div>
   <div class="search-wrap autocomplete-wrap">
     <span class="search-icon">🔍</span>
@@ -910,6 +1508,32 @@ const TERMS_STORAGE_KEY = 'kma_medical_terms_v2_terms';
 const TERMS_STORAGE_META_KEY = 'kma_medical_terms_v2_meta';
 const AI_CONFIG_STORAGE_KEY = 'kma_medical_terms_v2_ai_config';
 const SUPABASE_CONFIG_KEY = 'kma_supabase_config';
+const SYNC_META_STORAGE_KEY = 'kma_medical_terms_v2_sync_meta';
+const LEARNING_STORAGE_KEY = 'kma_medical_terms_v2_learning';
+const TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_tombstones';
+const DEVICE_ID_STORAGE_KEY = 'kma_medical_terms_v2_device_id';
+const SYNC_META_TABLE = 'language_sync_meta';
+const LEARNING_TABLE = 'medical_term_learning_state';
+const CANONICAL_META_KEY = 'medical_terms_canonical_version';
+
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : `device-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+  }
+  return id;
+}
+
+function getLocalSyncMeta() {
+  return safeJsonParse(localStorage.getItem(SYNC_META_STORAGE_KEY), {}) || {};
+}
+
+function saveLocalSyncMeta(patch) {
+  const next = { ...getLocalSyncMeta(), ...patch, deviceId: getDeviceId(), savedAt: new Date().toISOString() };
+  localStorage.setItem(SYNC_META_STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
 
 // ─── Supabase 동기화 ───
 function getSupabaseConfig() {
@@ -932,6 +1556,7 @@ function sbHeaders() {
 }
 
 function termToRow(t) {
+  const now = new Date().toISOString();
   return {
     id:          Number(t.id),
     ko:          t.ko || '',
@@ -948,7 +1573,9 @@ function termToRow(t) {
     fda_drug:    t.fdaDrug || null,
     rxclass_atc: t.rxclassATC || null,
     trials:      t.trials || null,
-    updated_at:  t.updatedAt || new Date().toISOString(),
+    created_at:  t.createdAt || t.updatedAt || now,
+    updated_at:  t.updatedAt || now,
+    deleted_at:  t.deletedAt || null,
   };
 }
 
@@ -969,7 +1596,9 @@ function rowToTerm(r) {
     fdaDrug:     r.fda_drug || null,
     rxclassATC:  r.rxclass_atc || null,
     trials:      r.trials || null,
+    createdAt:   r.created_at || r.updated_at || new Date().toISOString(),
     updatedAt:   r.updated_at || new Date().toISOString(),
+    deletedAt:   r.deleted_at || null,
   };
 }
 
@@ -978,24 +1607,31 @@ async function sbUpsertTerm(t) {
   const cfg = getSupabaseConfig();
   if (!cfg) return;
   try {
-    await fetch(`${cfg.url}/rest/v1/medical_terms`, {
+    const res = await fetch(`${cfg.url}/rest/v1/medical_terms`, {
       method: 'POST',
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(termToRow(t))
     });
+    if (!res.ok) throw new Error(`upsert failed: ${res.status} ${await res.text()}`);
+    return true;
   } catch(e) { console.warn('Supabase upsert failed:', e); }
+  return false;
 }
 
-// Supabase에서 용어 삭제
-async function sbDeleteTerm(id) {
+// 삭제도 변경 이력으로 동기화되도록 soft delete 처리
+async function sbDeleteTerm(id, deletedAt = new Date().toISOString()) {
   const cfg = getSupabaseConfig();
-  if (!cfg) return;
+  if (!cfg) return false;
   try {
-    await fetch(`${cfg.url}/rest/v1/medical_terms?id=eq.${id}`, {
-      method: 'DELETE',
-      headers: sbHeaders()
+    const res = await fetch(`${cfg.url}/rest/v1/medical_terms?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: sbHeaders(),
+      body: JSON.stringify({ deleted_at: deletedAt, updated_at: deletedAt })
     });
+    if (!res.ok) throw new Error(`soft delete failed: ${res.status} ${await res.text()}`);
+    return true;
   } catch(e) { console.warn('Supabase delete failed:', e); }
+  return false;
 }
 
 // Supabase에서 전체 로드
@@ -1006,7 +1642,7 @@ async function sbLoadAll() {
     const rows = [];
     const pageSize = 1000;
     for (let offset = 0; ; offset += pageSize) {
-      const res = await fetch(`${cfg.url}/rest/v1/medical_terms?select=*&order=id.asc&limit=${pageSize}&offset=${offset}`, {
+      const res = await fetch(`${cfg.url}/rest/v1/medical_terms?select=*&order=updated_at.desc&limit=${pageSize}&offset=${offset}`, {
         headers: sbHeaders()
       });
       if (!res.ok) return null;
@@ -1015,47 +1651,98 @@ async function sbLoadAll() {
       rows.push(...page);
       if (page.length < pageSize) break;
     }
-    return dedupeTermsByIdentity(rows.map(rowToTerm));
+    return dedupeTermsById(rows.map(rowToTerm));
   } catch(e) { console.warn('Supabase load failed:', e); return null; }
 }
 
-// Supabase에 전체 업로드 (현재 TERMS → DB 기준본으로 덮어쓰기)
+async function sbLoadCanonicalMeta() {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${SYNC_META_TABLE}?key=eq.${CANONICAL_META_KEY}&select=value,updated_at&limit=1`, {
+      headers: sbHeaders()
+    });
+    if (!res.ok) throw new Error(`meta load failed: ${res.status}`);
+    const rows = await res.json();
+    if (!rows?.length) return { version: null, updatedAt: null };
+    return { version: rows[0].value || null, updatedAt: rows[0].updated_at || null };
+  } catch (e) {
+    console.warn('Supabase canonical meta load failed:', e);
+    return null;
+  }
+}
+
+async function sbSetCanonicalMeta(version) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return false;
+  const now = new Date().toISOString();
+  const res = await fetch(`${cfg.url}/rest/v1/${SYNC_META_TABLE}`, {
+    method: 'POST',
+    headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify({ key: CANONICAL_META_KEY, value: version, updated_at: now })
+  });
+  if (!res.ok) throw new Error(`canonical meta save failed: ${res.status} ${await res.text()}`);
+  return true;
+}
+
+async function sbBatchUpsertRows(rows) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) throw new Error('Supabase 설정이 없습니다.');
+  for (let i = 0; i < rows.length; i += 100) {
+    const res = await fetch(`${cfg.url}/rest/v1/medical_terms`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(rows.slice(i, i + 100))
+    });
+    if (!res.ok) throw new Error(`batch upsert failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+// 현재 기기를 최종본으로 지정: 데이터 저장이 모두 성공한 뒤 canonical_version 갱신
 async function sbPushAll(options = {}) {
   const cfg = getSupabaseConfig();
   if (!cfg) { showToast('⚠️ Supabase 설정을 먼저 저장하세요'); return; }
-  if (TERMS.length === 0) { showToast('⚠️ 저장할 용어가 없습니다'); return; }
   const { confirmOverwrite = false } = options;
   if (confirmOverwrite) {
     const ok = window.confirm(`현재 이 기기의 ${TERMS.length}개 용어를 클라우드 기준본으로 저장할까요?\n\n기존 클라우드 데이터는 모두 지워지고 이 버전으로 교체됩니다.`);
     if (!ok) return;
   }
   try {
-    const cleanTerms = dedupeTermsByIdentity(TERMS);
-    showToast('☁️ 클라우드 기준본 저장 중...');
-    await sbDeleteAll();
+    const cleanTerms = dedupeTermsById(TERMS).filter(t => !t.deletedAt);
+    showToast('☁️ 새 기준본을 안전하게 저장 중...');
+    const cloudTerms = await sbLoadAll();
+    if (cloudTerms === null) throw new Error('기존 클라우드 데이터를 읽지 못했습니다.');
     const rows = cleanTerms.map(termToRow);
-    // 100개씩 배치
-    for (let i = 0; i < rows.length; i += 100) {
-      await fetch(`${cfg.url}/rest/v1/medical_terms`, {
-        method: 'POST',
-        headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify(rows.slice(i, i + 100))
-      });
+    await sbBatchUpsertRows(rows);
+
+    const localIds = new Set(cleanTerms.map(t => String(t.id)));
+    const removedCloudTerms = cloudTerms.filter(t => !t.deletedAt && !localIds.has(String(t.id)));
+    for (const oldTerm of removedCloudTerms) {
+      const ok = await sbDeleteTerm(oldTerm.id);
+      if (!ok) throw new Error(`누락 항목 삭제 표시 실패: ${oldTerm.id}`);
     }
+
+    const canonicalVersion = `${Date.now()}-${getDeviceId()}`;
+    await sbSetCanonicalMeta(canonicalVersion);
     TERMS.length = 0;
     TERMS.push(...cleanTerms);
     saveTermsToLocalStorage();
+    saveLocalSyncMeta({ canonicalVersion });
+    await syncLearningStateToCloud();
     updateBookmarkCount();
     applyFilters();
-    showToast(`☁️ 클라우드 기준본 저장 완료 (${cleanTerms.length}개)`);
-  } catch(e) { showToast('⚠️ Supabase 업로드 실패'); }
+    showToast(`☁️ 이 기기를 새 최종본으로 지정했습니다 (${cleanTerms.length}개)`);
+  } catch(e) {
+    console.error('Canonical push failed:', e);
+    showToast('⚠️ 최종본 저장 실패 · 기존 클라우드 데이터는 유지됩니다');
+  }
 }
 
 function confirmPushLocalToCloud() {
   return sbPushAll({ confirmOverwrite: true });
 }
 
-// Supabase에서 전체 삭제
+// 관리용 전체 삭제. 일반 동기화에서는 사용하지 않는다.
 async function sbDeleteAll() {
   const cfg = getSupabaseConfig();
   if (!cfg) return false;
@@ -1091,6 +1778,7 @@ function capitalizeFirst(s) {
 }
 
 function normalizeTermForStorage(t) {
+  const now = new Date().toISOString();
   return {
     id: Number(t.id) || Date.now(),
     ko: capitalizeFirst(t.ko || ''),
@@ -1107,8 +1795,23 @@ function normalizeTermForStorage(t) {
     fdaDrug: t.fdaDrug || null,
     rxclassATC: t.rxclassATC || null,
     trials: t.trials || null,
-    updatedAt: t.updatedAt || new Date().toISOString(),
+    createdAt: t.createdAt || t.updatedAt || now,
+    updatedAt: t.updatedAt || now,
+    deletedAt: t.deletedAt || null,
   };
+}
+
+function dedupeTermsById(terms) {
+  const byId = new Map();
+  (Array.isArray(terms) ? terms : []).forEach(raw => {
+    const term = normalizeTermForStorage(raw);
+    const key = String(term.id);
+    const existing = byId.get(key);
+    if (!existing || (Date.parse(term.updatedAt) || 0) >= (Date.parse(existing.updatedAt) || 0)) {
+      byId.set(key, term);
+    }
+  });
+  return [...byId.values()];
 }
 
 function normalizeSyncText(value) {
@@ -1164,7 +1867,7 @@ function dedupeTermsByIdentity(terms) {
 
 function saveTermsToLocalStorage() {
   try {
-    const payload = dedupeTermsByIdentity(TERMS);
+    const payload = dedupeTermsById(TERMS).filter(t => !t.deletedAt);
     TERMS.length = 0;
     TERMS.push(...payload);
     localStorage.setItem(TERMS_STORAGE_KEY, JSON.stringify(payload));
@@ -1181,13 +1884,126 @@ function saveTermsToLocalStorage() {
   }
 }
 
+function loadLocalTombstones() {
+  const rows = safeJsonParse(localStorage.getItem(TOMBSTONE_STORAGE_KEY), []);
+  return Array.isArray(rows) ? dedupeTermsById(rows).filter(t => t.deletedAt) : [];
+}
+
+function saveLocalTombstones(rows) {
+  localStorage.setItem(TOMBSTONE_STORAGE_KEY, JSON.stringify(dedupeTermsById(rows).filter(t => t.deletedAt)));
+}
+
+function recordLocalTombstone(term) {
+  if (!term) return;
+  const deletedAt = new Date().toISOString();
+  const tombstone = normalizeTermForStorage({ ...term, updatedAt: deletedAt, deletedAt });
+  const rows = loadLocalTombstones().filter(t => String(t.id) !== String(term.id));
+  rows.push(tombstone);
+  saveLocalTombstones(rows);
+  return tombstone;
+}
+
 // Supabase에 단일 용어 저장 (로컬 저장 후 비동기로 호출)
 function saveTermToCloud(t) {
   if (getSupabaseConfig()) sbUpsertTerm(t).catch(() => {});
 }
 
-function deleteTermFromCloud(id) {
-  if (getSupabaseConfig()) sbDeleteTerm(id).catch(() => {});
+function deleteTermFromCloud(id, deletedAt) {
+  if (getSupabaseConfig()) sbDeleteTerm(id, deletedAt).catch(() => {});
+}
+
+function getLearningStateMap() {
+  return safeJsonParse(localStorage.getItem(LEARNING_STORAGE_KEY), {}) || {};
+}
+
+function saveLearningStateMap(map) {
+  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify(map || {}));
+}
+
+function updateLearningState(termId, patch, pushCloud = true) {
+  const map = getLearningStateMap();
+  const key = String(termId);
+  const previous = map[key] || { termId: Number(termId), createdAt: new Date().toISOString() };
+  map[key] = { ...previous, ...patch, termId: Number(termId), updatedAt: new Date().toISOString() };
+  saveLearningStateMap(map);
+  if (pushCloud && getSupabaseConfig()) sbUpsertLearningState(map[key]).catch(() => {});
+  return map[key];
+}
+
+function learningStateToRow(state) {
+  return {
+    term_id: Number(state.termId),
+    bookmarked: !!state.bookmarked,
+    correct_count: Number(state.correctCount) || 0,
+    wrong_count: Number(state.wrongCount) || 0,
+    study_status: state.studyStatus || 'new',
+    due_at: state.dueAt || null,
+    last_reviewed_at: state.lastReviewedAt || null,
+    created_at: state.createdAt || state.updatedAt || new Date().toISOString(),
+    updated_at: state.updatedAt || new Date().toISOString(),
+  };
+}
+
+function learningRowToState(row) {
+  return {
+    termId: Number(row.term_id),
+    bookmarked: !!row.bookmarked,
+    correctCount: Number(row.correct_count) || 0,
+    wrongCount: Number(row.wrong_count) || 0,
+    studyStatus: row.study_status || 'new',
+    dueAt: row.due_at || null,
+    lastReviewedAt: row.last_reviewed_at || null,
+    createdAt: row.created_at || row.updated_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+async function sbUpsertLearningState(state) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return false;
+  const res = await fetch(`${cfg.url}/rest/v1/${LEARNING_TABLE}`, {
+    method: 'POST',
+    headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify(learningStateToRow(state))
+  });
+  if (!res.ok) throw new Error(`learning state upsert failed: ${res.status}`);
+  return true;
+}
+
+async function sbLoadLearningStates() {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${LEARNING_TABLE}?select=*&order=updated_at.desc`, { headers: sbHeaders() });
+    if (!res.ok) throw new Error(`learning state load failed: ${res.status}`);
+    return (await res.json()).map(learningRowToState);
+  } catch (e) {
+    console.warn('Learning state sync unavailable. Run the schema SQL from Developer Info.', e);
+    return null;
+  }
+}
+
+function applyLearningStates(states, cloudAuthoritative = false) {
+  if (!Array.isArray(states)) return;
+  const local = cloudAuthoritative ? {} : getLearningStateMap();
+  states.forEach(state => {
+    const key = String(state.termId);
+    const current = local[key];
+    if (!current || cloudAuthoritative || (Date.parse(state.updatedAt) || 0) > (Date.parse(current.updatedAt) || 0)) {
+      local[key] = state;
+    }
+  });
+  saveLearningStateMap(local);
+  bookmarks = new Set(Object.values(local).filter(s => s.bookmarked).map(s => Number(s.termId)));
+  localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
+}
+
+async function syncLearningStateToCloud() {
+  const cloud = await sbLoadLearningStates();
+  const local = getLearningStateMap();
+  if (Array.isArray(cloud)) applyLearningStates(cloud, false);
+  const merged = getLearningStateMap();
+  for (const state of Object.values(merged)) await sbUpsertLearningState(state);
 }
 
 function loadTermsFromLocalStorage() {
@@ -1226,6 +2042,7 @@ const VALID_CATS = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','E
 
 let bookmarks = new Set(JSON.parse(localStorage.getItem('kma_bookmarks') || '[]').map(Number));
 let expandedId = null;
+let _lastFilteredTerms = [];
 let currentTab = 'search';
 
 // ─── Render ───
@@ -1342,6 +2159,16 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function escapeJsString(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/</g, '\\x3c')
+    .replace(/>/g, '\\x3e');
+}
+
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -1374,8 +2201,16 @@ function highlight(text, query) {
 }
 
 function toggleCard(id) {
-  expandedId = expandedId === id ? null : id;
-  applyFilters();
+  // 드로어가 이미 이 카드로 열려있으면 닫기, 아니면 열기
+  if (_drawerTermId === id) {
+    closeDrawer();
+  } else {
+    openDrawer(id);
+    // 카드 강조 (리렌더 없이)
+    document.querySelectorAll('.term-card.expanded').forEach(el => el.classList.remove('expanded'));
+    const card = document.getElementById('card-' + id);
+    if (card) card.classList.add('expanded');
+  }
 }
 
 function toggleBookmark(e, id) {
@@ -1388,6 +2223,7 @@ function toggleBookmark(e, id) {
     showToast('⭐ 즐겨찾기에 추가됨');
   }
   localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
+  updateLearningState(id, { bookmarked: bookmarks.has(id) });
   updateBookmarkCount();
   applyFilters();
 }
@@ -1431,6 +2267,7 @@ function applyFilters() {
     const bookmarked = TERMS.filter(t => bookmarks.has(t.id));
     const rest = TERMS.filter(t => !bookmarks.has(t.id));
     if (label) label.textContent = `⭐ 즐겨찾기 ${bookmarked.length}개 · 전체 ${TERMS.length}개`;
+    _lastFilteredTerms = [...bookmarked, ...rest];
     renderTerms([...bookmarked, ...rest], bookmarked.length);
     return;
   }
@@ -1443,6 +2280,7 @@ function applyFilters() {
   } else if (currentSort === 'uz_asc') {
     results = [...results].sort((a, b) => (a.uz || '').localeCompare(b.uz || '', 'uz'));
   }
+  _lastFilteredTerms = results;
   renderTerms(results);
 }
 
@@ -1458,6 +2296,7 @@ function renderHome() {
 
   if (bookmarked.length > 0) {
     if (label) label.textContent = `⭐ 즐겨찾기 — ${bookmarked.length}개`;
+    _lastFilteredTerms = bookmarked;
     renderTerms(bookmarked);
   } else {
     list.innerHTML = `
@@ -1859,19 +2698,26 @@ function disconnectSupabase() {
 function saveSupabaseFromForm() {
   const url = document.getElementById('sb_url')?.value.trim().replace(/\/+$/, '');
   const key = document.getElementById('sb_key')?.value.trim();
-  if (!url || !key) { showToast('⚠️ URL과 키를 모두 입력해주세요'); return; }
+  if (!url || !key) { showToast('⚠️ URL과 키를 모두 입력해주세요'); return false; }
   saveSupabaseConfig(url, key);
   showToast('✅ Supabase 설정 저장됨');
   const el = document.getElementById('sbStatus');
   if (el) el.textContent = '✅ 연결됨';
+  return true;
 }
 
 async function testAndSyncSupabase() {
-  saveSupabaseFromForm();
+  if (!saveSupabaseFromForm()) return;
   showToast('☁️ 연결 테스트 중...');
   const ok = await testSupabaseConnection();
   if (ok) {
-    showToast('✅ 연결 성공! 기준본 저장/불러오기를 선택하세요');
+    showToast('✅ 연결 성공 · 즉시 동기화합니다');
+    try {
+      await syncWithCloud();
+    } catch (e) {
+      console.error(e);
+      showToast('⚠️ 동기화 실패 · 개발자 정보의 Supabase 설정 SQL을 확인하세요');
+    }
   } else {
     showToast('⚠️ 연결 실패 — URL/키 확인');
   }
@@ -1882,13 +2728,67 @@ async function pullFromCloud() {
   showToast('⬇️ 클라우드에서 불러오는 중...');
   const cloudTerms = await sbLoadAll();
   if (!cloudTerms || cloudTerms.length === 0) { showToast('⚠️ 클라우드에 데이터가 없습니다'); return; }
-  const cleanCloudTerms = dedupeTermsByIdentity(cloudTerms);
+  const cleanCloudTerms = dedupeTermsById(cloudTerms).filter(t => !t.deletedAt);
   TERMS.length = 0;
   TERMS.push(...cleanCloudTerms);
   saveTermsToLocalStorage();
+  saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
+  const meta = await sbLoadCanonicalMeta();
+  if (meta?.version) saveLocalSyncMeta({ canonicalVersion: meta.version });
+  const learning = await sbLoadLearningStates();
+  if (learning) applyLearningStates(learning, true);
   updateBookmarkCount();
   applyFilters();
   showToast(`⬇️ 클라우드 기준본 ${cleanCloudTerms.length}개 불러옴`);
+}
+
+async function syncWithCloud() {
+  if (!getSupabaseConfig()) return false;
+  showToast('☁️ 변경사항 동기화 중...');
+  const [cloudTerms, canonicalMeta] = await Promise.all([sbLoadAll(), sbLoadCanonicalMeta()]);
+  if (cloudTerms === null) {
+    showToast('⚠️ 클라우드 데이터를 불러오지 못했습니다');
+    return false;
+  }
+
+  const localMeta = getLocalSyncMeta();
+  const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== localMeta.canonicalVersion;
+
+  if (canonicalChanged) {
+    TERMS.length = 0;
+    TERMS.push(...dedupeTermsById(cloudTerms).filter(t => !t.deletedAt));
+    saveTermsToLocalStorage();
+    saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
+    const learning = await sbLoadLearningStates();
+    if (learning) applyLearningStates(learning, true);
+    saveLocalSyncMeta({ canonicalVersion: canonicalMeta.version });
+    updateBookmarkCount();
+    applyFilters();
+    showToast(`☁️ 새 최종본 적용 완료 (${TERMS.length}개)`);
+    return true;
+  }
+
+  const allLocal = [...TERMS, ...loadLocalTombstones()];
+  const merged = new Map();
+  [...cloudTerms, ...allLocal].forEach(raw => {
+    const term = normalizeTermForStorage(raw);
+    const key = String(term.id);
+    const current = merged.get(key);
+    if (!current || (Date.parse(term.updatedAt) || 0) >= (Date.parse(current.updatedAt) || 0)) merged.set(key, term);
+  });
+
+  const mergedRows = [...merged.values()];
+  TERMS.length = 0;
+  TERMS.push(...mergedRows.filter(t => !t.deletedAt));
+  saveTermsToLocalStorage();
+  saveLocalTombstones(mergedRows.filter(t => t.deletedAt));
+  await sbBatchUpsertRows(mergedRows.map(termToRow));
+  await syncLearningStateToCloud();
+  if (canonicalMeta?.version) saveLocalSyncMeta({ canonicalVersion: canonicalMeta.version });
+  updateBookmarkCount();
+  applyFilters();
+  showToast(`✅ 양방향 동기화 완료 (${TERMS.length}개)`);
+  return true;
 }
 
 function chooseAIProvider(task = 'general') {
@@ -2260,9 +3160,9 @@ function previewTsvPaste() {
   label.textContent = `✅ ${rows.length}개 용어 인식됨`;
   list.innerHTML = rows.map(t =>
     `<div style="font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid #21262d;display:flex;gap:8px">
-      <span style="color:var(--text);font-weight:500;min-width:60px">${t.ko || '—'}</span>
-      <span style="color:var(--accent)">${t.en || '—'}</span>
-      <span style="color:#fbbf24;font-size:10px">${t.category}</span>
+      <span style="color:var(--text);font-weight:500;min-width:60px">${escapeHtml(t.ko || '—')}</span>
+      <span style="color:var(--accent)">${escapeHtml(t.en || '—')}</span>
+      <span style="color:#fbbf24;font-size:10px">${escapeHtml(t.category)}</span>
     </div>`
   ).join('');
   preview.style.display = 'block';
@@ -2423,8 +3323,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 AI탭에서 키 등록 시 자동완성 가능)`);
     switchTab('search', document.querySelector('.nav-btn'));
-    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
+    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
     return;
   }
 
@@ -2455,8 +3355,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${finalKo || finalEn || finalUz}" AI 자동완성 추가 완료!`);
     switchTab('search', document.querySelector('.nav-btn'));
-    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
+    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
   } catch (err) {
     console.error(err);
     // AI 실패해도 기본 데이터로 저장
@@ -2465,8 +3365,8 @@ async function submitAddTerm() {
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`⚠️ AI 실패 — "${ko || en || uz}" 기본 저장됨. ✏️ 편집으로 내용 추가 가능`);
     switchTab('search', document.querySelector('.nav-btn'));
-    expandedId = TERMS[TERMS.length - 1].id;
     applyFilters();
+    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
     if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 자동완성으로 추가'; }
   }
 }
@@ -2620,6 +3520,11 @@ function saveEdit(id) {
   document.getElementById('editModal')?.remove();
   showToast('✅ 수정 완료');
   applyFilters();
+  // 드로어가 이 용어로 열려있으면 내용 갱신
+  if (_drawerTermId === id) {
+    const updated = TERMS.find(x => x.id === id);
+    if (updated) _renderDrawerContent(updated);
+  }
 }
 
 function deleteTerm(id) {
@@ -2628,12 +3533,13 @@ function deleteTerm(id) {
   showConfirm(`"${label}"을 삭제할까요?`, () => {
     const idx = TERMS.findIndex(x => x.id === id);
     if (idx !== -1) TERMS.splice(idx, 1);
+    const tombstone = recordLocalTombstone(t);
     bookmarks.delete(id);
     localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
     saveTermsToLocalStorage();
-    deleteTermFromCloud(id);
+    deleteTermFromCloud(id, tombstone?.deletedAt);
     document.getElementById('editModal')?.remove();
-    if (expandedId === id) expandedId = null;
+    if (expandedId === id) { expandedId = null; closeDrawer(); }
     showToast('🗑️ 삭제 완료');
     updateBookmarkCount();
     applyFilters();
@@ -2908,25 +3814,120 @@ function showExportMenu() {
 }
 
 function showDevInfo() {
-  const existing = document.getElementById('devInfoModal');
-  if (existing) existing.remove();
-  const modal = document.createElement('div');
-  modal.id = 'devInfoModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(13,17,23,0.88);display:flex;align-items:center;justify-content:center;z-index:999;padding:24px;backdrop-filter:blur(8px)';
-  modal.innerHTML = `
-    <div style="background:#161b22;border:1px solid #30363d;border-radius:20px;padding:32px;width:100%;max-width:340px;text-align:center">
-      <div style="font-size:48px;margin-bottom:16px">🩺</div>
-      <div style="font-size:20px;font-weight:700;color:#e6edf3;margin-bottom:6px">Dr. Bugeon 의학용어</div>
-      <div style="font-size:12px;color:#8b949e;margin-bottom:20px">Medical Terminology App v2.6</div>
-      <div style="background:#1c2333;border-radius:12px;padding:16px;margin-bottom:20px;text-align:left">
-        <div style="font-size:12px;color:#6e7681;margin-bottom:4px">개발자</div>
-        <div style="font-size:15px;color:#e6edf3;font-weight:600">김부건 (Kim Bugeon)</div>
-        <div style="font-size:12px;color:#58a6ff;margin-top:6px">Tashkent State Medical University</div>
+  showDeveloperInfo();
+}
+
+const APP_INFO = {
+  name: 'Dr. Bugeon의 의학용어',
+  version: '3.0',
+  developer: '김부건 (Kim Bugeon)',
+  organization: 'Tashkent State Medical University',
+  firstDeveloped: '2026년 6월 4일',
+  updatedAt: '2026년 6월 8일 04:19:08',
+};
+
+const UPDATE_HISTORY = [
+  {
+    title: '최신 · 안전한 최종본 동기화 및 학습상태 통합',
+    items: [
+      'canonical_version으로 일반 양방향 동기화와 이 기기 최종본 지정을 분리',
+      'created_at · updated_at · deleted_at 기반 충돌 판정과 삭제 tombstone 적용',
+      '배치 upsert마다 HTTP 성공 여부를 확인하고 전체 삭제 후 업로드 방식 제거',
+      '연결 테스트 성공 직후 자동 동기화 실행',
+      '즐겨찾기 · 정오답 · 학습상태 · 다음 복습일을 기기 간 동기화',
+      '우측 상단 개발자 정보 버튼과 업데이트 이력 화면 추가',
+      '외부 XLSX 스크립트 내부에 잘못 배치된 용어 드로어 코드 실행 오류 수정',
+    ]
+  },
+  {
+    title: 'v2.6 · 데이터 관리 및 내보내기 개선',
+    items: [
+      'TSV · Excel 가져오기와 Anki 내보내기 제공',
+      '중복 용어 정리와 일괄 AI 보강 기능 추가',
+      'UMLS · PubMed · ICD-11 등 외부 의학정보 연결',
+    ]
+  }
+];
+
+const SUPABASE_SCHEMA_SQL = `alter table medical_terms
+  add column if not exists created_at timestamptz default now(),
+  add column if not exists updated_at timestamptz default now(),
+  add column if not exists deleted_at timestamptz;
+
+create table if not exists language_sync_meta (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now()
+);
+
+create table if not exists medical_term_learning_state (
+  term_id bigint primary key,
+  bookmarked boolean default false,
+  correct_count integer default 0,
+  wrong_count integer default 0,
+  study_status text default 'new',
+  due_at timestamptz,
+  last_reviewed_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);`;
+
+function currentFileName() {
+  try {
+    const name = decodeURIComponent(location.pathname.split('/').pop() || '');
+    return name || '웹 앱';
+  } catch {
+    return '웹 앱';
+  }
+}
+
+function copySupabaseSchema() {
+  navigator.clipboard?.writeText(SUPABASE_SCHEMA_SQL)
+    .then(() => showToast('📋 Supabase 설정 SQL 복사 완료'))
+    .catch(() => showToast('⚠️ SQL 복사에 실패했습니다'));
+}
+
+function showDeveloperInfo() {
+  document.getElementById('developerInfoModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'developerInfoModal';
+  overlay.className = 'developer-modal-overlay';
+  const historyHtml = UPDATE_HISTORY.map((entry, index) => `
+    <div class="update-history-card ${index === 0 ? 'latest' : ''}">
+      <div style="font-size:13px;font-weight:800;color:${index === 0 ? '#7ee787' : '#c9d1d9'};margin-bottom:7px">${escapeHtml(entry.title)}</div>
+      ${entry.items.map(item => `<div style="font-size:11px;color:#8b949e;line-height:1.75">• ${escapeHtml(item)}</div>`).join('')}
+    </div>`).join('');
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="developerInfoTitle">
+      <div class="developer-modal-head">
+        <div id="developerInfoTitle" style="font-size:18px;font-weight:800;color:#e6edf3">👨‍💻 개발자 정보</div>
+        <button onclick="document.getElementById('developerInfoModal').remove()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
       </div>
-      <button onclick="document.getElementById('devInfoModal').remove()" style="width:100%;background:#238636;border:none;border-radius:10px;padding:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+      <div class="developer-grid">
+        <div class="developer-field"><div class="developer-field-label">개발자</div><div class="developer-field-value">${APP_INFO.developer}</div></div>
+        <div class="developer-field"><div class="developer-field-label">소속</div><div class="developer-field-value">${APP_INFO.organization}</div></div>
+        <div class="developer-field"><div class="developer-field-label">최초 개발일</div><div class="developer-field-value">${APP_INFO.firstDeveloped}</div></div>
+        <div class="developer-field"><div class="developer-field-label">앱 이름 · 버전</div><div class="developer-field-value">${APP_INFO.name} v${APP_INFO.version}</div></div>
+        <div class="developer-field"><div class="developer-field-label">코드 최종 수정</div><div class="developer-field-value">${APP_INFO.updatedAt}</div></div>
+        <div class="developer-field"><div class="developer-field-label">현재 파일명</div><div class="developer-field-value">${escapeHtml(currentFileName())}</div></div>
+      </div>
+      <div style="padding:8px 20px 0;color:#8b949e;font-size:11px;line-height:1.7">
+        한국어 · 영어 · 우즈베크어 의학용어와 학습상태를 관리하는 개인 학습용 앱입니다.
+        의료 판단에는 원문 출처와 최신 임상지침을 별도로 확인해야 합니다.
+      </div>
+      <div class="update-history">
+        <div style="font-size:13px;font-weight:800;color:#c9d1d9;margin-top:10px">업데이트 이력</div>
+        ${historyHtml}
+        <details class="update-history-card">
+          <summary style="cursor:pointer;color:#74b0ff;font-size:12px;font-weight:700">Supabase 동기화 스키마 설정 SQL</summary>
+          <div style="font-size:10px;color:#8b949e;line-height:1.6;margin:9px 0">Supabase SQL Editor에서 한 번 실행해야 새 동기화 기능을 사용할 수 있습니다.</div>
+          <pre style="white-space:pre-wrap;overflow:auto;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px;color:#c9d1d9;font-size:10px;line-height:1.55">${escapeHtml(SUPABASE_SCHEMA_SQL)}</pre>
+          <button onclick="copySupabaseSchema()" style="width:100%;background:#1f6feb;border:none;border-radius:8px;padding:9px;color:white;font-size:11px;font-weight:700;cursor:pointer">📋 설정 SQL 복사</button>
+        </details>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 function showDuplicateManager() {
@@ -3056,7 +4057,8 @@ function applyDuplicateCleanup() {
   const sortedIndices = [...indicesToDelete].sort((a, b) => b - a);
   sortedIndices.forEach(idx => {
     const term = TERMS[idx];
-    if (term) deleteTermFromCloud(term.id);
+    const tombstone = recordLocalTombstone(term);
+    if (term) deleteTermFromCloud(term.id, tombstone?.deletedAt);
     TERMS.splice(idx, 1);
   });
 
@@ -3079,6 +4081,7 @@ async function bulkDeleteTerms() {
     `<b style="color:#f87171">${label}</b>를<br>모두 삭제할까요?<br><span style="font-size:11px;color:#6e7681">삭제 후 복구할 수 없습니다</span>${cloudNote}`,
     async () => {
       const deletedIds = targets.map(t => t.id);
+      const tombstones = targets.map(recordLocalTombstone).filter(Boolean);
 
       if (sel === '__all__') {
         TERMS.length = 0;
@@ -3103,10 +4106,9 @@ async function bulkDeleteTerms() {
       // 클라우드에서도 삭제
       if (hasCloud) {
         try {
-          if (sel === '__all__') {
-            await sbDeleteAll();
-          } else {
-            for (const id of deletedIds) await sbDeleteTerm(id);
+          for (const tombstone of tombstones) {
+            const ok = await sbDeleteTerm(tombstone.id, tombstone.deletedAt);
+            if (!ok) throw new Error(`delete sync failed: ${tombstone.id}`);
           }
           showToast(`🗑️ ${label} 로컬 + 클라우드 삭제 완료`);
         } catch(e) {
@@ -3702,6 +4704,20 @@ function revealQuizStep() {
 function quizNext(correct) {
   quizScore.total++;
   if (correct) quizScore.correct++;
+
+  const state = getLearningStateMap()[String(quizTerm.id)] || {};
+  const correctCount = (Number(state.correctCount) || 0) + (correct ? 1 : 0);
+  const wrongCount = (Number(state.wrongCount) || 0) + (correct ? 0 : 1);
+  const intervalDays = correct ? Math.min(30, Math.max(1, Math.pow(2, Math.min(correctCount, 5) - 1))) : 0;
+  const dueAt = new Date(Date.now() + intervalDays * 86400000).toISOString();
+  updateLearningState(quizTerm.id, {
+    correctCount,
+    wrongCount,
+    lastReviewedAt: new Date().toISOString(),
+    dueAt,
+    studyStatus: correctCount >= 5 && wrongCount <= 2 ? 'mastered' : (correct ? 'review' : 'learning'),
+    bookmarked: bookmarks.has(quizTerm.id),
+  });
 
   quizStep++;
   if (quizStep < 3) {
@@ -4579,7 +5595,7 @@ document.getElementById('searchInput').addEventListener('input', e => {
 });
 
 // Update date
-const APP_UPDATE = '2026-06-01'; // v2.6 — download fix
+const APP_UPDATE = '2026-06-08'; // v3.0 — canonical sync and learning state
 const d = new Date(APP_UPDATE);
 document.getElementById('updateDate').textContent =
   `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
@@ -4587,6 +5603,22 @@ document.getElementById('updateDate').textContent =
 // 앱 초기화: Supabase가 있으면 클라우드를 기준본으로 사용
 async function initApp() {
   const localCount = loadTermsFromLocalStorage();
+  const learning = getLearningStateMap();
+  bookmarks.forEach(id => {
+    const key = String(id);
+    if (!learning[key]) {
+      learning[key] = {
+        termId: Number(id),
+        bookmarked: true,
+        correctCount: 0,
+        wrongCount: 0,
+        studyStatus: 'new',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  });
+  saveLearningStateMap(learning);
   if (localCount > 0) {
     showToast(`📱 로컬 ${localCount}개 복원됨`);
     updateBookmarkCount();
@@ -4594,23 +5626,12 @@ async function initApp() {
   }
 
   if (getSupabaseConfig()) {
-    showToast('☁️ 클라우드 기준본 확인 중...');
-    const cloudTerms = await sbLoadAll();
-    if (cloudTerms === null) {
-      showToast(`⚠️ 클라우드 불러오기 실패 · 현재 로컬 ${localCount}개 유지`);
-    } else if (cloudTerms.length > 0) {
-      const cleanCloudTerms = dedupeTermsByIdentity(cloudTerms);
-      TERMS.length = 0;
-      TERMS.push(...cleanCloudTerms);
-      saveTermsToLocalStorage();
-      showToast(`☁️ 클라우드 기준본 ${cleanCloudTerms.length}개 적용됨`);
-    } else if (localCount > 0) {
-      showToast(`☁️ 클라우드 비어 있음 · 현재 로컬 ${localCount}개 유지`);
-    } else {
-      showToast('☁️ Supabase 연결됨 (데이터 없음)');
+    try {
+      await syncWithCloud();
+    } catch (e) {
+      console.error('Initial sync failed:', e);
+      showToast('⚠️ 동기화 실패 · 개발자 정보에서 Supabase 설정 SQL을 확인하세요');
     }
-    updateBookmarkCount();
-    applyFilters();
   } else if (localCount === 0) {
     applyFilters();
   }
@@ -4618,5 +5639,30 @@ async function initApp() {
 
 initApp();
 </script>
+
+  <!-- ═══════════ TERM DRAWER ═══════════ -->
+  <div class="term-drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+  <div class="term-drawer" id="termDrawer">
+    <div class="drawer-handle"><div class="drawer-handle-bar"></div></div>
+    <div class="drawer-header">
+      <div class="drawer-header-left">
+        <div class="drawer-title-ko" id="drawerTitleKo">—</div>
+        <div class="drawer-title-en" id="drawerTitleEn">—</div>
+      </div>
+      <div class="drawer-header-right">
+        <button class="drawer-action-btn" id="drawerBookmarkBtn" onclick="drawerToggleBookmark()" title="즐겨찾기">☆</button>
+        <button class="drawer-action-btn" onclick="drawerOpenEdit()" title="편집">✏️</button>
+        <button class="drawer-close-btn" onclick="closeDrawer()" title="닫기">×</button>
+      </div>
+    </div>
+    <div class="drawer-nav">
+      <button class="drawer-nav-btn" id="drawerPrevBtn" onclick="drawerNavigate(-1)">◀ 이전</button>
+      <div class="drawer-nav-count" id="drawerNavCount"></div>
+      <button class="drawer-nav-btn" id="drawerNextBtn" onclick="drawerNavigate(1)">다음 ▶</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+  <!-- ═══════════════════════════════════ -->
+
 </body>
 </html>
