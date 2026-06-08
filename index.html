@@ -271,27 +271,6 @@ document.addEventListener('keydown', e => {
     margin-bottom: 14px;
   }
 
-  .update-badge {
-    margin-left: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    flex-shrink: 0;
-  }
-
-  .update-badge span:first-child {
-    font-size: 9px;
-    color: var(--text3);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-  }
-
-  .update-badge span:last-child {
-    font-size: 11px;
-    color: var(--text2);
-    font-weight: 500;
-  }
-
   .developer-header-btn {
     margin-left: 0;
     background: rgba(167,139,250,0.08);
@@ -458,7 +437,6 @@ document.addEventListener('keydown', e => {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .update-badge { display: none; }
     .upload-header-btn { margin-left: 0; padding: 7px 9px; }
     .settings-header-btn { padding: 7px 9px; }
     .category-stats-header-btn { padding: 7px 9px; }
@@ -1539,10 +1517,6 @@ document.addEventListener('keydown', e => {
     <div class="header-titles">
       <h1 onclick="switchTab('search', document.querySelector('.nav-btn'))" style="cursor:pointer" title="홈으로">Dr. Bugeon의 의학용어</h1>
       <p>Medical Terminology · Tibbiy terminologiya</p>
-    </div>
-    <div class="update-badge">
-      <span>개발일자</span>
-      <span id="updateDate"></span>
     </div>
     <button class="upload-header-btn" onclick="document.getElementById('fileInput').click()" title="TSV, CSV, Excel 파일 업로드">📂 <span class="wide-label">파일 업로드</span><span class="mobile-label" style="display:none">업로드</span></button>
     <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
@@ -3757,87 +3731,80 @@ function showGuide() {
 
   const sections = [
     {
-      icon: '🔍', title: '검색',
+      icon: '🏠', title: '상단 빠른 버튼',
       color: '#58a6ff',
       items: [
-        '한국어 · 영어 · 우즈베크어 동시 검색',
-        '카테고리 필터 (13개 + 기타)',
-        '정렬: 기본 / A→Z 영어 / 가→나 한국어 / A→Z 우즈베크',
-        '🏥 NIH UMLS 검색으로 의학 DB에서 직접 용어 추가',
-        '용어 카드 펼치면 3개국어 정의 + USMLE + IPA 표시',
-        '🔗 더 알아보기: PubMed · ICD-11 · MedlinePlus · ClinicalTrials · FDA 링크',
-        '빈 필드 표시 (✗ KO · UZ · USMLE · IPA)',
+        '📂 파일 업로드: TSV · CSV · Excel 파일을 바로 불러옵니다',
+        '⚙️ 설정: AI API · UMLS · Supabase 동기화를 한 창에서 관리합니다',
+        '📊 통계: 의학 분류별 개수 · 비율 · 평균 완성도를 확인합니다',
+        '👨‍💻 개발자: 개발자 정보 · 최신 업데이트 2개 · 이전 개선 요약을 봅니다',
+        '개발일자 표시는 헤더에서 제거했고, 상세 정보는 개발자 창으로 이동했습니다',
       ]
     },
     {
-      icon: '⭐', title: '즐겨찾기',
-      color: '#fbbf24',
-      items: [
-        '용어 카드 ☆ 클릭으로 즐겨찾기 등록/해제',
-        '즐겨찾기 전용 필터로 모아보기',
-        '즐겨찾기만 모아 퀴즈 출제 가능',
-      ]
-    },
-    {
-      icon: '➕', title: '용어 추가',
-      color: '#3fb950',
-      items: [
-        '단어 하나: 한국어 · 영어 · 우즈베크어 입력 후 저장',
-        'TSV 붙여넣기: 엑셀에서 복사한 데이터 대량 가져오기',
-        '파일 업로드: .xlsx / .tsv 파일 직접 업로드 (636개 지원)',
-        '업로드 모드: 기존 삭제 후 교체 / 기존에 추가',
-        '중복 용어는 영어 기준으로 자동 병합 (빈 칸 채우기)',
-      ]
-    },
-    {
-      icon: '📝', title: '퀴즈',
-      color: '#a78bfa',
-      items: [
-        '출제 범위 선택: 전체 / 즐겨찾기 / 카테고리별',
-        '3단계 순서: ① 한국어 → ② 우즈베크어 → ③ 의미',
-        '🔊 발음 듣기 버튼 (Web Speech API)',
-        '자동 발음 옵션 (문제 나올 때마다 자동 재생)',
-        '자가 채점 (맞음 / 틀림) + 최종 점수 및 등급',
-        '전체 진행률 표시',
-      ]
-    },
-    {
-      icon: '🤖', title: 'AI 설정',
-      color: '#f87171',
-      items: [
-        'AI 제공자: Claude (claude.ai 내장) · Anthropic API · Gemini · OpenAI',
-        '자동 선택: claude.ai 환경에서는 내장 Claude 우선 사용',
-        '529 과부하 시 자동 재시도 (1.5초 / 3초 간격)',
-        'NIH UMLS API 키 등록으로 의학 DB 검색 연동',
-        'Supabase 기기간 동기화 (폰 · PC · 태블릿)',
-        '각 API 키 개별 등록 / 해제 가능',
-      ]
-    },
-    {
-      icon: '📤', title: '내보내기 · 관리',
-      color: '#4ade80',
-      items: [
-        '📥 TSV 백업: 전체 데이터 탭 구분 텍스트로 내보내기',
-        '📊 Excel 내보내기: .xlsx 파일 (헤더: Korean · English · Uzbek...)',
-        '🃏 Anki TSV: Anki 덱 바로 임포트 가능한 포맷',
-        '파일명 자동 날짜 (다운로드 당일 기준)',
-        '🤖 일괄 빈칸 채우기: AI가 비어있는 정의·IPA·USMLE 자동 완성',
-        '🏷️ 기타 카테고리 재분류: AI가 기타 용어를 정확한 카테고리로 분류',
-        '🗑️ 일괄 삭제: 카테고리별 또는 전체 삭제',
-        '중지 기능: AI 작업 중 ⏹ 버튼으로 중지 (지금까지 저장)',
-      ]
-    },
-    {
-      icon: '💡', title: '기타 기능',
+      icon: '🔍', title: '검색과 분류 학습',
       color: '#74b0ff',
       items: [
-        '제목 클릭 → 홈(검색) 화면으로 즉시 이동',
-        '탭 상단 고정 + 카테고리 필터 자동 줄바꿈',
-        '다크 테마 전용 UI',
-        '📱 모바일 · PC 반응형 지원',
-        '로컬스토리지 자동 저장 (새로고침해도 데이터 유지)',
-        'Supabase 연동 시 기기 간 동기화',
-        '👨‍💻 개발자: 김부건 (Kim Bugeon) · Tashkent State Medical University',
+        '한국어 · 영어 · 우즈베크어 · IPA · 정의를 한 번에 검색합니다',
+        'Cardiovascular부터 Pathology까지 의학 분류 버튼으로 필터링합니다',
+        '카드 펼침 또는 드로어에서 정의 · USMLE 포인트 · IPA · 외부 의학 링크를 확인합니다',
+        'PubMed · ICD-11 · MedlinePlus · ClinicalTrials · FDA 검색 링크를 제공합니다',
+        '분류 통계에서 부족한 계통을 확인하고 해당 필터로 바로 이동할 수 있습니다',
+      ]
+    },
+    {
+      icon: '➕', title: '용어 추가와 AI 보강',
+      color: '#3fb950',
+      items: [
+        '단어 하나를 직접 추가하거나 TSV 붙여넣기로 여러 용어를 빠르게 입력합니다',
+        '파일 업로드 버튼으로 Excel · TSV · CSV 자료를 가져옵니다',
+        'OpenAI · Gemini · Anthropic · Claude 환경을 설정 창에서 관리합니다',
+        'AI 키가 없으면 기본 저장만 하고, 키가 있으면 정의 · USMLE · IPA를 보강합니다',
+        'NIH UMLS API 키를 등록하면 공식 의학 용어 검색 기반으로 추가할 수 있습니다',
+      ]
+    },
+    {
+      icon: '⭐', title: '즐겨찾기와 퀴즈',
+      color: '#a78bfa',
+      items: [
+        '별표로 중요한 용어를 즐겨찾기에 모읍니다',
+        '퀴즈 범위는 전체 · 즐겨찾기 · 분류별로 선택할 수 있습니다',
+        '문제는 한국어 확인 · 우즈베크어 확인 · 의미 확인 순서로 진행됩니다',
+        '정답 보기 후 맞음/틀림을 기록하면 학습상태와 다음 복습일이 갱신됩니다',
+        '발음 듣기와 자동 발음 옵션으로 영어 발음까지 함께 연습합니다',
+      ]
+    },
+    {
+      icon: '📁', title: '데이터 관리',
+      color: '#4ade80',
+      items: [
+        '전체 JSON 백업에는 용어 · 학습상태 · 삭제 보호 기록 · 동기화 메타가 포함됩니다',
+        'Excel · CSV · Anki TSV를 전체 또는 선택 범위로 내보낼 수 있습니다',
+        '현재 검색 결과 · 즐겨찾기 · 학습 중 · 복습 예정 · 숙달 · 미완성 범위를 따로 내보냅니다',
+        '삭제된 용어는 휴지통에서 복원할 수 있고, 목록 비우기 후에도 내부 삭제 기록은 보존됩니다',
+        '90일 지난 삭제 보호 기록만 선택적으로 정리해 저장공간을 관리합니다',
+      ]
+    },
+    {
+      icon: '☁️', title: 'Supabase 동기화 원칙',
+      color: '#f87171',
+      items: [
+        '일반 양방향 동기화는 로컬과 클라우드를 updated_at 기준으로 병합합니다',
+        '이 기기를 최종본으로 지정하면 canonical_version이 바뀌고 다른 기기는 클라우드 기준으로 맞춥니다',
+        '최종본 지정이 중간 실패하면 일반 동기화를 막고 데이터 관리 화면에 상태를 표시합니다',
+        '삭제는 바로 hard delete하지 않고 deleted_at tombstone으로 동기화합니다',
+        '휴지통 목록을 비워도 tombstone은 보존되어 다른 기기에서 오래된 항목이 되살아나는 것을 막습니다',
+      ]
+    },
+    {
+      icon: '🧭', title: '추천 사용 흐름',
+      color: '#fbbf24',
+      items: [
+        '먼저 파일 업로드 또는 UMLS 검색으로 용어를 넣습니다',
+        '통계 버튼으로 분류가 비어 있는 계통과 완성도가 낮은 계통을 확인합니다',
+        '데이터 관리에서 전체 JSON 백업을 주기적으로 저장합니다',
+        '한 기기 데이터를 기준으로 삼고 싶을 때만 “이 기기를 최종본으로 지정”을 사용합니다',
+        '평소에는 일반 양방향 동기화로 추가/수정 내용을 기기 간 전파합니다',
       ]
     },
   ];
@@ -3860,13 +3827,13 @@ function showGuide() {
     <div style="padding:16px 0 80px">
       <div style="text-align:center;margin-bottom:24px">
         <div style="font-size:40px;margin-bottom:8px">📖</div>
-        <div style="font-size:20px;font-weight:700;color:var(--text)">Bugeon Medical Terms</div>
-        <div style="font-size:12px;color:var(--text3);margin-top:6px">Ver 1.0 · 기능 가이드</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text)">Bugeon Medical Terms Guide</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">v${APP_INFO.version} · 최신 구조 기준 가이드</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px">
-          <span style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:10px;padding:3px 10px;font-size:10px;color:#74b0ff">USMLE Step 1·2</span>
-          <span style="background:rgba(63,185,80,0.1);border:1px solid #166534;border-radius:10px;padding:3px 10px;font-size:10px;color:#4ade80">3개국어 (KO·EN·UZ)</span>
-          <span style="background:rgba(167,139,250,0.1);border:1px solid #5b21b6;border-radius:10px;padding:3px 10px;font-size:10px;color:#a78bfa">Anki 연동</span>
-          <span style="background:rgba(251,191,36,0.1);border:1px solid #92400e;border-radius:10px;padding:3px 10px;font-size:10px;color:#fbbf24">AI 자동완성</span>
+          <span style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:10px;padding:3px 10px;font-size:10px;color:#74b0ff">파일 업로드 상단 이동</span>
+          <span style="background:rgba(63,185,80,0.1);border:1px solid #166534;border-radius:10px;padding:3px 10px;font-size:10px;color:#4ade80">분류 통계</span>
+          <span style="background:rgba(167,139,250,0.1);border:1px solid #5b21b6;border-radius:10px;padding:3px 10px;font-size:10px;color:#a78bfa">설정 모달</span>
+          <span style="background:rgba(248,81,73,0.1);border:1px solid #991b1b;border-radius:10px;padding:3px 10px;font-size:10px;color:#f87171">최종본 동기화 보호</span>
         </div>
       </div>
       ${html}
@@ -4556,16 +4523,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.5',
+  version: '3.6',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 08:21:46',
+  updatedAt: '2026년 6월 8일 08:35:39',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 동기화 충돌 방지 보강',
+    title: '최신 · 헤더 정리와 가이드 전면 개편',
+    items: [
+      '상단 개발일자 표시를 제거해 파일 업로드 · 설정 · 통계 · 개발자 버튼 중심으로 정리',
+      '개발자 정보의 업데이트 내역을 최신 2개 상세와 과거 요약 형태로 재구성',
+      '가이드를 최신 앱 구조와 동기화 정책 기준으로 전면 개편',
+    ]
+  },
+  {
+    title: 'v3.5 · 동기화 충돌 방지 보강',
     items: [
       '휴지통 비우기를 클라우드 hard delete가 아닌 복원 목록 숨김 방식으로 변경',
       '삭제 tombstone을 내부 보존해 다른 기기의 오래된 로컬 항목 부활 위험 감소',
@@ -4776,11 +4751,24 @@ function showDeveloperInfo() {
   const overlay = document.createElement('div');
   overlay.id = 'developerInfoModal';
   overlay.className = 'developer-modal-overlay';
-  const historyHtml = UPDATE_HISTORY.map((entry, index) => `
+  const recentHistory = UPDATE_HISTORY.slice(0, 2);
+  const olderHistory = UPDATE_HISTORY.slice(2);
+  const historyHtml = recentHistory.map((entry, index) => `
     <div class="update-history-card ${index === 0 ? 'latest' : ''}">
       <div style="font-size:13px;font-weight:800;color:${index === 0 ? '#7ee787' : '#c9d1d9'};margin-bottom:7px">${escapeHtml(entry.title)}</div>
       ${entry.items.map(item => `<div style="font-size:11px;color:#8b949e;line-height:1.75">• ${escapeHtml(item)}</div>`).join('')}
     </div>`).join('');
+  const olderSummaryHtml = olderHistory.length ? `
+    <details class="update-history-card">
+      <summary style="cursor:pointer;color:#74b0ff;font-size:12px;font-weight:800">이전 주요 개선 요약 (${olderHistory.length}개 버전)</summary>
+      <div style="margin-top:10px">
+        ${olderHistory.map(entry => `
+          <div style="font-size:11px;color:#8b949e;line-height:1.75;margin-bottom:8px">
+            <span style="color:#c9d1d9;font-weight:700">${escapeHtml(entry.title)}</span><br>
+            ${escapeHtml(entry.items.slice(0, 2).join(' · '))}
+          </div>`).join('')}
+      </div>
+    </details>` : '';
   overlay.innerHTML = `
     <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="developerInfoTitle">
       <div class="developer-modal-head">
@@ -4802,6 +4790,7 @@ function showDeveloperInfo() {
       <div class="update-history">
         <div style="font-size:13px;font-weight:800;color:#c9d1d9;margin-top:10px">업데이트 이력</div>
         ${historyHtml}
+        ${olderSummaryHtml}
         <details class="update-history-card">
           <summary style="cursor:pointer;color:#74b0ff;font-size:12px;font-weight:700">Supabase 동기화 스키마 설정 SQL</summary>
           <div style="font-size:10px;color:#8b949e;line-height:1.6;margin:9px 0">Supabase SQL Editor에서 한 번 실행해야 새 동기화 기능을 사용할 수 있습니다.</div>
@@ -6477,12 +6466,6 @@ document.getElementById('searchInput').addEventListener('input', e => {
   applyFilters();
   handleSearchAutocomplete(e.target.value.trim());
 });
-
-// Update date
-const APP_UPDATE = '2026-06-08'; // v3.5 — safer sync safeguards
-const d = new Date(APP_UPDATE);
-document.getElementById('updateDate').textContent =
-  `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
 
 // 앱 초기화: Supabase가 있으면 클라우드를 기준본으로 사용
 async function initApp() {
