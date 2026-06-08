@@ -1535,8 +1535,8 @@ document.addEventListener('keydown', e => {
 <div style="display:flex;gap:6px;align-items:center;padding:6px 24px 0;flex-wrap:wrap">
   <button onclick="searchUMLSFromInput()" style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:8px;padding:6px 12px;color:#74b0ff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🏥 NIH UMLS 검색</button>
   <select id="sortSelect" onchange="setSort(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
-    <option value="default">정렬: 기본</option>
-    <option value="en_asc">A→Z (영어)</option>
+    <option value="default">정렬: 완성 우선 · A→Z</option>
+    <option value="en_asc">A→Z (영어만)</option>
     <option value="ko_asc">가→나 (한국어)</option>
     <option value="uz_asc">A→Z (우즈베크)</option>
   </select>
@@ -2337,6 +2337,39 @@ function termSearchText(t) {
   return (t?.en || t?.ko || t?.uz || '').trim();
 }
 
+const TERM_COMPLETION_FIELDS = ['ko', 'en', 'uz', 'def_ko', 'def_en', 'def_uz', 'usmle', 'ipa'];
+
+function isTermComplete(t) {
+  return TERM_COMPLETION_FIELDS.every(key => String(t?.[key] || '').trim().length > 0);
+}
+
+function sortByCompletionThenEnglish(a, b) {
+  const completeDiff = Number(isTermComplete(b)) - Number(isTermComplete(a));
+  if (completeDiff !== 0) return completeDiff;
+
+  const enDiff = String(a?.en || '').localeCompare(String(b?.en || ''), 'en', { sensitivity: 'base', numeric: true });
+  if (enDiff !== 0) return enDiff;
+
+  const koDiff = String(a?.ko || '').localeCompare(String(b?.ko || ''), 'ko', { sensitivity: 'base', numeric: true });
+  if (koDiff !== 0) return koDiff;
+
+  return (Number(a?.id) || 0) - (Number(b?.id) || 0);
+}
+
+function sortTermsForCurrentMode(terms) {
+  const rows = [...terms];
+  if (currentSort === 'ko_asc') {
+    return rows.sort((a, b) => String(a?.ko || '').localeCompare(String(b?.ko || ''), 'ko', { sensitivity: 'base', numeric: true }));
+  }
+  if (currentSort === 'uz_asc') {
+    return rows.sort((a, b) => String(a?.uz || '').localeCompare(String(b?.uz || ''), 'uz', { sensitivity: 'base', numeric: true }));
+  }
+  if (currentSort === 'en_asc') {
+    return rows.sort((a, b) => String(a?.en || '').localeCompare(String(b?.en || ''), 'en', { sensitivity: 'base', numeric: true }));
+  }
+  return rows.sort(sortByCompletionThenEnglish);
+}
+
 function youtubeSearchUrl(t) {
   const q = termSearchText(t);
   const query = q ? `${q} medical terminology explanation` : 'medical terminology explanation';
@@ -2422,24 +2455,8 @@ function applyFilters() {
     return;
   }
 
-  // 검색/필터 없고 즐겨찾기 있으면 → 즐겨찾기 먼저 보여주기
-  if (!query && currentFilter === 'all' && bookmarks.size > 0) {
-    const bookmarked = TERMS.filter(t => bookmarks.has(t.id));
-    const rest = TERMS.filter(t => !bookmarks.has(t.id));
-    if (label) label.textContent = `⭐ 즐겨찾기 ${bookmarked.length}개 · 전체 ${TERMS.length}개`;
-    _lastFilteredTerms = [...bookmarked, ...rest];
-    renderTerms([...bookmarked, ...rest], bookmarked.length);
-    return;
-  }
-
-  // 정렬 적용
-  if (currentSort === 'en_asc') {
-    results = [...results].sort((a, b) => (a.en || '').localeCompare(b.en || '', 'en'));
-  } else if (currentSort === 'ko_asc') {
-    results = [...results].sort((a, b) => (a.ko || '').localeCompare(b.ko || '', 'ko'));
-  } else if (currentSort === 'uz_asc') {
-    results = [...results].sort((a, b) => (a.uz || '').localeCompare(b.uz || '', 'uz'));
-  }
+  // 기본 정렬: 완성된 용어 먼저, 그 안에서 영어 A-Z
+  results = sortTermsForCurrentMode(results);
   _lastFilteredTerms = results;
   renderTerms(results);
 }
@@ -4528,16 +4545,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.7',
+  version: '3.8',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 08:46:42',
+  updatedAt: '2026년 6월 8일 08:59:59',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 최종본 덮어쓰기 문구 명확화',
+    title: '최신 · 기본 정렬 원칙 개선',
+    items: [
+      '전체 목록의 기본 정렬을 완성된 용어 우선 · 영어 A-Z 순서로 변경',
+      '기존 즐겨찾기 자동 우선 배치를 제거하고 즐겨찾기는 별도 필터 버튼에서 확인하도록 정리',
+      '정렬 선택지 문구를 “완성 우선 · A→Z”로 바꿔 현재 기준을 바로 알 수 있게 개선',
+    ]
+  },
+  {
+    title: 'v3.7 · 최종본 덮어쓰기 문구 명확화',
     items: [
       '“이 기기를 최종본으로 지정” 표현을 “현재 기기 데이터로 클라우드 최종본 덮어쓰기”로 변경',
       '확인창에 다른 기기에만 있는 항목이 최종본에서 제외될 수 있다는 경고 추가',
