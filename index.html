@@ -310,6 +310,24 @@ document.addEventListener('keydown', e => {
     background: rgba(167,139,250,0.16);
   }
 
+  .settings-header-btn {
+    margin-left: auto;
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.5);
+    border-radius: 9px;
+    padding: 8px 12px;
+    color: #74b0ff;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+
+  .settings-header-btn:hover {
+    background: rgba(88,166,255,0.16);
+  }
+
   .developer-modal-overlay {
     position: fixed;
     inset: 0;
@@ -391,6 +409,7 @@ document.addEventListener('keydown', e => {
 
   @media (max-width: 600px) {
     .update-badge { display: none; }
+    .settings-header-btn { padding: 7px 9px; }
     .developer-header-btn { padding: 7px 9px; }
     .developer-grid { grid-template-columns: 1fr; }
   }
@@ -1497,6 +1516,7 @@ document.addEventListener('keydown', e => {
       <span>개발일자</span>
       <span id="updateDate"></span>
     </div>
+    <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
     <button class="developer-header-btn" onclick="showDeveloperInfo()" title="개발자 정보와 업데이트 내역 보기">👨‍💻 개발자</button>
   </div>
   <div class="search-wrap autocomplete-wrap">
@@ -1597,9 +1617,6 @@ document.addEventListener('keydown', e => {
   </button>
   <button class="nav-btn" onclick="switchTab('quiz', this)">
     <span class="nav-icon">📝</span>퀴즈
-  </button>
-  <button class="nav-btn" onclick="switchTab('ai', this)">
-    <span class="nav-icon">🤖</span>AI
   </button>
   <button class="nav-btn" onclick="switchTab('export', this)">
     <span class="nav-icon">📁</span>데이터
@@ -2488,7 +2505,7 @@ function restoreHomeTab() {
 function switchTab(tab, btn) {
   currentTab = tab;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
 
   if (tab === 'export')   showExportMenu();
   else if (tab === 'guide') showGuide();
@@ -2640,15 +2657,39 @@ function maskApiKey(key) {
   return key.slice(0, 6) + '••••••••' + key.slice(-4);
 }
 
+function ensureSettingsModalBody() {
+  let modal = document.getElementById('settingsModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'settingsModal';
+    modal.className = 'developer-modal-overlay';
+    modal.innerHTML = `
+      <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <div class="developer-modal-head">
+          <div id="settingsModalTitle" style="font-size:18px;font-weight:800;color:#e6edf3">⚙️ 설정</div>
+          <button onclick="closeSettingsModal()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div id="settingsModalBody" style="padding:16px 20px 22px"></div>
+      </section>`;
+    modal.addEventListener('click', e => { if (e.target === modal) closeSettingsModal(); });
+    document.body.appendChild(modal);
+  }
+  return document.getElementById('settingsModalBody');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal')?.remove();
+}
+
 function showAISettings() {
-  const main = document.getElementById('mainContent');
+  const main = ensureSettingsModalBody();
   const cfg = getAIConfig();
   const stored = safeJsonParse(localStorage.getItem(AI_CONFIG_STORAGE_KEY), null);
   const savedText = stored?.savedAt ? new Date(stored.savedAt).toLocaleString('ko-KR') : '없음';
 
   main.innerHTML = `
-    <div style="padding:8px 0 80px">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px">🤖 AI API 설정</div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px">🤖 AI · Supabase 설정</div>
 
       <div style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
         <div style="font-size:13px;color:#f87171;font-weight:700;margin-bottom:5px">⚠️ 개인용 로컬 모드</div>
@@ -2656,6 +2697,14 @@ function showAISettings() {
           이 방식은 OpenAI/Anthropic API 키를 이 브라우저의 localStorage에 저장합니다.<br>
           혼자 쓰는 로컬 파일에는 편리하지만, 공유용 앱은 서버리스 백엔드 방식이 안전합니다.<br>
           ChatGPT 앱의 표시명과 API 모델 ID가 다를 수 있으므로, 실패하면 직접 입력에 공식 모델 ID를 넣어주세요.
+        </div>
+      </div>
+
+      <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;color:#74b0ff;font-weight:700;margin-bottom:5px">💡 ChatGPT Pro 안내</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">
+          ChatGPT Pro 구독과 OpenAI API 키는 별도입니다.<br>
+          이 HTML 앱의 AI 자동완성 기능을 직접 쓰려면 OpenAI · Anthropic · Gemini API 키 중 하나를 등록해야 합니다.
         </div>
       </div>
 
@@ -2792,7 +2841,7 @@ function showAISettings() {
           🔌 동기화 연결 해제
         </button>` : ''}
       </div>
-      <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 돌아가기</button>
+      <button onclick="closeSettingsModal()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
     </div>`;
   setTimeout(() => { onModelPresetChange('openai'); onModelPresetChange('anthropic'); onAIRouteChange(); }, 0);
 }
@@ -3357,7 +3406,7 @@ function updateAddKeyHint() {
   const hasKey = hasConfiguredAIKey(cfg);
   el.innerHTML = hasKey
     ? '🤖 AI 자동완성 활성화됨 ✅'
-    : '⚠️ API 키 없음 — 기본 저장만 됩니다. <a onclick="switchTab(&quot;ai&quot;,document.querySelectorAll(&quot;.nav-btn&quot;)[4])" style="color:var(--accent);cursor:pointer;text-decoration:underline">AI탭에서 키 등록</a>';
+    : '⚠️ API 키 없음 — 기본 저장만 됩니다. <a onclick="showAISettings()" style="color:var(--accent);cursor:pointer;text-decoration:underline">설정에서 키 등록</a>';
 }
 
 function toggleOptional() {
@@ -3431,7 +3480,7 @@ async function submitAddTerm() {
     TERMS.push(normalizeTermForStorage(newTerm));
     saveTermsToLocalStorage();
     saveTermToCloud(TERMS[TERMS.length - 1]);
-    showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 AI탭에서 키 등록 시 자동완성 가능)`);
+    showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 설정에서 키 등록 시 자동완성 가능)`);
     switchTab('search', document.querySelector('.nav-btn'));
     applyFilters();
     setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
@@ -3558,7 +3607,7 @@ async function regenField(id, field) {
   if (!t) { showToast('⚠️ 용어를 찾을 수 없습니다'); return; }
   if (!FIELD_PROMPTS[field]) { showToast('⚠️ 이 항목은 AI 재생성을 지원하지 않습니다'); return; }
   if (!isClaudeAiEnv() && !hasConfiguredAIKey()) {
-    showToast('⚠️ AI 탭에서 API 키를 먼저 저장하세요');
+    showToast('⚠️ 설정에서 API 키를 먼저 저장하세요');
     return;
   }
 
@@ -3845,9 +3894,9 @@ function showLegacyExportMenu() {
         <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px">🤖 AI API 설정</div>
         <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:12px">
           현재 AI 상태: <span style="color:var(--accent2)">${maskApiKey(getAIConfig().apiKey)}</span><br>
-          AI 자동완성·재생성을 쓰려면 하단 <span style="color:var(--accent)">AI</span> 탭에서 API 키를 저장하세요.
+          AI 자동완성·재생성을 쓰려면 우측 상단 <span style="color:var(--accent)">설정</span>에서 API 키를 저장하세요.
         </div>
-        <button onclick="switchTab('ai', document.querySelectorAll('.nav-btn')[4])" style="width:100%;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:10px;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">AI 설정 열기</button>
+        <button onclick="showAISettings()" style="width:100%;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:10px;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">설정 열기</button>
       </div>
 
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
@@ -4469,16 +4518,26 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.1',
+  version: '3.2',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 04:42:14',
+  updatedAt: '2026년 6월 8일 07:37:22',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 데이터 관리 페이지 전면 개편',
+    title: '최신 · 설정 모달과 하단 탭 정리',
+    items: [
+      '하단 AI 탭을 제거하고 우측 상단 설정 버튼으로 이동',
+      'AI · Supabase 설정을 별도 모달 창에서 관리하도록 변경',
+      'ChatGPT Pro 구독과 API 키가 별도라는 안내 추가',
+      '하단 네비게이션을 검색 · 즐겨찾기 · 추가 · 퀴즈 · 데이터 · 가이드로 단순화',
+      '기존 AI탭 안내 문구를 설정 기준으로 정리',
+    ]
+  },
+  {
+    title: 'v3.1 · 데이터 관리 페이지 전면 개편',
     items: [
       '가져오기 · 백업 · 동기화 · 휴지통 · 위험 작업을 카드형 2열 화면으로 통합',
       '전체 JSON 백업에 용어 · 학습상태 · tombstone · 동기화 메타 포함',
@@ -4658,7 +4717,7 @@ function showDuplicateManager() {
           style="width:100%;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:10px;padding:13px;color:#fbbf24;font-size:14px;font-weight:700;cursor:not-allowed;opacity:0.5;font-family:'Noto Sans KR',sans-serif">
           🗑️ 선택한 용어만 유지 (나머지 삭제)
         </button>
-        <button onclick="switchTab('export', document.querySelectorAll('.nav-btn')[5])" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
+        <button onclick="switchTab('export', document.querySelectorAll('.nav-btn')[4])" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
           ← 취소
         </button>
       </div>
@@ -4727,7 +4786,7 @@ function applyDuplicateCleanup() {
   saveTermsToLocalStorage();
   applyFilters();
   showToast(`✅ ${indicesToDelete.size}개 중복 용어 삭제 완료`);
-  switchTab('export', document.querySelectorAll('.nav-btn')[5]);
+  switchTab('export', document.querySelectorAll('.nav-btn')[4]);
 }
 
 async function bulkDeleteTerms() {
@@ -4787,7 +4846,7 @@ async function bulkDeleteTerms() {
 // ─── 일괄 빈칸 채우기 (기능2) ───
 async function bulkReclassify() {
   const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey || getAIConfig().geminiKey);
-  if (!canAI) { showToast('⚠️ AI 키 필요 — AI탭에서 등록해주세요'); return; }
+  if (!canAI) { showToast('⚠️ AI 키 필요 — 설정에서 등록해주세요'); return; }
 
   const targets = TERMS.filter(t => !t.category || t.category === '기타');
   if (!targets.length) { showToast('✅ 재분류할 용어가 없습니다 (기타 없음)'); return; }
@@ -4845,7 +4904,7 @@ Use "기타" ONLY if truly none of the above apply.`;
 
 async function bulkFillBlanks(scope = 'all') {
   const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey || getAIConfig().geminiKey);
-  if (!canAI) { showToast('⚠️ AI 키 필요 — AI탭에서 등록해주세요'); return; }
+  if (!canAI) { showToast('⚠️ AI 키 필요 — 설정에서 등록해주세요'); return; }
 
   const targets = scope === 'all'
     ? TERMS.filter(t => !t.def_ko || !t.def_en || !t.def_uz || !t.usmle || !t.ipa)
@@ -5749,7 +5808,7 @@ document.addEventListener('click', e => {
 async function searchUMLS(query) {
   const cfg = getAIConfig();
   const umlsKey = cfg.umlsKey || localStorage.getItem('kma_umls_key') || '';
-  if (!umlsKey) { showToast('⚠️ UMLS API 키 필요 — AI탭에서 등록'); return; }
+  if (!umlsKey) { showToast('⚠️ UMLS API 키 필요 — 설정에서 등록'); return; }
 
   showToast('🔍 UMLS 검색 중...');
   try {
