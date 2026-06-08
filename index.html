@@ -346,6 +346,24 @@ document.addEventListener('keydown', e => {
     background: rgba(88,166,255,0.16);
   }
 
+  .category-stats-header-btn {
+    margin-left: 0;
+    background: rgba(63,185,80,0.08);
+    border: 1px solid rgba(63,185,80,0.45);
+    border-radius: 9px;
+    padding: 8px 12px;
+    color: #7ee787;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+
+  .category-stats-header-btn:hover {
+    background: rgba(63,185,80,0.16);
+  }
+
   .developer-modal-overlay {
     position: fixed;
     inset: 0;
@@ -426,9 +444,24 @@ document.addEventListener('keydown', e => {
   }
 
   @media (max-width: 600px) {
+    .header-top {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .header-titles {
+      flex: 1 1 210px;
+      min-width: 0;
+    }
+    .header-titles h1,
+    .header-titles p {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .update-badge { display: none; }
-    .upload-header-btn { padding: 7px 9px; }
+    .upload-header-btn { margin-left: 0; padding: 7px 9px; }
     .settings-header-btn { padding: 7px 9px; }
+    .category-stats-header-btn { padding: 7px 9px; }
     .developer-header-btn { padding: 7px 9px; }
     .wide-label { display: none; }
     .mobile-label { display: inline !important; }
@@ -1513,6 +1546,7 @@ document.addEventListener('keydown', e => {
     </div>
     <button class="upload-header-btn" onclick="document.getElementById('fileInput').click()" title="TSV, CSV, Excel 파일 업로드">📂 <span class="wide-label">파일 업로드</span><span class="mobile-label" style="display:none">업로드</span></button>
     <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
+    <button class="category-stats-header-btn" onclick="showCategoryStats()" title="분류별 용어 통계 보기">📊 통계</button>
     <button class="developer-header-btn" onclick="showDeveloperInfo()" title="개발자 정보와 업데이트 내역 보기">👨‍💻 개발자</button>
     <input type="file" id="fileInput" accept=".tsv,.csv,.txt,.xlsx,.xls" style="display:none" onchange="confirmUpload(event)">
   </div>
@@ -1625,6 +1659,7 @@ const DEVICE_ID_STORAGE_KEY = 'kma_medical_terms_v2_device_id';
 const SYNC_META_TABLE = 'language_sync_meta';
 const LEARNING_TABLE = 'medical_term_learning_state';
 const CANONICAL_META_KEY = 'medical_terms_canonical_version';
+const TOMBSTONE_PRUNE_DAYS = 90;
 
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
@@ -1822,6 +1857,13 @@ async function sbPushAll(options = {}) {
     showToast('☁️ 새 기준본을 안전하게 저장 중...');
     const cloudTerms = await sbLoadAll();
     if (cloudTerms === null) throw new Error('기존 클라우드 데이터를 읽지 못했습니다.');
+    const pendingVersion = `${Date.now()}-${getDeviceId()}`;
+    saveLocalSyncMeta({
+      pendingCanonicalVersion: pendingVersion,
+      pendingCanonicalAt: new Date().toISOString(),
+      pendingCanonicalCount: cleanTerms.length,
+      pendingCanonicalStatus: 'uploading'
+    });
     const rows = cleanTerms.map(termToRow);
     await sbBatchUpsertRows(rows);
 
@@ -1832,38 +1874,32 @@ async function sbPushAll(options = {}) {
       if (!ok) throw new Error(`누락 항목 삭제 표시 실패: ${oldTerm.id}`);
     }
 
-    const canonicalVersion = `${Date.now()}-${getDeviceId()}`;
-    await sbSetCanonicalMeta(canonicalVersion);
+    saveLocalSyncMeta({ pendingCanonicalStatus: 'meta-saving' });
+    await sbSetCanonicalMeta(pendingVersion);
     TERMS.length = 0;
     TERMS.push(...cleanTerms);
     saveTermsToLocalStorage();
-    saveLocalSyncMeta({ canonicalVersion });
+    saveLocalSyncMeta({
+      canonicalVersion: pendingVersion,
+      pendingCanonicalVersion: null,
+      pendingCanonicalAt: null,
+      pendingCanonicalCount: null,
+      pendingCanonicalStatus: null,
+      lastCanonicalPushAt: new Date().toISOString()
+    });
     await syncLearningStateToCloud();
     updateBookmarkCount();
     applyFilters();
     showToast(`☁️ 이 기기를 새 최종본으로 지정했습니다 (${cleanTerms.length}개)`);
   } catch(e) {
     console.error('Canonical push failed:', e);
-    showToast('⚠️ 최종본 저장 실패 · 기존 클라우드 데이터는 유지됩니다');
+    saveLocalSyncMeta({ pendingCanonicalStatus: 'failed', pendingCanonicalError: String(e?.message || e) });
+    showToast('⚠️ 최종본 저장 실패 · 데이터 탭에서 다시 최종본 지정을 실행하세요');
   }
 }
 
 function confirmPushLocalToCloud() {
   return sbPushAll({ confirmOverwrite: true });
-}
-
-// 관리용 전체 삭제. 일반 동기화에서는 사용하지 않는다.
-async function sbDeleteAll() {
-  const cfg = getSupabaseConfig();
-  if (!cfg) return false;
-  try {
-    const res = await fetch(`${cfg.url}/rest/v1/medical_terms?id=gte.0`, {
-      method: 'DELETE',
-      headers: sbHeaders()
-    });
-    if (!res.ok) throw new Error(`deleteAll failed: ${res.status}`);
-    return true;
-  } catch(e) { console.warn('Supabase deleteAll failed:', e); throw e; }
 }
 
 // 연결 테스트
@@ -1908,6 +1944,7 @@ function normalizeTermForStorage(t) {
     createdAt: t.createdAt || t.updatedAt || now,
     updatedAt: t.updatedAt || now,
     deletedAt: t.deletedAt || null,
+    hiddenAt: t.hiddenAt || null,
   };
 }
 
@@ -1965,16 +2002,6 @@ function mergeDuplicateTerms(a, b) {
   return normalizeTermForStorage(merged);
 }
 
-function dedupeTermsByIdentity(terms) {
-  const byKey = new Map();
-  (Array.isArray(terms) ? terms : []).forEach(term => {
-    const normalized = normalizeTermForStorage(term);
-    const key = termIdentityKey(normalized);
-    byKey.set(key, byKey.has(key) ? mergeDuplicateTerms(byKey.get(key), normalized) : normalized);
-  });
-  return [...byKey.values()];
-}
-
 function saveTermsToLocalStorage() {
   try {
     const payload = dedupeTermsById(TERMS).filter(t => !t.deletedAt);
@@ -2003,10 +2030,27 @@ function saveLocalTombstones(rows) {
   localStorage.setItem(TOMBSTONE_STORAGE_KEY, JSON.stringify(dedupeTermsById(rows).filter(t => t.deletedAt)));
 }
 
+function hideLocalTombstonesFromTrash(ids) {
+  const hiddenAt = new Date().toISOString();
+  const idSet = new Set(ids.map(id => String(id)));
+  const rows = loadLocalTombstones().map(t => idSet.has(String(t.id)) ? { ...t, hiddenAt } : t);
+  saveLocalTombstones(rows);
+}
+
+function pruneOldLocalTombstones(days = TOMBSTONE_PRUNE_DAYS) {
+  const cutoff = Date.now() - days * 86400000;
+  const rows = loadLocalTombstones().filter(t => {
+    const deletedAt = Date.parse(t.deletedAt || t.updatedAt || '');
+    return !Number.isFinite(deletedAt) || deletedAt >= cutoff;
+  });
+  saveLocalTombstones(rows);
+  return rows.length;
+}
+
 function recordLocalTombstone(term) {
   if (!term) return;
   const deletedAt = new Date().toISOString();
-  const tombstone = normalizeTermForStorage({ ...term, updatedAt: deletedAt, deletedAt });
+  const tombstone = normalizeTermForStorage({ ...term, updatedAt: deletedAt, deletedAt, hiddenAt: null });
   const rows = loadLocalTombstones().filter(t => String(t.id) !== String(term.id));
   rows.push(tombstone);
   saveLocalTombstones(rows);
@@ -2149,6 +2193,25 @@ let aiStopRequested = false; // AI 중지 플래그
 const VALID_CATS = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','Endocrine',
   'Neurology','Hematology & Oncology','Infectious Disease','Musculoskeletal',
   'Dermatology','Reproductive','Psychiatry','Immunology','Pharmacology','Pathology'];
+
+const CATEGORY_META = {
+  'Cardiovascular': { icon: '❤️', label: 'Cardiovascular' },
+  'Pulmonary': { icon: '🫁', label: 'Pulmonary' },
+  'Renal': { icon: '🫘', label: 'Renal' },
+  'GI & Hepatobiliary': { icon: '🫁', label: 'GI & Hepato' },
+  'Endocrine': { icon: '⚗️', label: 'Endocrine' },
+  'Neurology': { icon: '🧠', label: 'Neurology' },
+  'Hematology & Oncology': { icon: '🩸', label: 'Heme/Onc' },
+  'Infectious Disease': { icon: '🦠', label: 'Infectious' },
+  'Musculoskeletal': { icon: '🦴', label: 'MSK' },
+  'Dermatology': { icon: '🩹', label: 'Derm' },
+  'Reproductive': { icon: '🧬', label: 'Reproductive' },
+  'Psychiatry': { icon: '💬', label: 'Psychiatry' },
+  'Immunology': { icon: '🛡️', label: 'Immunology' },
+  'Pharmacology': { icon: '💊', label: 'Pharmacology' },
+  'Pathology': { icon: '🔬', label: 'Pathology' },
+  '기타': { icon: '📁', label: '기타' },
+};
 
 let bookmarks = new Set(JSON.parse(localStorage.getItem('kma_bookmarks') || '[]').map(Number));
 let expandedId = null;
@@ -2890,6 +2953,10 @@ async function syncWithCloud() {
   }
 
   const localMeta = getLocalSyncMeta();
+  if (localMeta.pendingCanonicalStatus) {
+    showToast('⚠️ 이전 최종본 지정이 완료되지 않았습니다 · 먼저 다시 최종본 지정을 완료하세요');
+    return false;
+  }
   const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== localMeta.canonicalVersion;
 
   if (canonicalChanged) {
@@ -3956,6 +4023,7 @@ function showExportMenu() {
   const main = document.getElementById('mainContent');
   const learning = getLearningStateMap();
   const tombstones = loadLocalTombstones();
+  const visibleTrashCount = tombstones.filter(t => !t.hiddenAt).length;
   const localMeta = getLocalSyncMeta();
   const categories = [...new Set(TERMS.map(t => t.category || '기타'))].sort();
   const reviewed = Object.values(learning).filter(s => s.lastReviewedAt).length;
@@ -3999,6 +4067,10 @@ function showExportMenu() {
               <div class="data-status-box"><div class="data-status-label">canonical_version</div><div class="data-status-value">${escapeHtml(localMeta.canonicalVersion || '아직 없음')}</div></div>
               <div class="data-status-box"><div class="data-status-label">마지막 로컬 기록</div><div class="data-status-value">${formatDataDate(localMeta.savedAt)}</div></div>
             </div>
+            ${localMeta.pendingCanonicalStatus ? `<div style="margin:10px 0 0;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.35);border-radius:10px;padding:10px 12px;color:#fca5a5;font-size:11px;line-height:1.6">
+              이전 최종본 지정 상태: ${escapeHtml(localMeta.pendingCanonicalStatus)}
+              ${localMeta.pendingCanonicalError ? `<br>${escapeHtml(localMeta.pendingCanonicalError)}` : ''}
+            </div>` : ''}
             <div class="data-action-stack">
               <button class="data-action-btn green" onclick="runManualSync()">일반 양방향 동기화</button>
               <button class="data-action-btn outline" onclick="confirmPushLocalToCloud()">이 기기를 최종본으로 지정</button>
@@ -4009,13 +4081,14 @@ function showExportMenu() {
           <section class="data-card">
             <div class="data-card-title">🗑️ 휴지통 · 데이터 정리</div>
             <div class="data-card-desc">
-              삭제 기록 ${tombstones.length}개 · 중복과 미완성 데이터를 검토할 수 있습니다.
+              복원 가능 ${visibleTrashCount}개 · 동기화 보호 기록 ${tombstones.length}개 · 중복과 미완성 데이터를 검토할 수 있습니다.
             </div>
             <div class="data-action-stack">
               <button class="data-action-btn outline" onclick="showTrashManager()">삭제된 용어 보기 · 복원</button>
               <button class="data-action-btn outline" onclick="showDuplicateManager()">중복 용어 검토</button>
               <button class="data-action-btn outline" onclick="bulkFillBlanks('all')">미완성 용어 AI 보강 (${TERMS.filter(t=>!t.def_ko||!t.def_en||!t.def_uz||!t.usmle||!t.ipa).length}개)</button>
-              <button class="data-action-btn red" onclick="confirmEmptyTrash()">휴지통 완전히 비우기</button>
+              <button class="data-action-btn red" onclick="confirmEmptyTrash()">휴지통 목록 비우기</button>
+              <button class="data-action-btn outline" onclick="pruneOldLocalTombstones();showToast('🧹 90일 지난 삭제 보호 기록 정리 완료');showExportMenu()">90일 지난 보호 기록 정리</button>
             </div>
           </section>
 
@@ -4382,7 +4455,9 @@ async function applyPendingDataImport() {
 }
 
 function showTrashManager() {
-  const rows = loadLocalTombstones().sort((a, b) => (Date.parse(b.deletedAt) || 0) - (Date.parse(a.deletedAt) || 0));
+  const rows = loadLocalTombstones()
+    .filter(t => !t.hiddenAt)
+    .sort((a, b) => (Date.parse(b.deletedAt) || 0) - (Date.parse(a.deletedAt) || 0));
   document.getElementById('trashManagerModal')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'trashManagerModal';
@@ -4427,30 +4502,14 @@ async function restoreTrashTerm(id) {
   showTrashManager();
 }
 
-async function sbHardDeleteTerm(id) {
-  const cfg = getSupabaseConfig();
-  if (!cfg) return true;
-  const res = await fetch(`${cfg.url}/rest/v1/medical_terms?id=eq.${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: sbHeaders()
-  });
-  if (!res.ok) throw new Error(`hard delete failed: ${res.status}`);
-  return true;
-}
-
 function confirmEmptyTrash() {
-  const count = loadLocalTombstones().length;
+  const visibleRows = loadLocalTombstones().filter(t => !t.hiddenAt);
+  const count = visibleRows.length;
   if (!count) { showToast('✅ 휴지통이 비어 있습니다'); return; }
-  showConfirm(`삭제 기록 ${count}개를 완전히 비울까요?<br><span style="font-size:11px;color:#f87171">이 작업 후 앱에서 복원할 수 없습니다.</span>`, async () => {
-    try {
-      for (const term of loadLocalTombstones()) await sbHardDeleteTerm(term.id);
-      saveLocalTombstones([]);
-      showToast('🗑️ 휴지통 비우기 완료');
-      showExportMenu();
-    } catch (e) {
-      console.error(e);
-      showToast('⚠️ 클라우드 휴지통 비우기에 실패했습니다');
-    }
+  showConfirm(`삭제 기록 ${count}개를 휴지통 목록에서 숨길까요?<br><span style="font-size:11px;color:#8b949e">기기 간 부활 방지를 위해 내부 삭제 기록은 보존됩니다.</span>`, () => {
+    hideLocalTombstonesFromTrash(visibleRows.map(t => t.id));
+    showToast('🗑️ 휴지통 목록 비우기 완료 · 삭제 동기화 기록은 보존됨');
+    showExportMenu();
   });
 }
 
@@ -4497,16 +4556,35 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.3',
+  version: '3.5',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 07:53:12',
+  updatedAt: '2026년 6월 8일 08:21:46',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 파일 업로드 상단 이동과 홈 정리',
+    title: '최신 · 동기화 충돌 방지 보강',
+    items: [
+      '휴지통 비우기를 클라우드 hard delete가 아닌 복원 목록 숨김 방식으로 변경',
+      '삭제 tombstone을 내부 보존해 다른 기기의 오래된 로컬 항목 부활 위험 감소',
+      '최종본 지정 중간 실패 상태를 로컬 메타에 기록하고 일반 동기화를 차단',
+      '데이터 관리 화면에 최종본 지정 실패 상태와 삭제 보호 기록 수를 표시',
+      '90일 지난 삭제 보호 기록만 선택적으로 정리하는 기능 추가',
+    ]
+  },
+  {
+    title: 'v3.4 · 분류별 통계 버튼 추가',
+    items: [
+      '설정과 개발자 정보 사이에 분류별 통계 버튼 추가',
+      '의학 분류별 용어 개수 · 전체 대비 비율 · 평균 완성도 표시',
+      '최다 분류 · 기타 항목 · 비어 있는 분류를 요약해 학습 방향 확인 강화',
+      '통계 모달에서 분류명을 누르면 해당 필터로 바로 이동하도록 연결',
+    ]
+  },
+  {
+    title: 'v3.3 · 파일 업로드 상단 이동과 홈 정리',
     items: [
       '큰 AI 자동완성 업로드 카드를 제거하고 홈 화면을 검색 · 목록 중심으로 정리',
       '파일 업로드를 설정 · 개발자 정보 옆 우측 상단 빠른 버튼으로 이동',
@@ -4594,6 +4672,103 @@ function copySupabaseSchema() {
   navigator.clipboard?.writeText(SUPABASE_SCHEMA_SQL)
     .then(() => showToast('📋 Supabase 설정 SQL 복사 완료'))
     .catch(() => showToast('⚠️ SQL 복사에 실패했습니다'));
+}
+
+function categoryDisplay(cat) {
+  const meta = CATEGORY_META[cat] || { icon: '📁', label: cat || '기타' };
+  return `${meta.icon} ${meta.label}`;
+}
+
+function termCompletionPercent(t) {
+  const fields = ['ko','en','uz','def_ko','def_en','def_uz','usmle','ipa'];
+  const filled = fields.filter(key => String(t[key] || '').trim()).length;
+  return Math.round(filled / fields.length * 100);
+}
+
+function getCategoryStats() {
+  const order = [...VALID_CATS, '기타'];
+  const stats = {};
+  order.forEach(cat => {
+    stats[cat] = { category: cat, count: 0, completionSum: 0, bookmarks: 0 };
+  });
+  TERMS.forEach(t => {
+    const rawCat = t.category || '기타';
+    const cat = VALID_CATS.includes(rawCat) ? rawCat : '기타';
+    stats[cat].count += 1;
+    stats[cat].completionSum += termCompletionPercent(t);
+    if (bookmarks.has(Number(t.id))) stats[cat].bookmarks += 1;
+  });
+  return order.map(cat => ({
+    ...stats[cat],
+    completion: stats[cat].count ? Math.round(stats[cat].completionSum / stats[cat].count) : 0,
+  }));
+}
+
+function applyCategoryFromStats(cat) {
+  document.getElementById('categoryStatsModal')?.remove();
+  switchTab('search', document.querySelector('.nav-btn'));
+  const filter = cat || 'all';
+  const targetBtn = [...document.querySelectorAll('.filter-btn')]
+    .find(btn => (btn.getAttribute('onclick') || '').includes(`'${filter}'`));
+  setFilter(filter, targetBtn || document.querySelector('.filter-btn'));
+}
+
+function showCategoryStats() {
+  document.getElementById('categoryStatsModal')?.remove();
+  const total = TERMS.length;
+  const rows = getCategoryStats();
+  const activeRows = rows.filter(r => r.count > 0);
+  const top = activeRows.slice().sort((a,b) => b.count - a.count)[0];
+  const maxCount = Math.max(...rows.map(r => r.count), 1);
+  const avgCompletion = total
+    ? Math.round(TERMS.reduce((sum, t) => sum + termCompletionPercent(t), 0) / total)
+    : 0;
+  const uncategorized = rows.find(r => r.category === '기타')?.count || 0;
+  const zeroCategories = rows.filter(r => r.category !== '기타' && r.count === 0).length;
+
+  const rowHtml = rows.map(r => {
+    const width = Math.max(5, Math.round(r.count / maxCount * 100));
+    const pct = total ? Math.round(r.count / total * 100) : 0;
+    return `
+      <div style="background:#0d1117;border:1px solid #30363d;border-radius:11px;padding:12px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <button onclick="applyCategoryFromStats('${escapeJsString(r.category)}')" style="background:none;border:none;color:#c9d1d9;font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;padding:0;text-align:left">${escapeHtml(categoryDisplay(r.category))}</button>
+          <div style="font-size:12px;color:#7ee787;font-weight:800">${r.count}개</div>
+        </div>
+        <div style="height:8px;background:#161b22;border-radius:999px;overflow:hidden;border:1px solid #21262d;margin-bottom:7px">
+          <div style="height:100%;width:${width}%;background:linear-gradient(90deg,#58a6ff,#7ee787);border-radius:999px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#8b949e">
+          <span>전체 대비 ${pct}%</span>
+          <span>완성도 ${r.completion}% · 즐겨찾기 ${r.bookmarks}개</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'categoryStatsModal';
+  overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="categoryStatsTitle">
+      <div class="developer-modal-head">
+        <div id="categoryStatsTitle" style="font-size:18px;font-weight:800;color:#e6edf3">📊 분류별 통계</div>
+        <button onclick="document.getElementById('categoryStatsModal').remove()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div class="developer-grid">
+        <div class="developer-field"><div class="developer-field-label">전체 용어</div><div class="developer-field-value">${total}개</div></div>
+        <div class="developer-field"><div class="developer-field-label">최다 분류</div><div class="developer-field-value">${top ? `${escapeHtml(categoryDisplay(top.category))} · ${top.count}개` : '아직 없음'}</div></div>
+        <div class="developer-field"><div class="developer-field-label">평균 완성도</div><div class="developer-field-value">${avgCompletion}%</div></div>
+        <div class="developer-field"><div class="developer-field-label">정리 필요</div><div class="developer-field-value">기타 ${uncategorized}개 · 빈 분류 ${zeroCategories}개</div></div>
+      </div>
+      <div style="padding:8px 20px 0;color:#8b949e;font-size:11px;line-height:1.7">
+        분류명을 누르면 해당 필터로 바로 이동합니다. 개수는 현재 저장된 전체 용어 기준입니다.
+      </div>
+      <div style="padding:14px 20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        ${rowHtml || '<div style="color:#8b949e;font-size:12px">아직 통계를 낼 용어가 없습니다.</div>'}
+      </div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 function showDeveloperInfo() {
@@ -6304,7 +6479,7 @@ document.getElementById('searchInput').addEventListener('input', e => {
 });
 
 // Update date
-const APP_UPDATE = '2026-06-08'; // v3.3 — upload moved to header
+const APP_UPDATE = '2026-06-08'; // v3.5 — safer sync safeguards
 const d = new Date(APP_UPDATE);
 document.getElementById('updateDate').textContent =
   `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
