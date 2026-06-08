@@ -1580,8 +1580,8 @@ document.addEventListener('keydown', e => {
     <span>8개 API</span>
   </div>
   <div class="stats-actions">
-    <button class="cloud-sync-btn" onclick="confirmPushLocalToCloud()" title="현재 이 기기의 용어 목록을 클라우드 기준본으로 저장">
-      ☁️ 로컬→클라우드 저장
+    <button class="cloud-sync-btn" onclick="confirmPushLocalToCloud()" title="현재 기기 데이터로 클라우드 최종본을 덮어쓰기">
+      ☁️ 클라우드 최종본 덮어쓰기
     </button>
   </div>
 </div>
@@ -1817,13 +1817,17 @@ async function sbBatchUpsertRows(rows) {
   }
 }
 
-// 현재 기기를 최종본으로 지정: 데이터 저장이 모두 성공한 뒤 canonical_version 갱신
+// 현재 기기 데이터로 클라우드 최종본 덮어쓰기: 데이터 저장이 모두 성공한 뒤 canonical_version 갱신
 async function sbPushAll(options = {}) {
   const cfg = getSupabaseConfig();
   if (!cfg) { showToast('⚠️ Supabase 설정을 먼저 저장하세요'); return; }
   const { confirmOverwrite = false } = options;
   if (confirmOverwrite) {
-    const ok = window.confirm(`현재 이 기기의 ${TERMS.length}개 용어를 클라우드 기준본으로 저장할까요?\n\n기존 클라우드 데이터는 모두 지워지고 이 버전으로 교체됩니다.`);
+    const ok = window.confirm(
+      `현재 이 기기의 ${TERMS.length}개 용어로 클라우드 최종본을 덮어쓸까요?\n\n` +
+      `현재 이 기기에 없는 항목은 PC·모바일·태블릿 등 다른 기기에 있더라도 최종본에서 제외될 수 있습니다.\n` +
+      `먼저 데이터 관리에서 전체 백업 JSON을 저장하는 것을 권장합니다.`
+    );
     if (!ok) return;
   }
   try {
@@ -1864,11 +1868,11 @@ async function sbPushAll(options = {}) {
     await syncLearningStateToCloud();
     updateBookmarkCount();
     applyFilters();
-    showToast(`☁️ 이 기기를 새 최종본으로 지정했습니다 (${cleanTerms.length}개)`);
+    showToast(`☁️ 이 기기 데이터로 클라우드 최종본을 덮어썼습니다 (${cleanTerms.length}개)`);
   } catch(e) {
     console.error('Canonical push failed:', e);
     saveLocalSyncMeta({ pendingCanonicalStatus: 'failed', pendingCanonicalError: String(e?.message || e) });
-    showToast('⚠️ 최종본 저장 실패 · 데이터 탭에서 다시 최종본 지정을 실행하세요');
+    showToast('⚠️ 클라우드 최종본 덮어쓰기 실패 · 데이터 탭에서 다시 실행하세요');
   }
 }
 
@@ -2836,8 +2840,8 @@ function showAISettings() {
       <div style="background:var(--surface);border:1px solid rgba(34,197,94,0.4);border-radius:12px;padding:16px;margin-bottom:10px">
         <div style="font-size:13px;color:#4ade80;font-weight:600;margin-bottom:4px">☁️ Supabase 기기간 동기화</div>
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">
-          클라우드 기준본을 모든 기기에서 불러오는 방식입니다.<br>
-          로컬→클라우드는 현재 기기 데이터를 기준본으로 덮어씁니다.<br>
+          클라우드 최종본을 모든 기기에서 불러오는 방식입니다.<br>
+          덮어쓰기는 현재 기기 데이터를 클라우드 최종본으로 저장하며, 이 기기에 없는 항목은 다른 기기에 있어도 제외될 수 있습니다.<br>
           현재 상태: <span id="sbStatus" style="color:var(--accent2)">${getSupabaseConfig() ? '✅ 연결됨' : '❌ 미설정'}</span>
         </div>
         <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Supabase URL</label>
@@ -2849,7 +2853,7 @@ function showAISettings() {
           <button onclick="testAndSyncSupabase()" style="flex:1;background:var(--surface2);border:1px solid #4ade80;border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔄 연결 테스트</button>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button onclick="confirmPushLocalToCloud()" style="flex:1;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:10px;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬆️ 로컬→클라우드</button>
+          <button onclick="confirmPushLocalToCloud()" style="flex:1;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:10px;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬆️ 기기→최종본 덮어쓰기</button>
           <button onclick="pullFromCloud()" style="flex:1;background:var(--surface2);border:1px solid var(--accent3);border-radius:8px;padding:10px;color:var(--accent3);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬇️ 클라우드→로컬</button>
         </div>
         ${getSupabaseConfig() ? `
@@ -2928,7 +2932,7 @@ async function syncWithCloud() {
 
   const localMeta = getLocalSyncMeta();
   if (localMeta.pendingCanonicalStatus) {
-    showToast('⚠️ 이전 최종본 지정이 완료되지 않았습니다 · 먼저 다시 최종본 지정을 완료하세요');
+    showToast('⚠️ 이전 클라우드 최종본 덮어쓰기가 완료되지 않았습니다 · 먼저 다시 실행하세요');
     return false;
   }
   const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== localMeta.canonicalVersion;
@@ -3790,8 +3794,9 @@ function showGuide() {
       color: '#f87171',
       items: [
         '일반 양방향 동기화는 로컬과 클라우드를 updated_at 기준으로 병합합니다',
-        '이 기기를 최종본으로 지정하면 canonical_version이 바뀌고 다른 기기는 클라우드 기준으로 맞춥니다',
-        '최종본 지정이 중간 실패하면 일반 동기화를 막고 데이터 관리 화면에 상태를 표시합니다',
+        '클라우드 최종본 덮어쓰기는 현재 기기 데이터를 기준으로 클라우드 최종본을 교체합니다',
+        '현재 기기에 없는 항목은 다른 기기에 있더라도 최종본에서 제외될 수 있습니다',
+        '덮어쓰기가 중간 실패하면 일반 동기화를 막고 데이터 관리 화면에 상태를 표시합니다',
         '삭제는 바로 hard delete하지 않고 deleted_at tombstone으로 동기화합니다',
         '휴지통 목록을 비워도 tombstone은 보존되어 다른 기기에서 오래된 항목이 되살아나는 것을 막습니다',
       ]
@@ -3803,7 +3808,7 @@ function showGuide() {
         '먼저 파일 업로드 또는 UMLS 검색으로 용어를 넣습니다',
         '통계 버튼으로 분류가 비어 있는 계통과 완성도가 낮은 계통을 확인합니다',
         '데이터 관리에서 전체 JSON 백업을 주기적으로 저장합니다',
-        '한 기기 데이터를 기준으로 삼고 싶을 때만 “이 기기를 최종본으로 지정”을 사용합니다',
+        '한 기기 데이터가 가장 정확하다고 확신할 때만 “클라우드 최종본 덮어쓰기”를 사용합니다',
         '평소에는 일반 양방향 동기화로 추가/수정 내용을 기기 간 전파합니다',
       ]
     },
@@ -4027,7 +4032,7 @@ function showExportMenu() {
 
           <section class="data-card sync-card">
             <div class="data-card-title">☁️ 동기화 관리</div>
-            <div class="data-card-desc">양방향 병합과 최종본 지정은 서로 다른 작업입니다.</div>
+            <div class="data-card-desc">일반 양방향 동기화와 클라우드 최종본 덮어쓰기는 서로 다른 작업입니다. 덮어쓰기는 현재 기기 목록을 기준으로 모든 기기를 맞춥니다.</div>
             <div class="data-status-grid">
               <div class="data-status-box"><div class="data-status-label">연결 상태</div><div class="data-status-value">${getSupabaseConfig() ? '연결 설정됨' : '미설정'}</div></div>
               <div class="data-status-box"><div class="data-status-label">로컬 용어</div><div class="data-status-value">${TERMS.length}개</div></div>
@@ -4035,12 +4040,12 @@ function showExportMenu() {
               <div class="data-status-box"><div class="data-status-label">마지막 로컬 기록</div><div class="data-status-value">${formatDataDate(localMeta.savedAt)}</div></div>
             </div>
             ${localMeta.pendingCanonicalStatus ? `<div style="margin:10px 0 0;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.35);border-radius:10px;padding:10px 12px;color:#fca5a5;font-size:11px;line-height:1.6">
-              이전 최종본 지정 상태: ${escapeHtml(localMeta.pendingCanonicalStatus)}
+              이전 클라우드 최종본 덮어쓰기 상태: ${escapeHtml(localMeta.pendingCanonicalStatus)}
               ${localMeta.pendingCanonicalError ? `<br>${escapeHtml(localMeta.pendingCanonicalError)}` : ''}
             </div>` : ''}
             <div class="data-action-stack">
               <button class="data-action-btn green" onclick="runManualSync()">일반 양방향 동기화</button>
-              <button class="data-action-btn outline" onclick="confirmPushLocalToCloud()">이 기기를 최종본으로 지정</button>
+              <button class="data-action-btn outline" onclick="confirmPushLocalToCloud()">현재 기기 데이터로 클라우드 최종본 덮어쓰기</button>
               <button class="data-action-btn purple" onclick="confirmCloudReplaceLocal()">클라우드 최종본으로 이 기기 교체</button>
             </div>
           </section>
@@ -4523,16 +4528,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.6',
+  version: '3.7',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 08:35:39',
+  updatedAt: '2026년 6월 8일 08:46:42',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 헤더 정리와 가이드 전면 개편',
+    title: '최신 · 최종본 덮어쓰기 문구 명확화',
+    items: [
+      '“이 기기를 최종본으로 지정” 표현을 “현재 기기 데이터로 클라우드 최종본 덮어쓰기”로 변경',
+      '확인창에 다른 기기에만 있는 항목이 최종본에서 제외될 수 있다는 경고 추가',
+      '설정 · 데이터 관리 · 가이드의 동기화 설명을 같은 의미로 통일',
+    ]
+  },
+  {
+    title: 'v3.6 · 헤더 정리와 가이드 전면 개편',
     items: [
       '상단 개발일자 표시를 제거해 파일 업로드 · 설정 · 통계 · 개발자 버튼 중심으로 정리',
       '개발자 정보의 업데이트 내역을 최신 2개 상세와 과거 요약 형태로 재구성',
@@ -4544,8 +4557,8 @@ const UPDATE_HISTORY = [
     items: [
       '휴지통 비우기를 클라우드 hard delete가 아닌 복원 목록 숨김 방식으로 변경',
       '삭제 tombstone을 내부 보존해 다른 기기의 오래된 로컬 항목 부활 위험 감소',
-      '최종본 지정 중간 실패 상태를 로컬 메타에 기록하고 일반 동기화를 차단',
-      '데이터 관리 화면에 최종본 지정 실패 상태와 삭제 보호 기록 수를 표시',
+      '클라우드 최종본 덮어쓰기 중간 실패 상태를 로컬 메타에 기록하고 일반 동기화를 차단',
+      '데이터 관리 화면에 덮어쓰기 실패 상태와 삭제 보호 기록 수를 표시',
       '90일 지난 삭제 보호 기록만 선택적으로 정리하는 기능 추가',
     ]
   },
