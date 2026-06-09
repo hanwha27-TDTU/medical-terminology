@@ -1811,6 +1811,17 @@ function saveLocalSyncMeta(patch) {
   return next;
 }
 
+function clearPendingCanonicalStatus(extra = {}) {
+  return saveLocalSyncMeta({
+    pendingCanonicalVersion: null,
+    pendingCanonicalAt: null,
+    pendingCanonicalCount: null,
+    pendingCanonicalStatus: null,
+    pendingCanonicalError: null,
+    ...extra,
+  });
+}
+
 // ─── Supabase 동기화 ───
 function getSupabaseConfig() {
   return safeJsonParse(localStorage.getItem(SUPABASE_CONFIG_KEY), null);
@@ -2019,12 +2030,8 @@ async function sbPushAll(options = {}) {
     TERMS.length = 0;
     TERMS.push(...cleanTerms);
     saveTermsToLocalStorage();
-    saveLocalSyncMeta({
+    clearPendingCanonicalStatus({
       canonicalVersion: pendingVersion,
-      pendingCanonicalVersion: null,
-      pendingCanonicalAt: null,
-      pendingCanonicalCount: null,
-      pendingCanonicalStatus: null,
       lastCanonicalPushAt: new Date().toISOString()
     });
     await syncLearningStateToCloud();
@@ -2040,6 +2047,63 @@ async function sbPushAll(options = {}) {
 
 function confirmPushLocalToCloud() {
   return sbPushAll({ confirmOverwrite: true });
+}
+
+function reconcilePendingCanonicalStatus(canonicalMeta) {
+  const localMeta = getLocalSyncMeta();
+  if (!localMeta.pendingCanonicalStatus) return true;
+  const pendingVersion = localMeta.pendingCanonicalVersion;
+  if (pendingVersion && canonicalMeta?.version === pendingVersion) {
+    clearPendingCanonicalStatus({
+      canonicalVersion: pendingVersion,
+      lastCanonicalPushAt: canonicalMeta.updatedAt || new Date().toISOString(),
+    });
+    showToast('✅ 이전 클라우드 최종본 덮어쓰기 완료 상태 확인됨');
+    return true;
+  }
+  return false;
+}
+
+async function recoverPendingCanonicalStatus() {
+  if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정 먼저 저장하세요'); return; }
+  showToast('☁️ 이전 최종본 덮어쓰기 상태 확인 중...');
+  const canonicalMeta = await sbLoadCanonicalMeta();
+  if (canonicalMeta === null) {
+    showToast('⚠️ 최종본 기준값을 확인하지 못했습니다');
+    return;
+  }
+  if (reconcilePendingCanonicalStatus(canonicalMeta)) {
+    showExportMenu();
+    return;
+  }
+  const localMeta = getLocalSyncMeta();
+  showConfirm(
+    `클라우드 최종본 버전과 이 기기의 대기 버전이 다릅니다.<br><br>` +
+    `<span style="font-size:11px;color:#8b949e">클라우드: ${escapeHtml(canonicalMeta.version || '없음')}<br>이 기기 대기: ${escapeHtml(localMeta.pendingCanonicalVersion || '없음')}</span><br><br>` +
+    `클라우드 데이터를 바꾸지 않고 이 기기의 잠금 표시만 해제할까요?`,
+    () => {
+      clearPendingCanonicalStatus();
+      showToast('🔓 이 기기의 최종본 덮어쓰기 잠금 표시를 해제했습니다');
+      showExportMenu();
+    },
+    null,
+    { okText: '잠금 해제', cancelText: '취소', okColor: '#fbbf24' }
+  );
+}
+
+function confirmClearPendingCanonicalStatus() {
+  const localMeta = getLocalSyncMeta();
+  showConfirm(
+    `이 기기의 최종본 덮어쓰기 잠금 표시만 해제할까요?<br><br>` +
+    `<span style="font-size:11px;color:#8b949e">클라우드 데이터는 변경하지 않습니다. 이후 동기화 상태 점검으로 클라우드 개수를 확인하세요.<br>현재 상태: ${escapeHtml(localMeta.pendingCanonicalStatus || '없음')}</span>`,
+    () => {
+      clearPendingCanonicalStatus();
+      showToast('🔓 로컬 잠금 표시 해제 완료');
+      showExportMenu();
+    },
+    null,
+    { okText: '잠금 해제', cancelText: '취소', okColor: '#fbbf24' }
+  );
 }
 
 // 연결 테스트
@@ -3436,10 +3500,13 @@ async function syncWithCloud() {
 
   const localMeta = getLocalSyncMeta();
   if (localMeta.pendingCanonicalStatus) {
-    showToast('⚠️ 이전 클라우드 최종본 덮어쓰기가 완료되지 않았습니다 · 먼저 다시 실행하세요');
-    return false;
+    if (!reconcilePendingCanonicalStatus(canonicalMeta)) {
+      showToast('⚠️ 이전 클라우드 최종본 덮어쓰기가 완료되지 않았습니다 · 데이터 관리에서 상태 재확인 또는 잠금 해제를 실행하세요');
+      return false;
+    }
   }
-  const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== localMeta.canonicalVersion;
+  const refreshedMeta = getLocalSyncMeta();
+  const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== refreshedMeta.canonicalVersion;
 
   if (canonicalChanged) {
     TERMS.length = 0;
@@ -3518,9 +3585,14 @@ async function testSingleAIProvider(provider) {
 }
 
 // ─── 커스텀 Confirm (claude.ai에서 confirm() 차단 대응) ───
-function showConfirm(message, onOk, onCancel) {
+function showConfirm(message, onOk, onCancel, options = {}) {
   const existing = document.getElementById('confirmModal');
   if (existing) existing.remove();
+  const okText = options.okText || '삭제';
+  const cancelText = options.cancelText || '취소';
+  const okColor = options.okColor || '#f85149';
+  const okBg = options.okBg || 'rgba(248,81,73,0.15)';
+  const okBorder = options.okBorder || okColor;
 
   const modal = document.createElement('div');
   modal.id = 'confirmModal';
@@ -3530,8 +3602,8 @@ function showConfirm(message, onOk, onCancel) {
       <div style="font-size:22px;margin-bottom:12px">⚠️</div>
       <div style="font-size:14px;color:#e6edf3;line-height:1.6;margin-bottom:20px">${message}</div>
       <div style="display:flex;gap:8px">
-        <button id="confirmCancel" style="flex:1;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:11px;color:#8b949e;font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
-        <button id="confirmOk" style="flex:1;background:rgba(248,81,73,0.15);border:1px solid #f85149;border-radius:8px;padding:11px;color:#f85149;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">삭제</button>
+        <button id="confirmCancel" style="flex:1;background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:11px;color:#8b949e;font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${cancelText}</button>
+        <button id="confirmOk" style="flex:1;background:${okBg};border:1px solid ${okBorder};border-radius:8px;padding:11px;color:${okColor};font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${okText}</button>
       </div>
     </div>`;
 
@@ -4845,6 +4917,10 @@ function showExportMenu() {
             ${localMeta.pendingCanonicalStatus ? `<div style="margin:10px 0 0;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.35);border-radius:10px;padding:10px 12px;color:#fca5a5;font-size:11px;line-height:1.6">
               이전 클라우드 최종본 덮어쓰기 상태: ${escapeHtml(localMeta.pendingCanonicalStatus)}
               ${localMeta.pendingCanonicalError ? `<br>${escapeHtml(localMeta.pendingCanonicalError)}` : ''}
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+                <button onclick="recoverPendingCanonicalStatus()" style="flex:1;min-width:130px;background:rgba(88,166,255,0.12);border:1px solid #1d4ed8;border-radius:8px;padding:8px;color:#74b0ff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">상태 재확인</button>
+                <button onclick="confirmClearPendingCanonicalStatus()" style="flex:1;min-width:130px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.5);border-radius:8px;padding:8px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">잠금만 해제</button>
+              </div>
             </div>` : ''}
             <div class="data-action-stack">
               <button class="data-action-btn outline" onclick="showSyncDiagnostics()">동기화 상태 점검</button>
@@ -5424,16 +5500,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.25',
+  version: '3.26',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 17:38:40',
+  updatedAt: '2026년 6월 9일 17:44:40',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · PC·태블릿 용어 수 차이 진단 추가',
+    title: '최신 · 최종본 덮어쓰기 pending 잠금 복구',
+    items: [
+      '최종본 덮어쓰기 완료 후 로컬 pending 상태가 남아 일반 동기화가 계속 막히는 경우를 자동 재확인',
+      '클라우드 canonical_version이 pending 버전과 일치하면 잠금을 자동 해제하고 동기화를 계속 진행',
+      '데이터 관리에 상태 재확인과 잠금만 해제 버튼을 추가해 중간 실패 표시를 안전하게 복구',
+    ]
+  },
+  {
+    title: 'v3.25 · PC·태블릿 용어 수 차이 진단 추가',
     items: [
       '데이터 관리에 동기화 상태 점검 버튼을 추가해 로컬 용어 수와 클라우드 활성 용어 수를 직접 비교',
       '클라우드 삭제 표시, canonical_version 일치 여부, 오래된 로컬 전용 제외 예정 개수를 한 화면에 표시',
