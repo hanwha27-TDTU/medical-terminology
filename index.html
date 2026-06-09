@@ -3247,7 +3247,11 @@ function showAddTermForm() {
           </div>
           <div style="display:flex;gap:8px">
             <button onclick="previewTsvPaste()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔍 미리보기</button>
-            <button id="tsvImportBtn" onclick="importTsvPaste()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:11px;color:#0d1117;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✅ 가져오기</button>
+            <button id="tsvImportBtn" onclick="importTsvPaste('merge')" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:11px;color:#0d1117;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✅ 갱신+추가</button>
+            <button id="tsvAddOnlyBtn" onclick="importTsvPaste('add_only')" style="flex:1;background:rgba(63,185,80,0.12);border:1px solid #238636;border-radius:8px;padding:11px;color:#7ee787;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">➕ 신규만</button>
+          </div>
+          <div style="font-size:10px;color:var(--text3);line-height:1.5;margin-top:8px">
+            갱신+추가: 같은 용어는 새 내용으로 갱신 · 신규만: 기존 용어는 그대로 두고 새 용어만 추가
           </div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
@@ -3383,7 +3387,7 @@ function parseTsvPaste(raw) {
         COLS.forEach(c => { if (!t[c]) t[c] = ''; });
         t.category = t.category || '기타';
         return t;
-      }).filter(t => t.ko || t.en);
+      }).filter(t => t.ko || t.en || t.uz);
   }
 
   // 헤더 없음 — 순서대로 (Anki TSV #으로 시작하는 줄 제외)
@@ -3395,7 +3399,7 @@ function parseTsvPaste(raw) {
       COLS.forEach((c, idx) => { t[c] = (cells[idx] || '').trim(); });
       t.category = t.category || '기타';
       return t;
-    }).filter(t => t.ko || t.en);
+    }).filter(t => t.ko || t.en || t.uz);
 }
 
 function previewTsvPaste() {
@@ -3417,7 +3421,7 @@ function previewTsvPaste() {
   preview.style.display = 'block';
 }
 
-async function importTsvPaste() {
+async function importTsvPaste(mode = 'merge') {
   const raw = document.getElementById('tsvPasteArea')?.value || '';
   const rows = parseTsvPaste(raw);
   if (!rows.length) { showToast('⚠️ 파싱할 데이터가 없습니다'); return; }
@@ -3435,19 +3439,22 @@ async function importTsvPaste() {
 
     const existIdx = findTermIndexByIdentity(t);
 
-    if (existIdx !== -1) {
+    if (existIdx !== -1 && mode !== 'add_only') {
       overwriteRows.push({ t, existIdx });
-    } else {
+    } else if (existIdx === -1) {
       newRows.push(t);
     }
   });
 
   if (!overwriteRows.length && !newRows.length) {
-    showToast('⚠️ 처리할 데이터가 없습니다'); return;
+    showToast(mode === 'add_only' ? '⚠️ 새로 추가할 용어가 없습니다 · 기존 용어는 유지됨' : '⚠️ 처리할 데이터가 없습니다');
+    return;
   }
 
   const btn = document.getElementById('tsvImportBtn');
+  const addOnlyBtn = document.getElementById('tsvAddOnlyBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 가져오는 중...'; }
+  if (addOnlyBtn) { addOnlyBtn.disabled = true; addOnlyBtn.textContent = '⏳ 추가 중...'; }
 
   // 덮어쓰기 처리: 완전 덮어쓰기 (새 데이터로 전부 교체, 기존 id 유지)
   let overwriteCount = 0;
@@ -3475,9 +3482,11 @@ async function importTsvPaste() {
   const msg = [
     overwriteCount > 0 ? `✏️ ${overwriteCount}개 완전 덮어쓰기` : '',
     addedCount > 0     ? `➕ ${addedCount}개 신규 추가` : '',
+    mode === 'add_only' && rows.length > addedCount ? `⏭️ 기존 ${rows.length - addedCount}개 유지` : '',
   ].filter(Boolean).join(', ');
   showToast(`✅ ${msg || '처리 완료'}`);
-  if (btn) { btn.disabled = false; btn.textContent = '✅ 가져오기'; }
+  if (btn) { btn.disabled = false; btn.textContent = '✅ 갱신+추가'; }
+  if (addOnlyBtn) { addOnlyBtn.disabled = false; addOnlyBtn.textContent = '➕ 신규만'; }
   switchTab('search', document.querySelector('.nav-btn'));
   applyFilters();
 }
@@ -3826,6 +3835,8 @@ function showGuide() {
       items: [
         '단어 하나를 직접 추가하거나 TSV 붙여넣기로 여러 용어를 빠르게 입력합니다',
         '파일 업로드 버튼으로 Excel · TSV · CSV 자료를 가져옵니다',
+        '가져오기 방식은 전체 교체 · 갱신+추가 · 신규만 추가 중에서 선택할 수 있습니다',
+        '신규만 추가를 선택하면 기존 용어의 정의 · IPA · 학습 내용은 그대로 유지됩니다',
         'OpenAI · Gemini · Anthropic · Claude 환경을 설정 창에서 관리합니다',
         'AI 키가 없으면 기본 저장만 하고, 키가 있으면 정의 · USMLE · IPA를 보강합니다',
         'NIH UMLS API 키를 등록하면 공식 의학 용어 검색 기반으로 추가할 수 있습니다',
@@ -4435,7 +4446,7 @@ async function previewDataImport(event, kind) {
         </div>
         <select id="dataImportMode" class="data-select">
           <option value="merge">최신 항목 병합</option>
-          <option value="append">새 항목만 추가</option>
+          <option value="append">신규만 추가</option>
           <option value="replace">현재 데이터 교체</option>
         </select>
         <button class="data-action-btn green" onclick="applyPendingDataImport()">미리보기대로 적용</button>
@@ -4592,16 +4603,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.9',
+  version: '3.10',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 8일 17:01:49',
+  updatedAt: '2026년 6월 9일 12:05:42',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 보안과 데이터 정합성 보강',
+    title: '최신 · 신규만 추가 가져오기 모드',
+    items: [
+      'TSV 붙여넣기 화면에 “신규만” 버튼을 추가해 기존 용어를 수정하지 않고 새 용어만 추가',
+      '파일 업로드 선택창을 전체 교체 · 갱신+추가 · 신규만 추가 3가지 모드로 분리',
+      '기존 “추가” 문구가 실제로는 갱신까지 수행하던 혼선을 줄이도록 버튼 설명 정리',
+    ]
+  },
+  {
+    title: 'v3.9 · 보안과 데이터 정합성 보강',
     items: [
       '용어 문자열을 인라인 onclick에 직접 넣던 복사 · 발음 · ICD 버튼을 id 기반 호출로 변경',
       'TSV 붙여넣기와 파일 업로드의 중복 판정을 영어 → 한국어 → 우즈베크어 기준으로 통일해 ko 전용 행 유실 방지',
@@ -5776,9 +5795,14 @@ function confirmUpload(e) {
         <div style="font-size:11px;color:#8b949e;font-weight:400;margin-top:3px">현재 모든 용어 삭제 후 새 파일로 교체</div>
       </button>
 
-      <button onclick="doUpload('append')" style="width:100%;background:rgba(63,185,80,0.1);border:1px solid #3fb950;border-radius:10px;padding:13px 16px;color:#3fb950;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
-        ➕ 기존 데이터에 추가
-        <div style="font-size:11px;color:#8b949e;font-weight:400;margin-top:3px">기존 ${userTerms.length}개 + 새 파일 용어 합치기</div>
+      <button onclick="doUpload('append')" style="width:100%;background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:10px;padding:13px 16px;color:#74b0ff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
+        🔄 갱신+추가
+        <div style="font-size:11px;color:#8b949e;font-weight:400;margin-top:3px">같은 용어는 새 파일 내용으로 갱신하고, 새 용어는 추가</div>
+      </button>
+
+      <button onclick="doUpload('add_only')" style="width:100%;background:rgba(63,185,80,0.1);border:1px solid #3fb950;border-radius:10px;padding:13px 16px;color:#3fb950;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
+        ➕ 신규만 추가
+        <div style="font-size:11px;color:#8b949e;font-weight:400;margin-top:3px">기존 용어는 그대로 두고, 겹치지 않는 새 용어만 추가</div>
       </button>
 
       <button onclick="document.getElementById('uploadConfirmModal').remove();document.getElementById('fileInput').value=''" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text3);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
@@ -6394,8 +6418,8 @@ async function handleFileUpload(e, mode = 'replace') {
 
     rows = rows.map(t => ({ ...t, id: nextTermId(), updatedAt: new Date().toISOString() }));
 
-    if (mode === 'append') {
-      // 영어 → 한국어 → 우즈베크어 기준 중복: 완전 덮어쓰기 (기존 용어를 새 데이터로 교체)
+    if (mode === 'append' || mode === 'add_only') {
+      // append: 같은 용어 갱신+신규 추가, add_only: 기존 용어 유지+신규만 추가
       let overwriteCount = 0;
       const newRows = [];
       const seenInBatch = new Set();
@@ -6404,20 +6428,22 @@ async function handleFileUpload(e, mode = 'replace') {
         if (!key || seenInBatch.has(key)) return;
         seenInBatch.add(key);
         const existIdx = findTermIndexByIdentity(t);
-        if (existIdx !== -1) {
+        if (existIdx !== -1 && mode === 'append') {
           // 완전 덮어쓰기 (기존 id 유지)
           TERMS[existIdx] = normalizeTermForStorage({ ...t, id: TERMS[existIdx].id, updatedAt: new Date().toISOString() });
           saveTermToCloud(TERMS[existIdx]);
           overwriteCount++;
-        } else {
+        } else if (existIdx === -1) {
           newRows.push(t);
         }
       });
       if (overwriteCount > 0) { saveTermsToLocalStorage(); }
       rows = newRows; // 신규만 아래에서 push
-      if (overwriteCount > 0 && rows.length === 0) {
+      if (rows.length === 0) {
         saveTermsToLocalStorage(); applyFilters(); updateBookmarkCount();
-        showToast(`✅ ${overwriteCount}개 완전 덮어쓰기 완료`); return;
+        if (mode === 'add_only') showToast('⚠️ 새로 추가할 용어가 없습니다 · 기존 용어는 유지됨');
+        else showToast(`✅ ${overwriteCount}개 완전 덮어쓰기 완료`);
+        return;
       }
     }
 
@@ -6429,9 +6455,10 @@ async function handleFileUpload(e, mode = 'replace') {
     updateBookmarkCount();
 
     const emptyCount = rows.filter(t => !t.def_ko || !t.usmle).length;
+    const modeLabel = mode === 'add_only' ? '신규만 추가' : '저장';
     const msg = emptyCount > 0
-      ? `✅ ${rows.length}개 저장 완료! (빈 칸 ${emptyCount}개 → 내보내기 탭에서 '일괄 빈칸 채우기'로 완성 가능)`
-      : `✅ ${rows.length}개 저장 완료!`;
+      ? `✅ ${rows.length}개 ${modeLabel} 완료! (빈 칸 ${emptyCount}개 → 내보내기 탭에서 '일괄 빈칸 채우기'로 완성 가능)`
+      : `✅ ${rows.length}개 ${modeLabel} 완료!`;
     showToast(msg);
 
   };
