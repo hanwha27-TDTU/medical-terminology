@@ -98,8 +98,9 @@ function _syncDrawerBookmarkBtn() {
 
 function drawerOpenEdit() {
   if (!_drawerTermId) return;
+  const termId = _drawerTermId;
   closeDrawer();
-  setTimeout(() => openEditModal({ stopPropagation: () => {} }, _drawerTermId), 120);
+  setTimeout(() => openEditModal({ stopPropagation: () => {} }, termId), 120);
 }
 
 function _renderDrawerContent(t) {
@@ -2002,13 +2003,23 @@ function safeJsonParse(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
-function capitalizeFirst(s) {
-  if (!s) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 function cleanTermString(value) {
   return String(value || '').trim();
+}
+
+function capitalizeTermInitial(value) {
+  const text = cleanTermString(value);
+  if (!text) return '';
+
+  const firstLetterIndex = text.search(/[A-Za-zÀ-ÖØ-öø-ÿ]/);
+  if (firstLetterIndex === -1) return text;
+
+  const firstWord = text.slice(firstLetterIndex).split(/\s+/)[0] || '';
+  if (/[A-ZÀ-ÖØ-Þ]/.test(firstWord.slice(1))) return text; // preserve pH, mRNA, eGFR, etc.
+
+  return text.slice(0, firstLetterIndex)
+    + text.charAt(firstLetterIndex).toLocaleUpperCase('en-US')
+    + text.slice(firstLetterIndex + 1);
 }
 
 function normalizeTermForStorage(t) {
@@ -2016,8 +2027,8 @@ function normalizeTermForStorage(t) {
   return {
     id: Number(t.id) || nextTermId(),
     ko: cleanTermString(t.ko),
-    en: cleanTermString(t.en),
-    uz: cleanTermString(t.uz),
+    en: capitalizeTermInitial(t.en),
+    uz: capitalizeTermInitial(t.uz),
     category: cleanTermString(t.category) || '기타',
     def_ko: cleanTermString(t.def_ko),
     def_en: cleanTermString(t.def_en),
@@ -3952,7 +3963,7 @@ function openEditModal(e, id) {
       <div style="${ROW}"><input id="edit_uz" value="${esc(t.uz)}" placeholder="O'zbek" style="${IS}"><button style="${RB}" onclick="regenField(${id},'uz')" title="AI 재생성">🔄</button></div>
 
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:4px">발음 · 분류</div>
-      <div style="${ROW}"><input id="edit_ipa" value="${esc(t.ipa)}" placeholder="IPA (예: /ˈsep.sɪs/)" style="${IS}"><button style="${RB}" onclick="regenField(${id},'ipa')" title="AI 재생성">🔄</button></div>
+      <div style="${ROW}"><input id="edit_ipa" value="${esc(t.ipa)}" placeholder="IPA (예: /ˈsep.sɪs/)" style="${IS}"><button style="${RB}" onclick="regenField(${id},'ipa')" title="앱 내부 IPA 생성">🔤</button></div>
       <div style="margin-bottom:10px">
         <select id="edit_category" style="${IS}">
           ${cats.map(c => `<option value="${escapeHtml(c)}" ${t.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
@@ -3989,17 +4000,147 @@ const FIELD_PROMPTS = {
   usmle:  (t) => `Give a USMLE Step 1/2 CK high-yield one-liner for "${t.en || t.ko}". Format strictly: ↑X, ↓Y | Tx: Z | Trap: W. Return ONLY that one line, nothing else.`,
 };
 
+const LOCAL_IPA_PHRASES = Object.freeze({
+  'halitosis': 'ˌhæl.ɪˈtoʊ.sɪs',
+  'sepsis': 'ˈsep.sɪs',
+  'abdominal recti': 'æbˈdɑː.mə.nəl ˈrek.taɪ',
+  'rectus abdominis': 'ˈrek.təs æbˈdɑː.mə.nɪs',
+  'abducens nerve': 'æbˈduː.senz nɝːv',
+  'arterial blood flow': 'ɑːrˈtɪr.i.əl blʌd floʊ',
+});
+
+const LOCAL_IPA_WORDS = Object.freeze({
+  abdomen: 'ˈæb.də.mən',
+  abdominal: 'æbˈdɑː.mə.nəl',
+  abducens: 'æbˈduː.senz',
+  acceleration: 'əkˌsel.əˈreɪ.ʃən',
+  artery: 'ˈɑːr.t̬ɚ.i',
+  arterial: 'ɑːrˈtɪr.i.əl',
+  blood: 'blʌd',
+  brain: 'breɪn',
+  bone: 'boʊn',
+  cell: 'sel',
+  disease: 'dɪˈziːz',
+  fever: 'ˈfiː.vɚ',
+  flow: 'floʊ',
+  halitosis: 'ˌhæl.ɪˈtoʊ.sɪs',
+  heart: 'hɑːrt',
+  infection: 'ɪnˈfek.ʃən',
+  inflammation: 'ˌɪn.fləˈmeɪ.ʃən',
+  intestine: 'ɪnˈtes.tɪn',
+  kidney: 'ˈkɪd.ni',
+  liver: 'ˈlɪv.ɚ',
+  lung: 'lʌŋ',
+  muscle: 'ˈmʌs.əl',
+  nerve: 'nɝːv',
+  pain: 'peɪn',
+  recti: 'ˈrek.taɪ',
+  rectus: 'ˈrek.təs',
+  sepsis: 'ˈsep.sɪs',
+  skin: 'skɪn',
+  stomach: 'ˈstʌm.ək',
+  syndrome: 'ˈsɪn.droʊm',
+  vein: 'veɪn',
+});
+
+const LOCAL_IPA_SUFFIXES = Object.freeze([
+  ['itis', 'aɪ.tɪs'],
+  ['osis', 'oʊ.sɪs'],
+  ['emia', 'iː.mi.ə'],
+  ['algia', 'æl.dʒə'],
+  ['pathy', 'pə.θi'],
+  ['ectomy', 'ek.tə.mi'],
+  ['otomy', 'ɑː.tə.mi'],
+  ['scopy', 'skə.pi'],
+  ['graphy', 'ɡrə.fi'],
+  ['logy', 'lə.dʒi'],
+]);
+
+function normalizeIpaLookupTerm(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function roughIpaStem(word) {
+  let s = String(word || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!s) return '';
+  s = s
+    .replace(/tion/g, 'ʃən')
+    .replace(/sion/g, 'ʒən')
+    .replace(/ph/g, 'f')
+    .replace(/th/g, 'θ')
+    .replace(/sh/g, 'ʃ')
+    .replace(/ch/g, 'k')
+    .replace(/qu/g, 'kw')
+    .replace(/ck/g, 'k')
+    .replace(/x/g, 'ks');
+  s = s.replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k');
+  s = s.replace(/g(?=[eiy])/g, 'dʒ').replace(/g/g, 'ɡ');
+  s = s
+    .replace(/ee/g, 'iː')
+    .replace(/ea/g, 'iː')
+    .replace(/oo/g, 'uː')
+    .replace(/ou/g, 'aʊ')
+    .replace(/ai/g, 'eɪ')
+    .replace(/ay/g, 'eɪ')
+    .replace(/oa/g, 'oʊ')
+    .replace(/a/g, 'æ')
+    .replace(/e/g, 'e')
+    .replace(/i/g, 'ɪ')
+    .replace(/o/g, 'ɑː')
+    .replace(/u/g, 'ʌ')
+    .replace(/y$/g, 'i');
+  return s;
+}
+
+function localIpaForWord(word) {
+  const clean = String(word || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!clean || /^[ivxlcdm]+$/.test(clean)) return '';
+  if (LOCAL_IPA_WORDS[clean]) return LOCAL_IPA_WORDS[clean];
+  for (const [suffix, ipa] of LOCAL_IPA_SUFFIXES) {
+    if (clean.endsWith(suffix) && clean.length > suffix.length + 1) {
+      const stem = clean.slice(0, -suffix.length);
+      const stemIpa = LOCAL_IPA_WORDS[stem] || roughIpaStem(stem);
+      return stemIpa ? `${stemIpa}.${ipa}` : ipa;
+    }
+  }
+  return roughIpaStem(clean);
+}
+
+function generateLocalIPA(term) {
+  const normalized = normalizeIpaLookupTerm(term);
+  if (!normalized) return '';
+  if (LOCAL_IPA_PHRASES[normalized]) return `/${LOCAL_IPA_PHRASES[normalized]}/`;
+  const parts = normalized
+    .split(/[\s-]+/)
+    .map(localIpaForWord)
+    .filter(Boolean);
+  return parts.length ? `/${parts.join(' ')}/` : '';
+}
+
 async function regenField(id, field) {
   const t = TERMS.find(x => x.id === id);
   if (!t) { showToast('⚠️ 용어를 찾을 수 없습니다'); return; }
   if (!FIELD_PROMPTS[field]) { showToast('⚠️ 이 항목은 AI 재생성을 지원하지 않습니다'); return; }
-  if (!isClaudeAiEnv() && !hasConfiguredAIKey()) {
-    showToast('⚠️ 설정에서 API 키를 먼저 저장하세요');
-    return;
-  }
 
   const inputEl = document.getElementById(`edit_${field}`);
   if (!inputEl) { showToast('⚠️ 편집 칸을 찾을 수 없습니다'); return; }
+  const current = {
+    ...t,
+    ko: document.getElementById('edit_ko')?.value.trim() || t.ko,
+    en: document.getElementById('edit_en')?.value.trim() || t.en,
+    uz: document.getElementById('edit_uz')?.value.trim() || t.uz,
+    ipa: document.getElementById('edit_ipa')?.value.trim() || t.ipa,
+    def_ko: document.getElementById('edit_def_ko')?.value.trim() || t.def_ko,
+    def_en: document.getElementById('edit_def_en')?.value.trim() || t.def_en,
+    def_uz: document.getElementById('edit_def_uz')?.value.trim() || t.def_uz,
+    usmle: document.getElementById('edit_usmle')?.value.trim() || t.usmle,
+  };
 
   // Visual loading state
   const btn = inputEl.closest('div').querySelector('button');
@@ -4009,20 +4150,23 @@ async function regenField(id, field) {
     btn.disabled = true;
   }
   inputEl.style.opacity = '0.4';
-  showToast('🤖 AI 재생성 중...');
+  showToast(field === 'ipa' ? '🔤 IPA 자동생성 중...' : '🤖 AI 재생성 중...');
 
   try {
-    const current = {
-      ...t,
-      ko: document.getElementById('edit_ko')?.value.trim() || t.ko,
-      en: document.getElementById('edit_en')?.value.trim() || t.en,
-      uz: document.getElementById('edit_uz')?.value.trim() || t.uz,
-      ipa: document.getElementById('edit_ipa')?.value.trim() || t.ipa,
-      def_ko: document.getElementById('edit_def_ko')?.value.trim() || t.def_ko,
-      def_en: document.getElementById('edit_def_en')?.value.trim() || t.def_en,
-      def_uz: document.getElementById('edit_def_uz')?.value.trim() || t.def_uz,
-      usmle: document.getElementById('edit_usmle')?.value.trim() || t.usmle,
-    };
+    if (field === 'ipa') {
+      const localIpa = generateLocalIPA(current.en || current.ko || current.uz);
+      if (localIpa) {
+        inputEl.value = localIpa;
+        showToast('✅ 앱 내부 IPA 자동생성 완료');
+        return;
+      }
+    }
+
+    if (!isClaudeAiEnv() && !hasConfiguredAIKey()) {
+      showToast('⚠️ 설정에서 API 키를 먼저 저장하세요');
+      return;
+    }
+
     const result = (await callAIText(FIELD_PROMPTS[field](current), 300, 'field')).trim().replace(/^["']|["']$/g, '');
     if (result) inputEl.value = result;
     showToast(`✅ ${field} 재생성 완료`);
@@ -4897,16 +5041,32 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.13',
+  version: '3.15',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 13:29:30',
+  updatedAt: '2026년 6월 9일 14:01:42',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 선택 삭제와 100개씩 더보기',
+    title: '최신 · IPA 앱 내부 생성과 수정 버튼 오류 보정',
+    items: [
+      'IPA 재생성 버튼을 API 키 없이도 앱 내부 규칙 기반으로 먼저 자동 생성하도록 개선',
+      '상세 보기 오른쪽 수정 버튼을 눌렀을 때 상세창만 닫히고 편집창이 열리지 않던 문제 수정',
+      '영어 의학용어 사전값과 접미사 규칙을 함께 사용해 빈 IPA를 빠르게 채울 수 있도록 보완',
+    ]
+  },
+  {
+    title: 'v3.14 · 영어·우즈베크어 첫 글자 자동 대문자',
+    items: [
+      '용어 저장 시 영어와 우즈베크어 용어명의 첫 알파벳을 자동으로 대문자로 보정',
+      '단어 하나 추가 · TSV 붙여넣기 · Excel 업로드 · 편집 저장 · AI 보강 결과에 동일 규칙 적용',
+      'pH · mRNA · eGFR처럼 첫 단어 안에 대문자가 섞인 표기는 보존하도록 처리',
+    ]
+  },
+  {
+    title: 'v3.13 · 선택 삭제와 100개씩 더보기',
     items: [
       '목록 카드에 선택 체크박스를 추가하고 선택한 용어를 한 번에 삭제할 수 있도록 개선',
       '삭제 전 전체 JSON 백업을 자동 저장하고 기존 tombstone 방식으로 삭제 동기화 유지',
