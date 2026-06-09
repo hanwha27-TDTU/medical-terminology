@@ -124,7 +124,9 @@ function _renderDrawerContent(t) {
     : `<span class="drawer-complete-badge" style="color:#3fb950;background:rgba(63,185,80,0.1);border-color:rgba(63,185,80,0.3)">✓ 완성</span>`;
 
   // 카테고리 배지
-  const catHtml = `<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">${escapeHtml(t.category)}</span>`;
+  const catHtml = `
+    <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">${escapeHtml(conceptDisplay(t.concept_category))}</span>
+    <span style="font-size:11px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px;color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>`;
 
   // 링크 버튼들
   const linksHtml = `
@@ -1644,6 +1646,21 @@ document.addEventListener('keydown', e => {
 
 <div style="display:flex;gap:6px;align-items:center;padding:6px 24px 0;flex-wrap:wrap">
   <button onclick="searchUMLSFromInput()" style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:8px;padding:6px 12px;color:#74b0ff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🏥 NIH UMLS 검색</button>
+  <select id="conceptFilterSelect" onchange="setConceptFilter(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
+    <option value="all">개념: 전체</option>
+    <option value="Anatomy">Anatomy</option>
+    <option value="Physiology">Physiology</option>
+    <option value="Symptoms & Signs">Symptoms & Signs</option>
+    <option value="Diseases">Diseases</option>
+    <option value="Diagnostics">Diagnostics</option>
+    <option value="Procedures">Procedures</option>
+    <option value="Pharmacology">Pharmacology</option>
+    <option value="Pathology">Pathology</option>
+    <option value="Microbiology">Microbiology</option>
+    <option value="Biochemistry & Genetics">Biochemistry & Genetics</option>
+    <option value="Public Health">Public Health</option>
+    <option value="Other / Unclassified">Other / Unclassified</option>
+  </select>
   <select id="sortSelect" onchange="setSort(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
     <option value="default">정렬: 완성 우선 · A→Z</option>
     <option value="en_asc">A→Z (영어만)</option>
@@ -1653,6 +1670,7 @@ document.addEventListener('keydown', e => {
 </div>
 <div class="filter-row" id="filterRow">
   <button class="filter-btn active" onclick="setFilter('all', this)">전체</button>
+  <button class="filter-btn" onclick="setFilter('General', this)">📌 General</button>
   <button class="filter-btn" onclick="setFilter('Cardiovascular', this)">❤️ Cardiovascular</button>
   <button class="filter-btn" onclick="setFilter('Pulmonary', this)">🫁 Pulmonary</button>
   <button class="filter-btn" onclick="setFilter('Renal', this)">🫘 Renal</button>
@@ -1663,11 +1681,12 @@ document.addEventListener('keydown', e => {
   <button class="filter-btn" onclick="setFilter('Infectious Disease', this)">🦠 Infectious</button>
   <button class="filter-btn" onclick="setFilter('Musculoskeletal', this)">🦴 MSK</button>
   <button class="filter-btn" onclick="setFilter('Dermatology', this)">🩹 Derm</button>
+  <button class="filter-btn" onclick="setFilter('Ophthalmology', this)">👁️ Eye</button>
+  <button class="filter-btn" onclick="setFilter('ENT', this)">👂 ENT</button>
   <button class="filter-btn" onclick="setFilter('Reproductive', this)">🧬 Reproductive</button>
   <button class="filter-btn" onclick="setFilter('Psychiatry', this)">💬 Psychiatry</button>
+  <button class="filter-btn" onclick="setFilter('Pediatrics', this)">🧒 Pediatrics</button>
   <button class="filter-btn" onclick="setFilter('Immunology', this)">🛡️ Immunology</button>
-  <button class="filter-btn" onclick="setFilter('Pharmacology', this)">💊 Pharmacology</button>
-  <button class="filter-btn" onclick="setFilter('Pathology', this)">🔬 Pathology</button>
   <button class="filter-btn" onclick="setFilter('기타', this)">📁 기타</button>
   <button id="filterBookmarkBtn" class="filter-btn" onclick="setFilter('즐겨찾기', this)">⭐ 즐겨찾기</button>
 </div>
@@ -1789,6 +1808,8 @@ function termToRow(t) {
     en:          t.en || '',
     uz:          t.uz || '',
     category:    t.category || '',
+    concept_category: t.concept_category || t.conceptCategory || 'Other / Unclassified',
+    system_tags: Array.isArray(t.system_tags) ? t.system_tags : [],
     def_ko:      t.def_ko || '',
     def_en:      t.def_en || '',
     def_uz:      t.def_uz || '',
@@ -1812,6 +1833,9 @@ function rowToTerm(r) {
     en:          r.en || '',
     uz:          r.uz || '',
     category:    r.category || '기타',
+    concept_category: r.concept_category || 'Other / Unclassified',
+    conceptCategory: r.concept_category || 'Other / Unclassified',
+    system_tags: Array.isArray(r.system_tags) ? r.system_tags : [],
     def_ko:      r.def_ko || '',
     def_en:      r.def_en || '',
     def_uz:      r.def_uz || '',
@@ -2022,14 +2046,62 @@ function capitalizeTermInitial(value) {
     + text.slice(firstLetterIndex + 1);
 }
 
+function normalizeConceptCategory(value, source = {}) {
+  const raw = cleanTermString(value || source.conceptCategory || source.concept);
+  if (CONCEPT_CATEGORIES.includes(raw)) return raw;
+  const legacy = cleanTermString(source.category || source.system);
+  if (legacy === 'Pharmacology' || legacy === 'Pathology') return legacy;
+  return 'Other / Unclassified';
+}
+
+function normalizeSystemCategory(value) {
+  const raw = cleanTermString(value);
+  const aliases = {
+    'GI & Hepato': 'GI & Hepatobiliary',
+    'GI': 'GI & Hepatobiliary',
+    'Gastrointestinal': 'GI & Hepatobiliary',
+    'Respiratory': 'Pulmonary',
+    'Neuro': 'Neurology',
+    'Heme/Onc': 'Hematology & Oncology',
+    'Hematology': 'Hematology & Oncology',
+    'Infectious': 'Infectious Disease',
+    'MSK': 'Musculoskeletal',
+    'Derm': 'Dermatology',
+    'Eye': 'Ophthalmology',
+    'Oral cavity': 'ENT',
+    'Pharmacology': 'General',
+    'Pathology': 'General',
+  };
+  const mapped = aliases[raw] || raw;
+  if (VALID_CATS.includes(mapped)) return mapped;
+  if (CONCEPT_CATEGORIES.includes(mapped)) return 'General';
+  return raw ? '기타' : 'General';
+}
+
+function normalizeSystemTags(value) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[,;|]/);
+  return [...new Set(raw
+    .map(v => cleanTermString(v))
+    .filter(Boolean)
+    .map(normalizeSystemCategory)
+    .filter(Boolean))];
+}
+
 function normalizeTermForStorage(t) {
   const now = new Date().toISOString();
+  const category = normalizeSystemCategory(t.system || t.category);
+  const conceptCategory = normalizeConceptCategory(t.concept_category || t.conceptCategory, t);
   return {
     id: Number(t.id) || nextTermId(),
     ko: cleanTermString(t.ko),
     en: capitalizeTermInitial(t.en),
     uz: capitalizeTermInitial(t.uz),
-    category: cleanTermString(t.category) || '기타',
+    category,
+    concept_category: conceptCategory,
+    conceptCategory,
+    system_tags: normalizeSystemTags(t.system_tags || t.systemTags || t.tags),
     def_ko: cleanTermString(t.def_ko),
     def_en: cleanTermString(t.def_en),
     def_uz: cleanTermString(t.def_uz),
@@ -2085,7 +2157,7 @@ function isEmptyTermValue(value) {
 }
 
 function termCompletenessScore(t) {
-  return ['ko','en','uz','category','def_ko','def_en','def_uz','usmle','ipa','icd11','fdaDrug','rxclassATC','trials']
+  return ['ko','en','uz','concept_category','category','def_ko','def_en','def_uz','usmle','ipa','icd11','fdaDrug','rxclassATC','trials']
     .reduce((score, key) => score + (isEmptyTermValue(t[key]) ? 0 : 1), Array.isArray(t.refs) ? t.refs.length : 0);
 }
 
@@ -2101,6 +2173,10 @@ function mergeDuplicateTerms(a, b) {
   if ((!merged.category || merged.category === '기타') && secondary.category && secondary.category !== '기타') {
     merged.category = secondary.category;
   }
+  if ((!merged.concept_category || merged.concept_category === 'Other / Unclassified') && secondary.concept_category && secondary.concept_category !== 'Other / Unclassified') {
+    merged.concept_category = secondary.concept_category;
+  }
+  merged.system_tags = [...new Set([...(Array.isArray(a.system_tags) ? a.system_tags : []), ...(Array.isArray(b.system_tags) ? b.system_tags : [])])];
   merged.refs = [...new Set([...(Array.isArray(a.refs) ? a.refs : []), ...(Array.isArray(b.refs) ? b.refs : [])])];
   const latestTime = Math.max(timeA, timeB);
   merged.updatedAt = latestTime > 0 ? new Date(latestTime).toISOString() : new Date().toISOString();
@@ -2292,15 +2368,20 @@ function getStorageStatusText() {
 }
 
 let currentFilter = 'all';
+let currentConceptFilter = 'all';
 let currentSort = 'default'; // 'default' | 'en_asc' | 'ko_asc' | 'uz_asc'
 let _idCounter = Date.now();
 function makeId() { return nextTermId(); }
 let aiStopRequested = false; // AI 중지 플래그
-const VALID_CATS = ['Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','Endocrine',
+const CONCEPT_CATEGORIES = ['Anatomy','Physiology','Symptoms & Signs','Diseases','Diagnostics',
+  'Procedures','Pharmacology','Pathology','Microbiology','Biochemistry & Genetics',
+  'Public Health','Other / Unclassified'];
+const VALID_CATS = ['General','Cardiovascular','Pulmonary','Renal','GI & Hepatobiliary','Endocrine',
   'Neurology','Hematology & Oncology','Infectious Disease','Musculoskeletal',
-  'Dermatology','Reproductive','Psychiatry','Immunology','Pharmacology','Pathology'];
+  'Dermatology','Ophthalmology','ENT','Reproductive','Psychiatry','Pediatrics','Immunology'];
 
 const CATEGORY_META = {
+  'General': { icon: '📌', label: 'General' },
   'Cardiovascular': { icon: '❤️', label: 'Cardiovascular' },
   'Pulmonary': { icon: '🫁', label: 'Pulmonary' },
   'Renal': { icon: '🫘', label: 'Renal' },
@@ -2311,12 +2392,28 @@ const CATEGORY_META = {
   'Infectious Disease': { icon: '🦠', label: 'Infectious' },
   'Musculoskeletal': { icon: '🦴', label: 'MSK' },
   'Dermatology': { icon: '🩹', label: 'Derm' },
+  'Ophthalmology': { icon: '👁️', label: 'Eye' },
+  'ENT': { icon: '👂', label: 'ENT' },
   'Reproductive': { icon: '🧬', label: 'Reproductive' },
   'Psychiatry': { icon: '💬', label: 'Psychiatry' },
+  'Pediatrics': { icon: '🧒', label: 'Pediatrics' },
   'Immunology': { icon: '🛡️', label: 'Immunology' },
+  '기타': { icon: '📁', label: '기타' },
+};
+
+const CONCEPT_META = {
+  'Anatomy': { icon: '🦴', label: 'Anatomy' },
+  'Physiology': { icon: '⚙️', label: 'Physiology' },
+  'Symptoms & Signs': { icon: '🩺', label: 'Symptoms & Signs' },
+  'Diseases': { icon: '📋', label: 'Diseases' },
+  'Diagnostics': { icon: '🔎', label: 'Diagnostics' },
+  'Procedures': { icon: '🛠️', label: 'Procedures' },
   'Pharmacology': { icon: '💊', label: 'Pharmacology' },
   'Pathology': { icon: '🔬', label: 'Pathology' },
-  '기타': { icon: '📁', label: '기타' },
+  'Microbiology': { icon: '🦠', label: 'Microbiology' },
+  'Biochemistry & Genetics': { icon: '🧬', label: 'Biochem & Genetics' },
+  'Public Health': { icon: '📈', label: 'Public Health' },
+  'Other / Unclassified': { icon: '📁', label: 'Other' },
 };
 
 let bookmarks = new Set((safeJsonParse(localStorage.getItem('kma_bookmarks'), []) || []).map(Number).filter(Number.isFinite));
@@ -2383,7 +2480,8 @@ function renderTerms(terms, bookmarkDivider = 0) {
           <div class="term-english"><span onclick="copyTermField(event,${termId},'en','영어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(88,166,255,0.12)'" onmouseleave="this.style.background=''">${highlight(t.en, query)}</span></div>
           ${t.uz ? `<div class="term-uzbek"><span onclick="copyTermField(event,${termId},'uz','우즈베크어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(251,191,36,0.12)'" onmouseleave="this.style.background=''"> ${highlight(t.uz, query)}</span></div>` : ''}
         </div>
-        <span class="term-category">${escapeHtml(t.category)}</span>
+        <span class="term-category" title="개념분류">${escapeHtml(conceptDisplay(t.concept_category))}</span>
+        <span class="term-category" title="대표 장기계" style="border-color:rgba(88,166,255,0.35);color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>
         ${(() => {
           const missing = [];
           if (!t.ko)     missing.push('KO');
@@ -2684,7 +2782,7 @@ function deleteSelectedTerms() {
 function applyFilters() {
   if (!document.getElementById('termList')) return;  // ← bail when export/quiz/add tab active
   const query = document.getElementById('searchInput').value.toLowerCase();
-  const signature = `${currentFilter}|${currentSort}|${query}`;
+  const signature = `${currentFilter}|${currentConceptFilter}|${currentSort}|${query}`;
   if (signature !== _lastListSignature) {
     visibleTermLimit = LIST_PAGE_SIZE;
     selectedTermIds.clear();
@@ -2702,11 +2800,18 @@ function applyFilters() {
     setSectionLabel(query ? `검색 결과` : `전체 용어`);
   }
 
+  if (currentConceptFilter !== 'all') {
+    results = results.filter(t => (t.concept_category || 'Other / Unclassified') === currentConceptFilter);
+    setSectionLabel(`${conceptDisplay(currentConceptFilter)} — ${results.length}개`);
+  }
+
   if (query) {
     results = results.filter(t =>
       termText(t, 'ko').toLowerCase().includes(query) ||
       termText(t, 'en').toLowerCase().includes(query) ||
       termText(t, 'uz').toLowerCase().includes(query) ||
+      String(t.concept_category || '').toLowerCase().includes(query) ||
+      String(t.category || '').toLowerCase().includes(query) ||
       termText(t, 'def_ko').toLowerCase().includes(query) ||
       termText(t, 'def_en').toLowerCase().includes(query)
     );
@@ -2752,7 +2857,14 @@ function renderHome() {
 function setFilter(filter, btn) {
   currentFilter = filter;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  btn?.classList.add('active');
+  applyFilters();
+}
+
+function setConceptFilter(filter) {
+  currentConceptFilter = filter || 'all';
+  const sel = document.getElementById('conceptFilterSelect');
+  if (sel) sel.value = currentConceptFilter;
   applyFilters();
 }
 
@@ -3444,6 +3556,7 @@ async function callAIText(prompt, maxTokens = 800, task = 'general', forceProvid
 
 // ─── Add Term Form ───
 const CATEGORIES = VALID_CATS; // VALID_CATS와 동기화 유지
+const CONCEPTS = CONCEPT_CATEGORIES; // 개념분류와 동기화 유지
 
 function showAddTermForm(target = document.getElementById('mainContent')) {
   const main = target;
@@ -3468,7 +3581,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             헤더(ko, en, uz…)가 있어도 자동으로 처리됩니다.
           </div>
           <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:4px;margin-bottom:10px">
-            <textarea id="tsvPasteArea" placeholder="ko&#9;en&#9;uz&#9;category&#9;def_ko&#9;def_en&#9;def_uz&#9;usmle&#9;ipa&#10;방광&#9;bladder&#9;qovuq&#9;Renal&#9;..." rows="8" style="width:100%;background:transparent;border:none;color:#8b949e;font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
+            <textarea id="tsvPasteArea" placeholder="ko&#9;en&#9;uz&#9;concept_category&#9;system&#9;system_tags&#9;def_ko&#9;def_en&#9;def_uz&#9;usmle&#9;ipa&#10;입냄새&#9;Halitosis&#9;&#9;Symptoms & Signs&#9;ENT&#9;GI & Hepatobiliary&#9;..." rows="8" style="width:100%;background:transparent;border:none;color:#8b949e;font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
           </div>
           <div id="tsvPreview" style="display:none;margin-bottom:10px">
             <div style="font-size:11px;color:var(--accent2);margin-bottom:6px" id="tsvPreviewLabel"></div>
@@ -3486,8 +3599,8 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3);line-height:1.8">
             <b style="color:var(--text2)">TSV 컬럼 순서</b><br>
-            ko · en · uz · category · def_ko · def_en · def_uz · usmle · ipa<br>
-            <span style="color:var(--accent2)">✓ 헤더 있어도 OK &nbsp;✓ 일부 컬럼만 있어도 OK</span>
+            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa<br>
+            <span style="color:var(--accent2)">✓ 헤더 있어도 OK &nbsp;✓ 예전 category 순서도 OK</span>
           </div>
         </div>
         <button onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 닫기</button>
@@ -3510,8 +3623,8 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3);line-height:1.8">
             <b style="color:var(--text2)">지원 컬럼</b><br>
-            ko · en · uz · category · def_ko · def_en · def_uz · usmle · ipa<br>
-            <span style="color:var(--accent2)">✓ 기존 용어 보존 &nbsp;✓ 새 용어만 추가 &nbsp;✓ 빈칸은 나중에 AI 보강 가능</span>
+            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa<br>
+            <span style="color:var(--accent2)">✓ 기존 용어 보존 &nbsp;✓ 새 용어만 추가 &nbsp;✓ 예전 category 파일도 인식</span>
           </div>
         </div>
         <button onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 닫기</button>
@@ -3548,10 +3661,17 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         </div>
         <div id="optionalFields" style="display:none">
           <div style="margin-bottom:10px">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">📂 카테고리</label>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">🧭 개념분류</label>
+            <select id="add_concept_category" style="${inputStyle()}">
+              <option value="Other / Unclassified">나중에 분류</option>
+              ${CONCEPTS.filter(c => c !== 'Other / Unclassified').map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">📂 대표 장기계</label>
             <select id="add_category" style="${inputStyle()}">
-              <option value="">AI 자동분류</option>
-              ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+              <option value="General">General</option>
+              ${CATEGORIES.filter(c => c !== 'General').map(c => `<option value="${c}">${c}</option>`).join('')}
             </select>
           </div>
           <div style="margin-bottom:10px">
@@ -3660,7 +3780,7 @@ function switchAddTab(tab) {
 function parseTsvPaste(raw) {
   const lines = raw.trim().split('\n').filter(l => l.trim());
   if (!lines.length) return [];
-  const COLS = ['ko','en','uz','category','def_ko','def_en','def_uz','usmle','ipa'];
+  const COLS = ['ko','en','uz','concept_category','category','system_tags','def_ko','def_en','def_uz','usmle','ipa'];
 
   // 헤더 별칭 매핑 (영문 헤더 → 내부 키)
   const ALIAS = {
@@ -3668,6 +3788,14 @@ function parseTsvPaste(raw) {
     'en':'en', 'english':'en',
     'uz':'uz', 'uzbek':'uz',
     'category':'category',
+    'system':'category',
+    'system_category':'category',
+    'concept':'concept_category',
+    'concept_category':'concept_category',
+    'conceptcategory':'concept_category',
+    'system_tags':'system_tags',
+    'systemtags':'system_tags',
+    'tags':'system_tags',
     'def_ko':'def_ko',
     'def_en':'def_en',
     'def_uz':'def_uz',
@@ -3688,19 +3816,22 @@ function parseTsvPaste(raw) {
         const t = {};
         colMap.forEach((key, idx) => { if (key) t[key] = (cells[idx] || '').trim(); });
         COLS.forEach(c => { if (!t[c]) t[c] = ''; });
-        t.category = t.category || '기타';
+        t.category = t.category || 'General';
+        t.concept_category = t.concept_category || 'Other / Unclassified';
         return t;
       }).filter(t => t.ko || t.en || t.uz);
   }
 
   // 헤더 없음 — 순서대로 (Anki TSV #으로 시작하는 줄 제외)
+  const LEGACY_COLS = ['ko','en','uz','category','def_ko','def_en','def_uz','usmle','ipa'];
   return lines
     .filter(l => !l.startsWith('#'))
     .map(line => {
       const cells = line.split('\t');
       const t = {};
-      COLS.forEach((c, idx) => { t[c] = (cells[idx] || '').trim(); });
-      t.category = t.category || '기타';
+      LEGACY_COLS.forEach((c, idx) => { t[c] = (cells[idx] || '').trim(); });
+      t.category = t.category || 'General';
+      t.concept_category = t.concept_category || 'Other / Unclassified';
       return t;
     }).filter(t => t.ko || t.en || t.uz);
 }
@@ -3718,6 +3849,7 @@ function previewTsvPaste() {
     `<div style="font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid #21262d;display:flex;gap:8px">
       <span style="color:var(--text);font-weight:500;min-width:60px">${escapeHtml(t.ko || '—')}</span>
       <span style="color:var(--accent)">${escapeHtml(t.en || '—')}</span>
+      <span style="color:#a78bfa;font-size:10px">${escapeHtml(t.concept_category || 'Other')}</span>
       <span style="color:#fbbf24;font-size:10px">${escapeHtml(t.category)}</span>
     </div>`
   ).join('');
@@ -3870,7 +4002,9 @@ async function submitAddTerm() {
   const newTerm = {
     id:       nextTermId(),
     ko, en, uz,
-    category: document.getElementById('add_category')?.value || '기타',
+    category: document.getElementById('add_category')?.value || 'General',
+    concept_category: document.getElementById('add_concept_category')?.value || 'Other / Unclassified',
+    system_tags: [],
     def_ko:   document.getElementById('add_def_ko')?.value.trim() || '',
     def_en:   document.getElementById('add_def_en')?.value.trim() || '',
     def_uz:   document.getElementById('add_def_uz')?.value.trim() || '',
@@ -3900,7 +4034,9 @@ async function submitAddTerm() {
     TERMS.push(normalizeTermForStorage({
       ...newTerm,
       ko: finalKo, en: finalEn, uz: finalUz,
-      category:   newTerm.category !== '기타' ? newTerm.category : (enriched.category || '기타'),
+      category:   newTerm.category !== 'General' ? newTerm.category : (enriched.system || enriched.category || 'General'),
+      concept_category: newTerm.concept_category !== 'Other / Unclassified' ? newTerm.concept_category : (enriched.concept_category || enriched.conceptCategory || 'Other / Unclassified'),
+      system_tags: enriched.system_tags || enriched.systemTags || [],
       ipa:        enriched.ipa        || '',
       def_ko:     newTerm.def_ko     || enriched.def_ko     || '',
       def_en:     newTerm.def_en     || enriched.def_en     || '',
@@ -3946,6 +4082,10 @@ function openEditModal(e, id) {
   const cats = t.category && !baseCats.includes(t.category)
     ? [t.category, ...baseCats]
     : baseCats;
+  const baseConcepts = CONCEPT_CATEGORIES;
+  const concepts = t.concept_category && !baseConcepts.includes(t.concept_category)
+    ? [t.concept_category, ...baseConcepts]
+    : baseConcepts;
 
   const modal = document.createElement('div');
   modal.id = 'editModal';
@@ -3965,9 +4105,20 @@ function openEditModal(e, id) {
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:4px">발음 · 분류</div>
       <div style="${ROW}"><input id="edit_ipa" value="${esc(t.ipa)}" placeholder="IPA (예: /ˈsep.sɪs/)" style="${IS}"><button style="${RB}" onclick="regenField(${id},'ipa')" title="앱 내부 IPA 생성">🔤</button></div>
       <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">개념분류</label>
+        <select id="edit_concept_category" style="${IS}">
+          ${concepts.map(c => `<option value="${escapeHtml(c)}" ${t.concept_category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">대표 장기계</label>
         <select id="edit_category" style="${IS}">
           ${cats.map(c => `<option value="${escapeHtml(c)}" ${t.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
         </select>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">보조 장기 태그 <span style="color:#6e7681">(쉼표로 구분)</span></label>
+        <input id="edit_system_tags" value="${esc((t.system_tags || []).join(', '))}" placeholder="예: ENT, GI & Hepatobiliary" style="${IS}">
       </div>
 
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:4px">정의</div>
@@ -4191,6 +4342,7 @@ function saveEdit(id) {
   if (idx === -1) return;
 
   const editedCategory = document.getElementById('edit_category')?.value?.trim();
+  const editedConcept = document.getElementById('edit_concept_category')?.value?.trim();
   TERMS[idx] = normalizeTermForStorage({
     ...TERMS[idx],
     ko:       document.getElementById('edit_ko')?.value.trim()       || TERMS[idx].ko,
@@ -4198,6 +4350,8 @@ function saveEdit(id) {
     uz:       document.getElementById('edit_uz')?.value.trim()       || '',
     ipa:      document.getElementById('edit_ipa')?.value.trim()      || '',
     category: editedCategory || TERMS[idx].category || '기타',
+    concept_category: editedConcept || TERMS[idx].concept_category || 'Other / Unclassified',
+    system_tags: document.getElementById('edit_system_tags')?.value.trim() || '',
     def_ko:   document.getElementById('edit_def_ko')?.value.trim()   || '',
     def_en:   document.getElementById('edit_def_en')?.value.trim()   || '',
     def_uz:   document.getElementById('edit_def_uz')?.value.trim()   || '',
@@ -4738,7 +4892,9 @@ function termExportRows(terms) {
     Korean: t.ko || '',
     English: t.en || '',
     Uzbek: t.uz || '',
-    Category: t.category || '기타',
+    Concept_category: t.concept_category || 'Other / Unclassified',
+    System: t.category || 'General',
+    System_tags: Array.isArray(t.system_tags) ? t.system_tags.join(', ') : '',
     Def_ko: t.def_ko || '',
     Def_en: t.def_en || '',
     Def_uz: t.def_uz || '',
@@ -4815,7 +4971,9 @@ function normalizeImportedTableRows(rows) {
     ko: String(row.ko ?? row.Korean ?? row['한국어'] ?? '').trim(),
     en: String(row.en ?? row.English ?? row['영어'] ?? '').trim(),
     uz: String(row.uz ?? row.Uzbek ?? row['우즈베크'] ?? '').trim(),
-    category: String(row.category ?? row.Category ?? row['분류'] ?? '기타').trim() || '기타',
+    category: String(row.system ?? row.System ?? row.system_category ?? row.category ?? row.Category ?? row['장기계'] ?? row['분류'] ?? 'General').trim() || 'General',
+    concept_category: String(row.concept_category ?? row.conceptCategory ?? row.Concept ?? row['개념분류'] ?? 'Other / Unclassified').trim() || 'Other / Unclassified',
+    system_tags: String(row.system_tags ?? row.systemTags ?? row.Tags ?? row['보조태그'] ?? '').trim(),
     def_ko: String(row.def_ko ?? row.Def_ko ?? '').trim(),
     def_en: String(row.def_en ?? row.Def_en ?? '').trim(),
     def_uz: String(row.def_uz ?? row.Def_uz ?? '').trim(),
@@ -5041,16 +5199,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.15',
+  version: '3.16',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 14:01:42',
+  updatedAt: '2026년 6월 9일 14:23:34',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · IPA 앱 내부 생성과 수정 버튼 오류 보정',
+    title: '최신 · MECE 개념분류 + 대표 장기계 구조 도입',
+    items: [
+      '용어를 개념분류(무엇인가)와 대표 장기계(어디와 관련 있는가)로 분리해 저장하도록 개편',
+      'Anatomy · Symptoms & Signs · Diseases · Pharmacology 등 개념분류 필터와 통계 요약 추가',
+      '기존 category 데이터는 대표 장기계로 유지하고 Pharmacology · Pathology 같은 구형 값은 개념분류로 자동 보정',
+    ]
+  },
+  {
+    title: 'v3.15 · IPA 앱 내부 생성과 수정 버튼 오류 보정',
     items: [
       'IPA 재생성 버튼을 API 키 없이도 앱 내부 규칙 기반으로 먼저 자동 생성하도록 개선',
       '상세 보기 오른쪽 수정 버튼을 눌렀을 때 상세창만 닫히고 편집창이 열리지 않던 문제 수정',
@@ -5205,7 +5371,9 @@ const UPDATE_HISTORY = [
 const SUPABASE_SCHEMA_SQL = `alter table medical_terms
   add column if not exists created_at timestamptz default now(),
   add column if not exists updated_at timestamptz default now(),
-  add column if not exists deleted_at timestamptz;
+  add column if not exists deleted_at timestamptz,
+  add column if not exists concept_category text default 'Other / Unclassified',
+  add column if not exists system_tags jsonb default '[]'::jsonb;
 
 create table if not exists language_sync_meta (
   key text primary key,
@@ -5245,8 +5413,13 @@ function categoryDisplay(cat) {
   return `${meta.icon} ${meta.label}`;
 }
 
+function conceptDisplay(concept) {
+  const meta = CONCEPT_META[concept] || { icon: '📁', label: concept || 'Other' };
+  return `${meta.icon} ${meta.label}`;
+}
+
 function termCompletionPercent(t) {
-  const fields = ['ko','en','uz','def_ko','def_en','def_uz','usmle','ipa'];
+  const fields = ['ko','en','uz','concept_category','category','def_ko','def_en','def_uz','usmle','ipa'];
   const filled = fields.filter(key => String(t[key] || '').trim()).length;
   return Math.round(filled / fields.length * 100);
 }
@@ -5270,6 +5443,18 @@ function getCategoryStats() {
   }));
 }
 
+function getConceptStats() {
+  const stats = {};
+  CONCEPT_CATEGORIES.forEach(concept => {
+    stats[concept] = { concept, count: 0 };
+  });
+  TERMS.forEach(t => {
+    const concept = CONCEPT_CATEGORIES.includes(t.concept_category) ? t.concept_category : 'Other / Unclassified';
+    stats[concept].count += 1;
+  });
+  return CONCEPT_CATEGORIES.map(concept => stats[concept]);
+}
+
 function applyCategoryFromStats(cat) {
   document.getElementById('categoryStatsModal')?.remove();
   switchTab('search', document.querySelector('.nav-btn'));
@@ -5283,6 +5468,7 @@ function showCategoryStats() {
   document.getElementById('categoryStatsModal')?.remove();
   const total = TERMS.length;
   const rows = getCategoryStats();
+  const conceptRows = getConceptStats();
   const activeRows = rows.filter(r => r.count > 0);
   const top = activeRows.slice().sort((a,b) => b.count - a.count)[0];
   const maxCount = Math.max(...rows.map(r => r.count), 1);
@@ -5311,6 +5497,11 @@ function showCategoryStats() {
       </div>`;
   }).join('');
 
+  const conceptHtml = conceptRows.map(r => `
+    <button onclick="document.getElementById('categoryStatsModal').remove();switchTab('search', document.querySelector('.nav-btn'));setConceptFilter('${escapeJsString(r.concept)}')" style="background:#0d1117;border:1px solid #30363d;border-radius:999px;padding:7px 10px;color:#c9d1d9;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-align:left">
+      ${escapeHtml(conceptDisplay(r.concept))} <span style="color:#7ee787">${r.count}</span>
+    </button>`).join('');
+
   const overlay = document.createElement('div');
   overlay.id = 'categoryStatsModal';
   overlay.className = 'developer-modal-overlay';
@@ -5327,7 +5518,10 @@ function showCategoryStats() {
         <div class="developer-field"><div class="developer-field-label">정리 필요</div><div class="developer-field-value">기타 ${uncategorized}개 · 빈 분류 ${zeroCategories}개</div></div>
       </div>
       <div style="padding:8px 20px 0;color:#8b949e;font-size:11px;line-height:1.7">
-        분류명을 누르면 해당 필터로 바로 이동합니다. 개수는 현재 저장된 전체 용어 기준입니다.
+        개념분류는 “무엇인가”, 대표 장기계는 “어디와 관련 있는가”입니다. 분류명을 누르면 해당 필터로 바로 이동합니다.
+      </div>
+      <div style="padding:12px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
+        ${conceptHtml}
       </div>
       <div style="padding:14px 20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
         ${rowHtml || '<div style="color:#8b949e;font-size:12px">아직 통계를 낼 용어가 없습니다.</div>'}
@@ -5420,7 +5614,10 @@ function showDuplicateManager() {
             <div style="font-size:12px;color:#58a6ff">${escapeHtml(t.en || '—')}</div>
             ${t.uz ? `<div style="font-size:11px;color:#fbbf24">${escapeHtml(t.uz)}</div>` : ''}
           </div>
-          <span style="font-size:10px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px">${escapeHtml(t.category || '기타')}</span>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+            <span style="font-size:10px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px">${escapeHtml(conceptDisplay(t.concept_category))}</span>
+            <span style="font-size:10px;color:#74b0ff;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px">${escapeHtml(categoryDisplay(t.category))}</span>
+          </div>
         </div>
         <div style="font-size:10px;color:var(--text3);line-height:1.5">
           ${t.def_ko ? `<div>📖 ${escapeHtml(t.def_ko.slice(0,60))}...</div>` : '<div style="color:#6e7681">정의 없음</div>'}
@@ -5591,8 +5788,11 @@ async function bulkReclassify() {
   const canAI = isClaudeAiEnv() || !!(getAIConfig().openaiKey || getAIConfig().anthropicKey || getAIConfig().geminiKey);
   if (!canAI) { showToast('⚠️ AI 키 필요 — 설정에서 등록해주세요'); return; }
 
-  const targets = TERMS.filter(t => !t.category || t.category === '기타');
-  if (!targets.length) { showToast('✅ 재분류할 용어가 없습니다 (기타 없음)'); return; }
+  const targets = TERMS.filter(t =>
+    !t.category || t.category === '기타' ||
+    !t.concept_category || t.concept_category === 'Other / Unclassified'
+  );
+  if (!targets.length) { showToast('✅ 재분류할 용어가 없습니다'); return; }
 
   showAIProgress(targets.length);
   let done = 0;
@@ -5611,24 +5811,31 @@ async function bulkReclassify() {
     try {
       // 카테고리 분류만을 위한 가벼운 프롬프트
       const prompt = `You are a medical terminology classifier.
-Classify this medical term into exactly ONE category.
+Classify this medical term into one concept type and one representative organ system.
 Term: "${term.en || term.ko}"
 ${term.def_en ? `Definition: ${term.def_en}` : ''}
 ${term.usmle ? `USMLE context: ${term.usmle}` : ''}
 
 Return ONLY a JSON object:
-{"category": "one of: Cardiovascular|Pulmonary|Renal|GI & Hepatobiliary|Endocrine|Neurology|Hematology & Oncology|Infectious Disease|Musculoskeletal|Dermatology|Reproductive|Psychiatry|Immunology|Pharmacology|Pathology|기타"}
-Use "기타" ONLY if truly none of the above apply.`;
+{"concept_category": "one of: Anatomy|Physiology|Symptoms & Signs|Diseases|Diagnostics|Procedures|Pharmacology|Pathology|Microbiology|Biochemistry & Genetics|Public Health|Other / Unclassified", "category": "one of: General|Cardiovascular|Pulmonary|Renal|GI & Hepatobiliary|Endocrine|Neurology|Hematology & Oncology|Infectious Disease|Musculoskeletal|Dermatology|Ophthalmology|ENT|Reproductive|Psychiatry|Pediatrics|Immunology", "system_tags": []}
+Use General if no organ system is clear.`;
 
       const text = await callAIText(prompt, 100, 'general');
       const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim();
       const result = JSON.parse(clean);
       const aiCat = result.category?.trim();
+      const aiConcept = result.concept_category?.trim();
 
       const idx = TERMS.findIndex(t => t.id === term.id);
-      if (idx !== -1 && aiCat && aiCat !== '기타') {
+      if (idx !== -1 && (aiCat || aiConcept)) {
         const finalCat = VALID_CATS.includes(aiCat) ? aiCat : aiCat;
-        TERMS[idx] = normalizeTermForStorage({ ...TERMS[idx], category: finalCat, updatedAt: new Date().toISOString() });
+        TERMS[idx] = normalizeTermForStorage({
+          ...TERMS[idx],
+          category: finalCat || TERMS[idx].category,
+          concept_category: CONCEPT_CATEGORIES.includes(aiConcept) ? aiConcept : TERMS[idx].concept_category,
+          system_tags: result.system_tags || TERMS[idx].system_tags || [],
+          updatedAt: new Date().toISOString()
+        });
         saveTermToCloud(TERMS[idx]);
         reclassified++;
       }
@@ -5679,6 +5886,15 @@ async function bulkFillBlanks(scope = 'all') {
         updated.category = VALID_CATS.includes(aiCategory) ? aiCategory : (aiCategory !== '기타' ? aiCategory : '기타');
         changed = true;
       }
+      const aiConcept = enriched.concept_category?.trim() || enriched.conceptCategory?.trim();
+      if ((!updated.concept_category || updated.concept_category === 'Other / Unclassified') && aiConcept) {
+        updated.concept_category = CONCEPT_CATEGORIES.includes(aiConcept) ? aiConcept : 'Other / Unclassified';
+        changed = true;
+      }
+      if ((!updated.system_tags || !updated.system_tags.length) && enriched.system_tags) {
+        updated.system_tags = enriched.system_tags;
+        changed = true;
+      }
 
       // 나머지 빈 필드 채우기
       ['def_ko','def_en','def_uz','usmle','ipa','ko','uz'].forEach(f => {
@@ -5717,12 +5933,12 @@ function exportFullBackup() {
 function exportExcel() {
   if (!TERMS.length) { showToast('⚠️ 내보낼 용어가 없습니다'); return; }
   try {
-    const displayHeader = ['Korean','English','Uzbek','Category','Def_ko','Def_en','Def_uz','USMLE','IPA'];
-    const dataKeys      = ['ko',     'en',     'uz',   'category','def_ko','def_en','def_uz','usmle','ipa'];
-    const rows = TERMS.map(t => dataKeys.map(k => t[k] || ''));
+    const displayHeader = ['Korean','English','Uzbek','Concept_category','System','System_tags','Def_ko','Def_en','Def_uz','USMLE','IPA'];
+    const dataKeys      = ['ko',     'en',     'uz',   'concept_category','category','system_tags','def_ko','def_en','def_uz','usmle','ipa'];
+    const rows = TERMS.map(t => dataKeys.map(k => Array.isArray(t[k]) ? t[k].join(', ') : (t[k] || '')));
     const ws = XLSX.utils.aoa_to_sheet([displayHeader, ...rows]);
     // 컬럼 너비
-    ws['!cols'] = [12,18,18,12,40,40,40,50,14].map(w => ({ wch: w }));
+    ws['!cols'] = [12,18,18,20,16,20,40,40,40,50,14].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '의학용어');
     const filename = `${new Date().toISOString().slice(0,10).replace(/-/g,'.')} Bugeon Medical Terms.xlsx`;
@@ -6712,7 +6928,8 @@ async function addUMLSTerm(cui, name, umlsKey) {
     const newTerm = {
       id: nextTermId(),
       ko: '', en, uz: '',
-      category: '기타', def_ko: '', def_en: def_en, def_uz: '',
+      category: 'General', concept_category: 'Other / Unclassified', system_tags: [],
+      def_ko: '', def_en: def_en, def_uz: '',
       usmle: '', ipa: '', refs: [], icd11: null, fdaDrug: null, rxclassATC: null, trials: null,
     };
 
@@ -6797,7 +7014,9 @@ Return ONLY a valid JSON object (no markdown, no explanation) with these fields:
   "ko": "Korean term name — generate if not provided above",
   "en": "English term name — generate if not provided above",
   "uz": "Uzbek term name — generate if not provided above",
-  "category": "MUST pick the most specific match from: Cardiovascular|Pulmonary|Renal|GI & Hepatobiliary|Endocrine|Neurology|Hematology & Oncology|Infectious Disease|Musculoskeletal|Dermatology|Reproductive|Psychiatry|Immunology|Pharmacology|Pathology. Use '기타' ONLY if none of the above apply at all.",
+  "concept_category": "MUST pick exactly one from: Anatomy|Physiology|Symptoms & Signs|Diseases|Diagnostics|Procedures|Pharmacology|Pathology|Microbiology|Biochemistry & Genetics|Public Health|Other / Unclassified.",
+  "category": "Representative organ system. MUST pick exactly one from: General|Cardiovascular|Pulmonary|Renal|GI & Hepatobiliary|Endocrine|Neurology|Hematology & Oncology|Infectious Disease|Musculoskeletal|Dermatology|Ophthalmology|ENT|Reproductive|Psychiatry|Pediatrics|Immunology. Use General if no organ system is clear.",
+  "system_tags": ["Optional secondary organ systems from the same system list. Empty array if none."],
   "ipa": "Cambridge-style IPA for the English term only, e.g. /ˈsep.sɪs/",
   "def_ko": "Korean definition, 1-2 sentences, medical student level, informed by external data above",
   "def_en": "English definition, 1-2 sentences, medical student level, informed by external data above",
@@ -6842,7 +7061,9 @@ async function handleFileUpload(e, mode = 'replace') {
           ko:       String(row['ko']       || row['Korean']   || row['한국어']   || '').trim(),
           en:       String(row['en']       || row['English']  || row['영어']     || '').trim(),
           uz:       String(row['uz']       || row['Uzbek']    || row['우즈베크'] || '').trim(),
-          category: String(row['category'] || row['Category'] || row['분류']     || '').trim(),
+          concept_category: String(row['concept_category'] || row['Concept_category'] || row['Concept'] || row['개념분류'] || '').trim(),
+          category: String(row['system'] || row['System'] || row['system_category'] || row['category'] || row['Category'] || row['장기계'] || row['분류'] || '').trim(),
+          system_tags: String(row['system_tags'] || row['System_tags'] || row['Tags'] || row['보조태그'] || '').trim(),
           def_ko:   String(row['def_ko']   || row['Def_ko']   || '').trim(),
           def_en:   String(row['def_en']   || row['Def_en']   || '').trim(),
           def_uz:   String(row['def_uz']   || row['Def_uz']   || '').trim(),
@@ -6861,12 +7082,28 @@ async function handleFileUpload(e, mode = 'replace') {
       const dataLines = hasHeader ? lines.slice(1) : lines;
       // 헤더가 있으면 컬럼 순서 파악
       const headerCols = hasHeader ? lines[0].split('\t').map(c => c.trim().toLowerCase()) : null;
-      const ALIAS2 = { ko:0,korean:0, en:1,english:1, uz:2,uzbek:2, category:3,
-                       def_ko:4, def_en:5, def_uz:6, usmle:7, ipa:8 };
+      const ALIAS2 = { ko:0,korean:0, en:1,english:1, uz:2,uzbek:2,
+                       concept:3, concept_category:3, conceptcategory:3,
+                       category:4, system:4, system_category:4,
+                       system_tags:5, systemtags:5, tags:5,
+                       def_ko:6, def_en:7, def_uz:8, usmle:9, ipa:10 };
       rows = dataLines.filter(l => l.trim() && !l.startsWith('#')).map((line, i) => {
         const cols = line.split('\t');
+        if (!headerCols) {
+          return {
+            id: 1000 + i,
+            ko:       cols[0]?.trim() || '',
+            en:       cols[1]?.trim() || '',
+            uz:       cols[2]?.trim() || '',
+            category: cols[3]?.trim() || '',
+            def_ko:   cols[4]?.trim() || '',
+            def_en:   cols[5]?.trim() || '',
+            def_uz:   cols[6]?.trim() || '',
+            usmle:    cols[7]?.trim() || '',
+            ipa:      cols[8]?.trim() || '',
+          };
+        }
         const get = (defaultIdx) => {
-          if (!headerCols) return cols[defaultIdx]?.trim() || '';
           const hi = headerCols.findIndex((h, idx) => ALIAS2[h] === defaultIdx);
           return hi !== -1 ? (cols[hi]?.trim() || '') : (cols[defaultIdx]?.trim() || '');
         };
@@ -6875,12 +7112,14 @@ async function handleFileUpload(e, mode = 'replace') {
           ko:       get(0),
           en:       get(1),
           uz:       get(2),
-          category: get(3),
-          def_ko:   get(4),
-          def_en:   get(5),
-          def_uz:   get(6),
-          usmle:    get(7),
-          ipa:      get(8),
+          concept_category: get(3),
+          category: get(4),
+          system_tags: get(5),
+          def_ko:   get(6),
+          def_en:   get(7),
+          def_uz:   get(8),
+          usmle:    get(9),
+          ipa:      get(10),
         };
       });
     }
