@@ -5500,16 +5500,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.26',
+  version: '3.27',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 17:44:40',
+  updatedAt: '2026년 6월 9일 17:49:27',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 최종본 덮어쓰기 pending 잠금 복구',
+    title: '최신 · Supabase SQL 스키마 보강',
+    items: [
+      'medical_terms 테이블 생성 SQL을 포함하고 id bigint primary key를 보장하도록 Supabase 설정 SQL 보강',
+      'deleted_at · updated_at · refs · ICD/FDA/RxClass/임상시험 보강 컬럼과 인덱스를 통합',
+      'SQL 실행 후 primary key, deleted_at, language_sync_meta, 활성/삭제 용어 수를 바로 확인하는 진단 SELECT 추가',
+    ]
+  },
+  {
+    title: 'v3.26 · 최종본 덮어쓰기 pending 잠금 복구',
     items: [
       '최종본 덮어쓰기 완료 후 로컬 pending 상태가 남아 일반 동기화가 계속 막히는 경우를 자동 재확인',
       '클라우드 canonical_version이 pending 버전과 일치하면 잠금을 자동 해제하고 동기화를 계속 진행',
@@ -5749,20 +5757,88 @@ const UPDATE_HISTORY = [
   }
 ];
 
-const SUPABASE_SCHEMA_SQL = `alter table medical_terms
+const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon 의학용어 앱 Supabase 통합 스키마
+-- 핵심: medical_terms.id primary key, deleted_at, updated_at, language_sync_meta가 반드시 필요합니다.
+
+create table if not exists public.medical_terms (
+  id bigint primary key,
+  ko text default '',
+  en text default '',
+  uz text default '',
+  category text default 'General',
+  concept_category text default 'Other / Unclassified',
+  system_tags jsonb default '[]'::jsonb,
+  def_ko text default '',
+  def_en text default '',
+  def_uz text default '',
+  usmle text default '',
+  ipa text default '',
+  refs jsonb default '[]'::jsonb,
+  icd11 jsonb,
+  fda_drug jsonb,
+  rxclass_atc jsonb,
+  trials jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+
+alter table public.medical_terms
+  add column if not exists ko text default '',
+  add column if not exists en text default '',
+  add column if not exists uz text default '',
+  add column if not exists category text default 'General',
+  add column if not exists concept_category text default 'Other / Unclassified',
+  add column if not exists system_tags jsonb default '[]'::jsonb,
+  add column if not exists def_ko text default '',
+  add column if not exists def_en text default '',
+  add column if not exists def_uz text default '',
+  add column if not exists usmle text default '',
+  add column if not exists ipa text default '',
+  add column if not exists refs jsonb default '[]'::jsonb,
+  add column if not exists icd11 jsonb,
+  add column if not exists fda_drug jsonb,
+  add column if not exists rxclass_atc jsonb,
+  add column if not exists trials jsonb,
   add column if not exists created_at timestamptz default now(),
   add column if not exists updated_at timestamptz default now(),
-  add column if not exists deleted_at timestamptz,
-  add column if not exists concept_category text default 'Other / Unclassified',
-  add column if not exists system_tags jsonb default '[]'::jsonb;
+  add column if not exists deleted_at timestamptz;
 
-create table if not exists language_sync_meta (
+alter table public.medical_terms
+  alter column id type bigint using id::bigint,
+  alter column id set not null;
+
+do $$
+begin
+  if exists (
+    select id from public.medical_terms group by id having count(*) > 1
+  ) then
+    raise exception 'medical_terms.id 중복이 있어 primary key를 만들 수 없습니다. 중복 id를 먼저 정리하세요.';
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.medical_terms'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.medical_terms
+      add constraint medical_terms_pkey primary key (id);
+  end if;
+end $$;
+
+create index if not exists medical_terms_updated_at_idx
+  on public.medical_terms (updated_at desc);
+
+create index if not exists medical_terms_deleted_at_idx
+  on public.medical_terms (deleted_at);
+
+create table if not exists public.language_sync_meta (
   key text primary key,
   value text,
   updated_at timestamptz default now()
 );
 
-create table if not exists medical_term_learning_state (
+create table if not exists public.medical_term_learning_state (
   term_id bigint primary key,
   bookmarked boolean default false,
   correct_count integer default 0,
@@ -5772,7 +5848,35 @@ create table if not exists medical_term_learning_state (
   last_reviewed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
-);`;
+);
+
+alter table public.medical_term_learning_state
+  add column if not exists bookmarked boolean default false,
+  add column if not exists correct_count integer default 0,
+  add column if not exists wrong_count integer default 0,
+  add column if not exists study_status text default 'new',
+  add column if not exists due_at timestamptz,
+  add column if not exists last_reviewed_at timestamptz,
+  add column if not exists created_at timestamptz default now(),
+  add column if not exists updated_at timestamptz default now();
+
+-- 진단: 아래 결과에서 medical_terms_has_primary_key=true, canonical_meta_ready=true여야 합니다.
+select
+  exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.medical_terms'::regclass
+      and contype = 'p'
+  ) as medical_terms_has_primary_key,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='medical_terms' and column_name='deleted_at'
+  ) as deleted_at_ready,
+  exists (
+    select 1 from information_schema.tables
+    where table_schema='public' and table_name='language_sync_meta'
+  ) as canonical_meta_ready,
+  (select count(*) from public.medical_terms where deleted_at is null) as active_terms,
+  (select count(*) from public.medical_terms where deleted_at is not null) as deleted_tombstones;`;
 
 function currentFileName() {
   try {
