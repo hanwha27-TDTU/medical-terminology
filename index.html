@@ -798,12 +798,37 @@ document.addEventListener('keydown', e => {
     border-color: var(--accent);
   }
 
+  .term-card.selected {
+    border-color: rgba(248,81,73,0.55);
+    background: rgba(248,81,73,0.035);
+  }
+
   .term-header {
     padding: 14px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .term-select-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    cursor: pointer;
+  }
+
+  .term-select-wrap input {
+    width: 15px;
+    height: 15px;
+    accent-color: #f85149;
+    cursor: pointer;
   }
 
   .term-main {
@@ -859,6 +884,63 @@ document.addEventListener('keydown', e => {
   }
 
   .term-card.expanded .term-detail { display: block; }
+
+  .list-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.025);
+  }
+
+  .list-action-text {
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  .list-action-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .list-mini-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .list-mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .list-mini-btn.red { color: #f87171; border-color: #7f1d1d; background: rgba(248,81,73,0.08); }
+  .list-mini-btn.green { color: #7ee787; border-color: #238636; background: rgba(63,185,80,0.1); }
+
+  .load-more-wrap {
+    padding: 12px 0 4px;
+  }
+
+  .load-more-btn {
+    width: 100%;
+    background: rgba(88,166,255,0.1);
+    border: 1px solid #1d4ed8;
+    border-radius: 12px;
+    padding: 12px;
+    color: #74b0ff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
 
   .detail-section {
     padding: 14px 16px;
@@ -2229,6 +2311,10 @@ const CATEGORY_META = {
 let bookmarks = new Set((safeJsonParse(localStorage.getItem('kma_bookmarks'), []) || []).map(Number).filter(Number.isFinite));
 let expandedId = null;
 let _lastFilteredTerms = [];
+const LIST_PAGE_SIZE = 100;
+let visibleTermLimit = LIST_PAGE_SIZE;
+let selectedTermIds = new Set();
+let _lastListSignature = '';
 let currentTab = 'search';
 
 // ─── Render ───
@@ -2255,14 +2341,32 @@ function renderTerms(terms, bookmarkDivider = 0) {
 
   empty.style.display = 'none';
   const query = document.getElementById('searchInput').value.toLowerCase();
+  const visibleTerms = terms.slice(0, visibleTermLimit);
+  const hiddenCount = Math.max(0, terms.length - visibleTerms.length);
+  const selectedCount = selectedTermIds.size;
 
-  list.innerHTML = terms.map((t, i) => {
+  const actionBar = `
+    <div class="list-action-bar">
+      <div class="list-action-text">
+        ${visibleTerms.length}개 표시 · 결과 ${terms.length}개${selectedCount ? ` · 선택 ${selectedCount}개` : ''}
+      </div>
+      <div class="list-action-buttons">
+        <button class="list-mini-btn" onclick="selectVisibleTerms()">현재 보이는 항목 선택</button>
+        ${selectedCount ? `<button class="list-mini-btn" onclick="clearTermSelection()">선택 해제</button><button class="list-mini-btn red" onclick="deleteSelectedTerms()">선택 삭제 (${selectedCount})</button>` : ''}
+      </div>
+    </div>`;
+
+  const cardsHtml = visibleTerms.map((t, i) => {
     const termId = Number(t.id) || 0;
+    const isSelected = selectedTermIds.has(termId);
     const divider = (bookmarkDivider > 0 && i === bookmarkDivider)
       ? `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;padding:14px 0 6px;font-weight:500">전체 용어</div>`
       : '';
-    return `${divider}<div class="term-card ${expandedId === t.id ? 'expanded' : ''}" id="card-${termId}" style="animation-delay:${Math.min(i,10)*30}ms" onclick="toggleCard(${termId})">
+    return `${divider}<div class="term-card ${expandedId === t.id ? 'expanded' : ''} ${isSelected ? 'selected' : ''}" id="card-${termId}" style="animation-delay:${Math.min(i,10)*30}ms" onclick="toggleCard(${termId})">
       <div class="term-header">
+        <label class="term-select-wrap" title="선택" onclick="event.stopPropagation()">
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleTermSelection(event, ${termId})">
+        </label>
         <div class="term-main">
           <div class="term-korean"><span onclick="copyTermField(event,${termId},'ko','한국어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(255,255,255,0.08)'" onmouseleave="this.style.background=''">${highlight(t.ko, query)}</span></div>
           <div class="term-english"><span onclick="copyTermField(event,${termId},'en','영어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(88,166,255,0.12)'" onmouseleave="this.style.background=''">${highlight(t.en, query)}</span></div>
@@ -2343,7 +2447,12 @@ function renderTerms(terms, bookmarkDivider = 0) {
     </div>`;
   }).join('');
 
-  updateCounts(terms.length);
+  const loadMoreHtml = hiddenCount > 0
+    ? `<div class="load-more-wrap"><button class="load-more-btn" onclick="showMoreTerms()">더보기 +${Math.min(LIST_PAGE_SIZE, hiddenCount)}개 · 남은 ${hiddenCount}개</button></div>`
+    : '';
+
+  list.innerHTML = actionBar + cardsHtml + loadMoreHtml;
+  updateCounts(visibleTerms.length, terms.length);
 }
 
 function escapeHtml(str) {
@@ -2503,9 +2612,73 @@ function toggleBookmark(e, id) {
   applyFilters();
 }
 
+function toggleTermSelection(event, id) {
+  event.stopPropagation();
+  const termId = Number(id);
+  if (!termId) return;
+  if (event.target.checked) selectedTermIds.add(termId);
+  else selectedTermIds.delete(termId);
+  renderTerms(_lastFilteredTerms);
+}
+
+function selectVisibleTerms() {
+  (_lastFilteredTerms || []).slice(0, visibleTermLimit).forEach(t => {
+    const id = Number(t.id);
+    if (id) selectedTermIds.add(id);
+  });
+  renderTerms(_lastFilteredTerms);
+}
+
+function clearTermSelection() {
+  selectedTermIds.clear();
+  renderTerms(_lastFilteredTerms);
+}
+
+function showMoreTerms() {
+  visibleTermLimit += LIST_PAGE_SIZE;
+  renderTerms(_lastFilteredTerms);
+}
+
+function deleteSelectedTerms() {
+  const ids = [...selectedTermIds].filter(id => TERMS.some(t => Number(t.id) === Number(id)));
+  if (!ids.length) { clearTermSelection(); showToast('⚠️ 선택된 용어가 없습니다'); return; }
+  showConfirm(
+    `선택한 ${ids.length}개 용어를 삭제할까요?<br><span style="font-size:11px;color:#8b949e">삭제 전 자동 JSON 백업을 저장합니다.</span>`,
+    () => {
+      exportCompleteJsonBackup();
+      const idSet = new Set(ids.map(String));
+      const targets = TERMS.filter(t => idSet.has(String(t.id)));
+      const tombstones = targets.map(recordLocalTombstone).filter(Boolean);
+      for (let i = TERMS.length - 1; i >= 0; i--) {
+        if (idSet.has(String(TERMS[i].id))) TERMS.splice(i, 1);
+      }
+      const learning = getLearningStateMap();
+      ids.forEach(id => {
+        bookmarks.delete(Number(id));
+        delete learning[String(id)];
+      });
+      saveLearningStateMap(learning);
+      localStorage.setItem('kma_bookmarks', JSON.stringify([...bookmarks]));
+      saveTermsToLocalStorage();
+      tombstones.forEach(tombstone => deleteTermFromCloud(tombstone.id, tombstone.deletedAt));
+      selectedTermIds.clear();
+      if (_drawerTermId && idSet.has(String(_drawerTermId))) closeDrawer();
+      updateBookmarkCount();
+      showToast(`🗑️ ${targets.length}개 선택 삭제 완료`);
+      applyFilters();
+    }
+  );
+}
+
 function applyFilters() {
   if (!document.getElementById('termList')) return;  // ← bail when export/quiz/add tab active
   const query = document.getElementById('searchInput').value.toLowerCase();
+  const signature = `${currentFilter}|${currentSort}|${query}`;
+  if (signature !== _lastListSignature) {
+    visibleTermLimit = LIST_PAGE_SIZE;
+    selectedTermIds.clear();
+    _lastListSignature = signature;
+  }
   let results = TERMS;
 
   if (currentFilter === '즐겨찾기') {
@@ -2590,8 +2763,12 @@ function searchUMLSFromInput() {
   searchUMLS(q);
 }
 
-function updateCounts(shown) {
-  document.getElementById('totalCount').textContent = `${shown}개 표시 / 전체 ${TERMS.length}개`;
+function updateCounts(shown, filtered = shown) {
+  const el = document.getElementById('totalCount');
+  if (!el) return;
+  el.textContent = filtered === TERMS.length
+    ? `${shown}개 표시 / 전체 ${TERMS.length}개`
+    : `${shown}개 표시 / 결과 ${filtered}개 / 전체 ${TERMS.length}개`;
 }
 
 function updateBookmarkCount() {
@@ -3937,6 +4114,8 @@ function showGuide() {
       items: [
         '한국어 · 영어 · 우즈베크어 · IPA · 정의를 한 번에 검색합니다',
         'Cardiovascular부터 Pathology까지 의학 분류 버튼으로 필터링합니다',
+        '목록은 처음 100개만 표시하고, 더보기로 100개씩 추가 표시합니다',
+        '체크박스로 여러 용어를 선택한 뒤 선택 삭제를 실행할 수 있습니다',
         '카드 펼침 또는 드로어에서 정의 · USMLE 포인트 · IPA · 외부 의학 링크를 확인합니다',
         'PubMed · ICD-11 · MedlinePlus · ClinicalTrials · FDA 검색 링크를 제공합니다',
         '분류 통계에서 부족한 계통을 확인하고 해당 필터로 바로 이동할 수 있습니다',
@@ -4718,16 +4897,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.12',
+  version: '3.13',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 12:30:25',
+  updatedAt: '2026년 6월 9일 13:29:30',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · Excel 신규만 추가 탭',
+    title: '최신 · 선택 삭제와 100개씩 더보기',
+    items: [
+      '목록 카드에 선택 체크박스를 추가하고 선택한 용어를 한 번에 삭제할 수 있도록 개선',
+      '삭제 전 전체 JSON 백업을 자동 저장하고 기존 tombstone 방식으로 삭제 동기화 유지',
+      '목록은 기본 100개만 표시하고 더보기 클릭 시 100개씩 추가 표시하도록 변경',
+    ]
+  },
+  {
+    title: 'v3.12 · Excel 신규만 추가 탭',
     items: [
       '용어 추가 모달의 TSV 붙여넣기 옆에 Excel 신규만 탭 추가',
       'Excel · TSV · CSV 파일에서 기존 용어는 유지하고 새 용어만 추가하는 전용 업로드 제공',
