@@ -741,16 +741,42 @@ document.addEventListener('keydown', e => {
 
   /* Section header */
   .section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    margin-top: 20px;
+  }
+
+  .section-label-text {
     font-size: 11px;
     color: var(--text3);
     text-transform: uppercase;
     letter-spacing: 1.2px;
-    margin-bottom: 10px;
-    margin-top: 20px;
     font-weight: 500;
   }
 
   .section-label:first-child { margin-top: 0; }
+
+  .inline-add-btn {
+    background: rgba(63,185,80,0.12);
+    border: 1px solid #238636;
+    border-radius: 10px;
+    padding: 7px 12px;
+    color: #7ee787;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+
+  .inline-add-btn:hover {
+    border-color: #3fb950;
+    background: rgba(63,185,80,0.18);
+  }
 
   /* Term card */
   .term-card {
@@ -1604,9 +1630,6 @@ document.addEventListener('keydown', e => {
   <button class="nav-btn" onclick="switchTab('bookmark', this)">
     <span class="nav-icon">⭐</span>즐겨찾기
   </button>
-  <button class="nav-btn" onclick="switchTab('add', this)">
-    <span class="nav-icon">➕</span>추가
-  </button>
   <button class="nav-btn" onclick="switchTab('quiz', this)">
     <span class="nav-icon">📝</span>퀴즈
   </button>
@@ -2428,6 +2451,19 @@ function googleUsageSearchUrl(t) {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }
 
+function setSectionLabel(text = '') {
+  const label = document.getElementById('sectionLabel');
+  if (!label) return;
+  const clean = String(text || '').trim();
+  const labelText = clean && clean !== '전체 용어'
+    ? `<span class="section-label-text">${escapeHtml(clean)}</span>`
+    : '';
+  label.innerHTML = `
+    ${labelText}
+    <button class="inline-add-btn" onclick="showAddTermModal()">➕ 용어 추가</button>
+  `;
+}
+
 function highlight(text, query) {
   if (!query || !text) return escapeHtml(text);
   try {
@@ -2470,17 +2506,16 @@ function toggleBookmark(e, id) {
 function applyFilters() {
   if (!document.getElementById('termList')) return;  // ← bail when export/quiz/add tab active
   const query = document.getElementById('searchInput').value.toLowerCase();
-  const label = document.getElementById('sectionLabel');
   let results = TERMS;
 
   if (currentFilter === '즐겨찾기') {
     results = results.filter(t => bookmarks.has(t.id));
-    if (label) label.textContent = `⭐ 즐겨찾기 — ${results.length}개`;
+    setSectionLabel(`⭐ 즐겨찾기 — ${results.length}개`);
   } else if (currentFilter !== 'all') {
     results = results.filter(t => t.category === currentFilter);
-    if (label) label.textContent = `${currentFilter} — ${results.length}개`;
+    setSectionLabel(`${currentFilter} — ${results.length}개`);
   } else {
-    if (label) label.textContent = query ? `검색 결과` : `전체 용어`;
+    setSectionLabel(query ? `검색 결과` : `전체 용어`);
   }
 
   if (query) {
@@ -2510,15 +2545,14 @@ function applyFilters() {
 function renderHome() {
   const list = document.getElementById('termList');
   const empty = document.getElementById('emptyState');
-  const label = document.getElementById('sectionLabel');
   if (!list || !empty) return;   // ← null guard
   empty.style.display = 'none';
-  if (label) label.textContent = '';
+  setSectionLabel('');
 
   const bookmarked = TERMS.filter(t => bookmarks.has(t.id));
 
   if (bookmarked.length > 0) {
-    if (label) label.textContent = `⭐ 즐겨찾기 — ${bookmarked.length}개`;
+    setSectionLabel(`⭐ 즐겨찾기 — ${bookmarked.length}개`);
     _lastFilteredTerms = bookmarked;
     renderTerms(bookmarked);
   } else {
@@ -2585,6 +2619,11 @@ function restoreHomeTab() {
   applyFilters();
 }
 
+function getNavButton(tab) {
+  return [...document.querySelectorAll('.nav-btn')]
+    .find(btn => (btn.getAttribute('onclick') || '').includes(`'${tab}'`)) || null;
+}
+
 function switchTab(tab, btn) {
   currentTab = tab;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -2594,7 +2633,7 @@ function switchTab(tab, btn) {
   else if (tab === 'guide') showGuide();
   else if (tab === 'ai')      showAISettings();
   else if (tab === 'quiz')    showQuizSetup();
-  else if (tab === 'add')     { showAddTermForm(); setTimeout(updateAddKeyHint, 0); }
+  else if (tab === 'add')     { showAddTermModal(); }
   else if (tab === 'bookmark') {
     restoreHomeTab();
     setFilter('즐겨찾기', document.getElementById('filterBookmarkBtn'));
@@ -3218,8 +3257,9 @@ async function callAIText(prompt, maxTokens = 800, task = 'general', forceProvid
 // ─── Add Term Form ───
 const CATEGORIES = VALID_CATS; // VALID_CATS와 동기화 유지
 
-function showAddTermForm() {
-  const main = document.getElementById('mainContent');
+function showAddTermForm(target = document.getElementById('mainContent')) {
+  const main = target;
+  if (!main) return;
   main.innerHTML = `
     <div style="padding:4px 0 80px">
       <div style="font-size:11px;color:var(--text3);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">➕ 용어 추가</div>
@@ -3228,6 +3268,7 @@ function showAddTermForm() {
       <div style="display:flex;gap:0;margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px">
         <button id="addTab_single" onclick="switchAddTab('single')" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:9px;color:#0d1117;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s">✏️ 단어 하나</button>
         <button id="addTab_tsv" onclick="switchAddTab('tsv')" style="flex:1;background:none;border:none;border-radius:8px;padding:9px;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s">📋 TSV 붙여넣기</button>
+        <button id="addTab_excel" onclick="switchAddTab('excel')" style="flex:1;background:none;border:none;border-radius:8px;padding:9px;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s">📊 Excel 신규만</button>
       </div>
 
       <!-- TSV 붙여넣기 섹션 -->
@@ -3261,7 +3302,31 @@ function showAddTermForm() {
             <span style="color:var(--accent2)">✓ 헤더 있어도 OK &nbsp;✓ 일부 컬럼만 있어도 OK</span>
           </div>
         </div>
-        <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 돌아가기</button>
+        <button onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 닫기</button>
+      </div>
+
+      <!-- Excel 신규만 추가 섹션 -->
+      <div id="addSection_excel" style="display:none">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:10px;text-align:center">
+          <div style="font-size:28px;margin-bottom:10px">📊</div>
+          <div style="font-size:15px;color:var(--text);font-weight:800;margin-bottom:6px">Excel 신규만 추가</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px">
+            Excel · TSV · CSV 파일에서 기존 용어와 겹치지 않는 새 용어만 추가합니다.<br>
+            같은 영어 · 한국어 · 우즈베크어 용어는 그대로 유지됩니다.
+          </div>
+          <button onclick="document.getElementById('addOnlyExcelInput').click()" style="width:100%;background:rgba(63,185,80,0.14);border:1px solid #238636;border-radius:10px;padding:13px;color:#7ee787;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
+            ➕ Excel 파일 선택 · 신규만 추가
+          </button>
+          <input id="addOnlyExcelInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none" onchange="handleAddOnlyExcelUpload(event)">
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text3);line-height:1.8">
+            <b style="color:var(--text2)">지원 컬럼</b><br>
+            ko · en · uz · category · def_ko · def_en · def_uz · usmle · ipa<br>
+            <span style="color:var(--accent2)">✓ 기존 용어 보존 &nbsp;✓ 새 용어만 추가 &nbsp;✓ 빈칸은 나중에 AI 보강 가능</span>
+          </div>
+        </div>
+        <button onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 닫기</button>
       </div>
 
       <!-- 단어 하나 섹션 -->
@@ -3325,12 +3390,56 @@ function showAddTermForm() {
         🤖 AI 자동완성으로 추가
       </button>
       <div id="addKeyHint" style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;line-height:1.5"></div>
-      <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
-        ← 돌아가기
+      <button onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
+        ← 닫기
       </button>
       </div><!-- /addSection_single -->
     </div>
   `;
+}
+
+function showAddTermModal() {
+  const existing = document.getElementById('addTermModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'addTermModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(13,17,23,0.88);display:flex;align-items:flex-start;justify-content:center;z-index:999;overflow-y:auto;padding:18px;backdrop-filter:blur(8px)';
+  modal.innerHTML = `
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:16px;width:100%;max-width:560px;margin:auto;box-shadow:0 18px 60px rgba(0,0,0,0.45);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #30363d">
+        <div>
+          <div style="font-size:15px;color:#e6edf3;font-weight:800">➕ 용어 추가</div>
+          <div style="font-size:11px;color:#8b949e;margin-top:2px">단어 하나 또는 TSV 붙여넣기로 새 용어를 추가합니다</div>
+        </div>
+        <button onclick="closeAddTermModal()" aria-label="닫기" style="width:36px;height:36px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div id="addTermModalBody" style="padding:16px"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeAddTermModal(); });
+  showAddTermForm(document.getElementById('addTermModalBody'));
+  setTimeout(updateAddKeyHint, 0);
+}
+
+function closeAddTermModal() {
+  document.getElementById('addTermModal')?.remove();
+}
+
+function closeAddFormOrReturn() {
+  if (document.getElementById('addTermModal')) {
+    closeAddTermModal();
+    return;
+  }
+  switchTab('search', getNavButton('search'));
+}
+
+function finishAddFlow(openTermId = null) {
+  closeAddTermModal();
+  switchTab('search', getNavButton('search'));
+  applyFilters();
+  if (openTermId) setTimeout(() => openDrawer(openTermId), 80);
 }
 
 function inputStyle(isTextarea = false) {
@@ -3340,18 +3449,24 @@ function inputStyle(isTextarea = false) {
 function switchAddTab(tab) {
   const single = document.getElementById('addSection_single');
   const tsv    = document.getElementById('addSection_tsv');
+  const excel  = document.getElementById('addSection_excel');
   const btnS   = document.getElementById('addTab_single');
   const btnT   = document.getElementById('addTab_tsv');
-  if (!single || !tsv) return;
-  if (tab === 'tsv') {
-    single.style.display = 'none'; tsv.style.display = 'block';
-    btnS.style.background = 'none'; btnS.style.color = 'var(--text3)';
-    btnT.style.background = 'var(--accent)'; btnT.style.color = '#0d1117';
-  } else {
-    single.style.display = 'block'; tsv.style.display = 'none';
-    btnT.style.background = 'none'; btnT.style.color = 'var(--text3)';
-    btnS.style.background = 'var(--accent)'; btnS.style.color = '#0d1117';
+  const btnE   = document.getElementById('addTab_excel');
+  if (!single || !tsv || !excel) return;
+
+  const setActive = (btn, active) => {
+    if (!btn) return;
+    btn.style.background = active ? 'var(--accent)' : 'none';
+    btn.style.color = active ? '#0d1117' : 'var(--text3)';
   }
+
+  single.style.display = tab === 'single' ? 'block' : 'none';
+  tsv.style.display = tab === 'tsv' ? 'block' : 'none';
+  excel.style.display = tab === 'excel' ? 'block' : 'none';
+  setActive(btnS, tab === 'single');
+  setActive(btnT, tab === 'tsv');
+  setActive(btnE, tab === 'excel');
 }
 
 function parseTsvPaste(raw) {
@@ -3487,8 +3602,7 @@ async function importTsvPaste(mode = 'merge') {
   showToast(`✅ ${msg || '처리 완료'}`);
   if (btn) { btn.disabled = false; btn.textContent = '✅ 갱신+추가'; }
   if (addOnlyBtn) { addOnlyBtn.disabled = false; addOnlyBtn.textContent = '➕ 신규만'; }
-  switchTab('search', document.querySelector('.nav-btn'));
-  applyFilters();
+  finishAddFlow();
 }
 
 function updateAddKeyHint() {
@@ -3541,6 +3655,11 @@ function selectAddAc(name) {
   if (list) list.style.display = 'none';
 }
 
+function handleAddOnlyExcelUpload(event) {
+  handleFileUpload(event, 'add_only');
+  if (event?.target) event.target.value = '';
+}
+
 async function submitAddTerm() {
   const ko = document.getElementById('add_ko')?.value.trim() || '';
   const en = document.getElementById('add_en')?.value.trim() || '';
@@ -3578,9 +3697,7 @@ async function submitAddTerm() {
     saveTermsToLocalStorage();
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 설정에서 키 등록 시 자동완성 가능)`);
-    switchTab('search', document.querySelector('.nav-btn'));
-    applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
+    finishAddFlow(TERMS[TERMS.length - 1].id);
     return;
   }
 
@@ -3610,9 +3727,7 @@ async function submitAddTerm() {
     saveTermsToLocalStorage();
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`✅ "${finalKo || finalEn || finalUz}" AI 자동완성 추가 완료!`);
-    switchTab('search', document.querySelector('.nav-btn'));
-    applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
+    finishAddFlow(TERMS[TERMS.length - 1].id);
   } catch (err) {
     console.error(err);
     // AI 실패해도 기본 데이터로 저장
@@ -3620,9 +3735,7 @@ async function submitAddTerm() {
     saveTermsToLocalStorage();
     saveTermToCloud(TERMS[TERMS.length - 1]);
     showToast(`⚠️ AI 실패 — "${ko || en || uz}" 기본 저장됨. ✏️ 편집으로 내용 추가 가능`);
-    switchTab('search', document.querySelector('.nav-btn'));
-    applyFilters();
-    setTimeout(() => openDrawer(TERMS[TERMS.length - 1].id), 80);
+    finishAddFlow(TERMS[TERMS.length - 1].id);
     if (btn) { btn.disabled = false; btn.textContent = '🤖 AI 자동완성으로 추가'; }
   }
 }
@@ -3833,7 +3946,9 @@ function showGuide() {
       icon: '➕', title: '용어 추가와 AI 보강',
       color: '#3fb950',
       items: [
+        '목록 상단의 “용어 추가” 버튼을 누르면 별도 창에서 추가 화면이 열립니다',
         '단어 하나를 직접 추가하거나 TSV 붙여넣기로 여러 용어를 빠르게 입력합니다',
+        'Excel 신규만 탭에서 기존 용어를 건드리지 않고 파일의 새 용어만 추가할 수 있습니다',
         '파일 업로드 버튼으로 Excel · TSV · CSV 자료를 가져옵니다',
         '가져오기 방식은 전체 교체 · 갱신+추가 · 신규만 추가 중에서 선택할 수 있습니다',
         '신규만 추가를 선택하면 기존 용어의 정의 · IPA · 학습 내용은 그대로 유지됩니다',
@@ -4603,16 +4718,32 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.10',
+  version: '3.12',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 12:05:42',
+  updatedAt: '2026년 6월 9일 12:30:25',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 신규만 추가 가져오기 모드',
+    title: '최신 · Excel 신규만 추가 탭',
+    items: [
+      '용어 추가 모달의 TSV 붙여넣기 옆에 Excel 신규만 탭 추가',
+      'Excel · TSV · CSV 파일에서 기존 용어는 유지하고 새 용어만 추가하는 전용 업로드 제공',
+      '신규 파일 업로드 완료 후 모달을 닫고 검색 목록으로 자동 복귀',
+    ]
+  },
+  {
+    title: 'v3.11 · 용어 추가 버튼 상단 이동',
+    items: [
+      '목록의 “전체 용어” 라벨을 제거하고 같은 위치에 “용어 추가” 버튼 배치',
+      '하단 네비게이션의 추가 버튼을 제거해 검색 · 즐겨찾기 · 퀴즈 · 데이터 · 가이드 중심으로 정리',
+      '용어 추가 화면을 전체 탭 전환이 아닌 별도 모달 창으로 열도록 변경',
+    ]
+  },
+  {
+    title: 'v3.10 · 신규만 추가 가져오기 모드',
     items: [
       'TSV 붙여넣기 화면에 “신규만” 버튼을 추가해 기존 용어를 수정하지 않고 새 용어만 추가',
       '파일 업로드 선택창을 전체 교체 · 갱신+추가 · 신규만 추가 3가지 모드로 분리',
@@ -4982,7 +5113,7 @@ function showDuplicateManager() {
           style="width:100%;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:10px;padding:13px;color:#fbbf24;font-size:14px;font-weight:700;cursor:not-allowed;opacity:0.5;font-family:'Noto Sans KR',sans-serif">
           🗑️ 선택한 용어만 유지 (나머지 삭제)
         </button>
-        <button onclick="switchTab('export', document.querySelectorAll('.nav-btn')[4])" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
+        <button onclick="switchTab('export', getNavButton('export'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
           ← 취소
         </button>
       </div>
@@ -5051,7 +5182,7 @@ function applyDuplicateCleanup() {
   saveTermsToLocalStorage();
   applyFilters();
   showToast(`✅ ${indicesToDelete.size}개 중복 용어 삭제 완료`);
-  switchTab('export', document.querySelectorAll('.nav-btn')[4]);
+  switchTab('export', getNavButton('export'));
 }
 
 async function bulkDeleteTerms() {
@@ -6460,6 +6591,7 @@ async function handleFileUpload(e, mode = 'replace') {
       ? `✅ ${rows.length}개 ${modeLabel} 완료! (빈 칸 ${emptyCount}개 → 내보내기 탭에서 '일괄 빈칸 채우기'로 완성 가능)`
       : `✅ ${rows.length}개 ${modeLabel} 완료!`;
     showToast(msg);
+    if (document.getElementById('addTermModal')) finishAddFlow();
 
   };
 
