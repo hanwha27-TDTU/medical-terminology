@@ -4847,6 +4847,7 @@ function showExportMenu() {
               ${localMeta.pendingCanonicalError ? `<br>${escapeHtml(localMeta.pendingCanonicalError)}` : ''}
             </div>` : ''}
             <div class="data-action-stack">
+              <button class="data-action-btn outline" onclick="showSyncDiagnostics()">동기화 상태 점검</button>
               <button class="data-action-btn green" onclick="runManualSync()">일반 양방향 동기화</button>
               <button class="data-action-btn outline" onclick="confirmPushLocalToCloud()">현재 기기 데이터로 클라우드 최종본 덮어쓰기</button>
               <button class="data-action-btn purple" onclick="confirmCloudReplaceLocal()">클라우드 최종본으로 이 기기 교체</button>
@@ -5104,6 +5105,73 @@ async function runManualSync() {
   }
 }
 
+async function showSyncDiagnostics() {
+  if (!getSupabaseConfig()) {
+    showToast('⚠️ Supabase 설정 먼저 저장하세요');
+    return;
+  }
+  showToast('☁️ 동기화 상태 점검 중...');
+  const [cloudTerms, canonicalMeta] = await Promise.all([sbLoadAll(), sbLoadCanonicalMeta()]);
+  if (cloudTerms === null || canonicalMeta === null) {
+    showToast('⚠️ 클라우드 상태 확인 실패 · Supabase 설정을 확인하세요');
+    return;
+  }
+
+  const localMeta = getLocalSyncMeta();
+  const cloudActive = dedupeTermsById(cloudTerms).filter(t => !t.deletedAt);
+  const cloudDeleted = dedupeTermsById(cloudTerms).filter(t => t.deletedAt);
+  const cloudIds = new Set(cloudActive.map(t => String(t.id)));
+  const localIds = new Set(TERMS.map(t => String(t.id)));
+  const localOnly = TERMS.filter(t => !cloudIds.has(String(t.id)));
+  const cloudOnly = cloudActive.filter(t => !localIds.has(String(t.id)));
+  const localActiveFence = filterLocalRowsAfterCanonicalFence(TERMS, cloudTerms, canonicalMeta);
+  const localTombstoneFence = filterLocalRowsAfterCanonicalFence(loadLocalTombstones(), cloudTerms, canonicalMeta);
+  const staleSkipped = localActiveFence.skipped + localTombstoneFence.skipped;
+  const canonicalMatches = !!canonicalMeta?.version && canonicalMeta.version === localMeta.canonicalVersion;
+  const probableReason = TERMS.length === cloudActive.length
+    ? '로컬과 클라우드 활성 용어 수가 같습니다.'
+    : TERMS.length > cloudActive.length
+      ? `이 기기에 클라우드 최종본보다 ${TERMS.length - cloudActive.length}개가 더 있습니다. 대부분 로컬 전용 항목이거나 아직 클라우드 최종본으로 올리지 않은 항목입니다.`
+      : `이 기기에 클라우드 최종본보다 ${cloudActive.length - TERMS.length}개가 적습니다. 일반 동기화 또는 클라우드 최종본으로 교체가 필요합니다.`;
+
+  document.getElementById('syncDiagnosticModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'syncDiagnosticModal';
+  overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div style="font-size:17px;font-weight:800;color:var(--text)">☁️ 동기화 상태 점검</div>
+        <button onclick="document.getElementById('syncDiagnosticModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:16px 20px 22px">
+        <div class="data-status-grid" style="margin-bottom:12px">
+          <div class="data-status-box"><div class="data-status-label">이 기기 로컬</div><div class="data-status-value">${TERMS.length}개</div></div>
+          <div class="data-status-box"><div class="data-status-label">클라우드 활성</div><div class="data-status-value">${cloudActive.length}개</div></div>
+          <div class="data-status-box"><div class="data-status-label">클라우드 삭제 표시</div><div class="data-status-value">${cloudDeleted.length}개</div></div>
+          <div class="data-status-box"><div class="data-status-label">오래된 로컬 전용 제외 예정</div><div class="data-status-value">${staleSkipped}개</div></div>
+        </div>
+        <div style="background:#0d1117;border:1px solid #30363d;border-radius:12px;padding:12px;font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px">
+          <b style="color:#e6edf3">판정</b><br>
+          ${escapeHtml(probableReason)}<br>
+          canonical_version: <span style="color:${canonicalMatches ? '#4ade80' : '#fbbf24'}">${canonicalMatches ? '이 기기와 일치' : '이 기기와 다름 또는 미적용'}</span><br>
+          클라우드 기준 시각: ${escapeHtml(formatDataDate(canonicalMeta.updatedAt) || '알 수 없음')}
+        </div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:12px">
+          이 기기가 최종본보다 많다면, PC의 추가 ${localOnly.length}개가 실제로 클라우드에 올라갔는지 확인해야 합니다.
+          PC 데이터를 기준으로 삼으려면 PC에서 “현재 기기 데이터로 클라우드 최종본 덮어쓰기”를 실행하세요.
+          클라우드 ${cloudActive.length}개가 맞다면 이 기기에서 “클라우드 최종본으로 이 기기 교체”를 실행하세요.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="data-action-btn green" style="flex:1;min-width:180px" onclick="document.getElementById('syncDiagnosticModal').remove();runManualSync()">일반 동기화 실행</button>
+          <button class="data-action-btn purple" style="flex:1;min-width:180px" onclick="document.getElementById('syncDiagnosticModal').remove();confirmCloudReplaceLocal()">클라우드 최종본으로 교체</button>
+        </div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
 function confirmCloudReplaceLocal() {
   showConfirm(
     '이 기기의 로컬 전용 변경을 버리고<br><b style="color:#d29922">클라우드 최종본으로 교체</b>할까요?',
@@ -5356,16 +5424,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.24',
+  version: '3.25',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 9일 17:30:08',
+  updatedAt: '2026년 6월 9일 17:38:40',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 클라우드 최종본 기준 동기화 잠금 강화',
+    title: '최신 · PC·태블릿 용어 수 차이 진단 추가',
+    items: [
+      '데이터 관리에 동기화 상태 점검 버튼을 추가해 로컬 용어 수와 클라우드 활성 용어 수를 직접 비교',
+      '클라우드 삭제 표시, canonical_version 일치 여부, 오래된 로컬 전용 제외 예정 개수를 한 화면에 표시',
+      'PC 629개·태블릿 600개처럼 기기별 용어 수가 다를 때 어느 쪽이 클라우드 최종본과 다른지 판별하도록 보강',
+    ]
+  },
+  {
+    title: 'v3.24 · 클라우드 최종본 기준 동기화 잠금 강화',
     items: [
       '클라우드 최종본에 없는 태블릿 로컬 항목은 기준본 이후 새로 만든 항목일 때만 추가로 인정',
       '기준본보다 오래된 태블릿 과거 항목은 나중에 수정되어도 클라우드 최종본으로 다시 올라가지 않도록 차단',
