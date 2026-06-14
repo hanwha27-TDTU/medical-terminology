@@ -316,9 +316,20 @@ function _renderDrugDrawerContent(d) {
       ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
     </div>
     <div class="drawer-section">
-      <div class="drawer-lang-badge" style="background:rgba(251,191,36,0.13);color:#fbbf24;border:1px solid #92400e">💊 약물 개요</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        <div class="drawer-lang-badge" style="background:rgba(251,191,36,0.13);color:#fbbf24;border:1px solid #92400e;margin-bottom:0">💊 약물 개요</div>
+        <button class="speak-btn" id="speak-drug-drawer-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-drawer')" title="성분명 또는 상품명 영어 발음 듣기">
+          <div class="wave"><span></span><span></span><span></span><span></span></div>
+          발음 듣기
+        </button>
+      </div>
       <div class="drawer-term-main">${escapeHtml(title)}</div>
       ${subtitle ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(subtitle)}</div>` : ''}
+      <div class="tts-speed-row" style="margin-top:10px">
+        <span class="tts-speed-label">🐢 속도</span>
+        <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
+        <span class="tts-speed-val">${ttsSpeed.toFixed(1)}×</span>
+      </div>
     </div>
     <div class="drawer-section">
       ${drugDetailGridHtml(d, true)}
@@ -1202,6 +1213,15 @@ document.addEventListener('keydown', e => {
     margin-bottom: 10px;
   }
 
+  .drug-head-actions {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
   .drug-name {
     color: var(--text);
     font-size: 18px;
@@ -1469,6 +1489,18 @@ document.addEventListener('keydown', e => {
   .speak-btn:hover {
     background: rgba(63,185,80,0.2);
     border-color: var(--accent2);
+  }
+
+  .drug-speak-btn {
+    margin-top: 0;
+    padding: 4px 10px;
+    border-radius: 9px;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .drug-speak-btn .wave {
+    height: 12px;
   }
 
   .speak-btn.speaking {
@@ -2285,6 +2317,11 @@ document.addEventListener('keydown', e => {
     .drug-head {
       flex-direction: column;
       gap: 8px;
+    }
+
+    .drug-head-actions {
+      width: 100%;
+      justify-content: flex-start;
     }
 
     .drug-section-grid {
@@ -4284,7 +4321,13 @@ function renderDrugFrame(drugs = []) {
               <div class="drug-name">${escapeHtml(d.generic_name || d.ko_name || d.brand_name || '이름 없음')}</div>
               <div class="drug-sub">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</div>
             </div>
-            <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집">✏️</button>
+            <div class="drug-head-actions">
+              <button class="speak-btn drug-speak-btn" id="speak-drug-card-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-card')" title="성분명 또는 상품명 영어 발음 듣기">
+                <div class="wave"><span></span><span></span><span></span><span></span></div>
+                발음
+              </button>
+              <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집">✏️</button>
+            </div>
           </div>
           <div class="drug-chip-row">
             ${d.drug_class ? `<span class="drug-chip">USMLE ${escapeHtml(d.drug_class)}</span>` : ''}
@@ -4307,6 +4350,21 @@ function renderDrugFrame(drugs = []) {
 
 function drugDisplayName(d) {
   return d?.generic_name || d?.ko_name || d?.brand_name || '이름 없음';
+}
+
+function drugPronunciationText(d) {
+  return String(d?.generic_name || d?.brand_name || '').trim();
+}
+
+function speakDrugName(event, id, slot = 'drug-card') {
+  event?.stopPropagation();
+  const d = DRUGS.find(x => Number(x.id) === Number(id));
+  const text = drugPronunciationText(d);
+  if (!text) {
+    showToast('⚠️ 읽을 영어 약물명이 없습니다');
+    return;
+  }
+  speakText(event, text, slot, Number(id));
 }
 
 function drugDetailFields() {
@@ -7960,16 +8018,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.45',
+  version: '3.46',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 17:19',
+  updatedAt: '2026년 6월 14일 17:30',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 약물 드로어 보기 개편',
+    title: '최신 · 영어 발음 듣기 추가',
+    items: [
+      '약물명 및 정보 카드와 드로어에 성분명/상품명 영어 발음 듣기 버튼 추가',
+      '브라우저 내장 SpeechSynthesis를 기존 일반용어 TTS와 공유해 무료·오프라인 환경에서도 발음을 확인하도록 구현',
+      '드로어 발음 버튼도 현재 클릭한 버튼에 재생 상태가 표시되도록 TTS 버튼 상태 처리를 보강',
+    ]
+  },
+  {
+    title: 'v3.45 · 약물 드로어 보기 개편',
     items: [
       '약물명 및 정보 카드에서 긴 상세 본문을 제거하고 compact 목록형 카드로 변경',
       '약물 카드를 클릭하면 일반용어처럼 오른쪽 드로어에서 상세 내용을 확인하도록 구현',
@@ -10473,12 +10539,14 @@ let currentUtterance = null;
 let speakingBtn = null;
 
 function speakText(e, text, type, id) {
-  e.stopPropagation();
+  e?.stopPropagation();
   if (!window.speechSynthesis) { showToast('⚠️ 이 브라우저는 TTS를 지원하지 않습니다'); return; }
   if (!String(text || '').trim()) { showToast('⚠️ 읽을 영어 문장이 없습니다'); return; }
 
-  const btnId = `speak-${type}-${id}`;
-  const btn = document.getElementById(btnId);
+  const fallbackBtnId = `speak-${type}-${id}`;
+  const clickedBtn = e?.currentTarget?.classList?.contains('speak-btn') ? e.currentTarget : null;
+  const btnId = clickedBtn?.id || fallbackBtnId;
+  const btn = clickedBtn || document.getElementById(fallbackBtnId);
 
   // Stop if already speaking same button
   if (speakingBtn === btnId && speechSynthesis.speaking) {
