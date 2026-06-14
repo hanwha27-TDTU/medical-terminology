@@ -13,6 +13,8 @@
 // ═══════════════════════════════════════════════════════
 let _drawerTermId   = null;   // 현재 열린 용어 ID
 let _drawerTermList = [];     // 현재 필터된 목록 (이전/다음 네비게이션용)
+let _drawerDrugId   = null;   // 현재 열린 약물 ID
+let _drawerDrugList = [];     // 현재 필터된 약물 목록
 
 function openDrawer(id) {
   const t = TERMS.find(x => x.id === id);
@@ -225,6 +227,113 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape')     closeDrawer();
   if (e.key === 'ArrowRight') drawerNavigate(1);
   if (e.key === 'ArrowLeft')  drawerNavigate(-1);
+});
+
+function openDrugDrawer(id) {
+  const d = DRUGS.find(x => Number(x.id) === Number(id));
+  if (!d) {
+    if (typeof showToast === 'function') showToast('⚠️ 약물 항목을 찾지 못했습니다');
+    return;
+  }
+  _drawerDrugId = Number(id);
+  try {
+    _drawerDrugList = filterDrugsForQuery(document.getElementById('searchInput')?.value || '');
+  } catch {
+    _drawerDrugList = DRUGS.filter(x => !x.deletedAt);
+  }
+  _renderDrugDrawerContent(d);
+  _updateDrugDrawerNav();
+  document.getElementById('drugDrawerOverlay')?.classList.add('open');
+  document.getElementById('drugDrawer')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  document.querySelectorAll('.drug-card.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('drug-card-' + Number(id))?.classList.add('selected');
+}
+
+function closeDrugDrawer() {
+  document.getElementById('drugDrawerOverlay')?.classList.remove('open');
+  document.getElementById('drugDrawer')?.classList.remove('open');
+  document.body.style.overflow = '';
+  _drawerDrugId = null;
+  document.querySelectorAll('.drug-card.selected').forEach(el => el.classList.remove('selected'));
+}
+
+function drugDrawerNavigate(dir) {
+  const idx = _drawerDrugList.findIndex(x => Number(x.id) === Number(_drawerDrugId));
+  if (idx === -1) return;
+  const next = _drawerDrugList[idx + dir];
+  if (!next) return;
+  openDrugDrawer(next.id);
+  setTimeout(() => {
+    const card = document.getElementById('drug-card-' + Number(next.id));
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 80);
+}
+
+function _updateDrugDrawerNav() {
+  const idx = _drawerDrugList.findIndex(x => Number(x.id) === Number(_drawerDrugId));
+  const total = _drawerDrugList.length;
+  const count = document.getElementById('drugDrawerNavCount');
+  const prev = document.getElementById('drugDrawerPrevBtn');
+  const next = document.getElementById('drugDrawerNextBtn');
+  if (count) count.textContent = total && idx >= 0 ? `${idx + 1} / ${total}` : '';
+  if (prev) prev.disabled = idx <= 0;
+  if (next) next.disabled = idx < 0 || idx >= total - 1;
+}
+
+function drugDrawerOpenEdit() {
+  if (!_drawerDrugId) return;
+  const drugId = _drawerDrugId;
+  closeDrugDrawer();
+  setTimeout(() => openDrugEditModal({ stopPropagation: () => {} }, drugId), 120);
+}
+
+function _renderDrugDrawerContent(d) {
+  const title = drugDisplayName(d);
+  const subtitle = [d.ko_name, d.brand_name].filter(Boolean).join(' · ');
+  const chips = [
+    d.drug_class ? `USMLE ${d.drug_class}` : '',
+    d.drug_form,
+    d.atc_class ? `ATC ${d.atc_class}` : '',
+    d.target ? `Target ${d.target}` : '',
+    d.route,
+    d.category,
+    d.usmle_yield,
+    d.ipa ? `IPA ${d.ipa}` : '',
+    ...(Array.isArray(d.system_tags) ? d.system_tags : []),
+    ...drugApiSources(d),
+  ].filter(Boolean);
+
+  const body = document.getElementById('drugDrawerBody');
+  const titleEl = document.getElementById('drugDrawerTitle');
+  const subEl = document.getElementById('drugDrawerSubtitle');
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = subtitle || '약물명 및 정보';
+  if (!body) return;
+
+  body.innerHTML = `
+    <div class="drawer-section" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 18px">
+      ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
+    </div>
+    <div class="drawer-section">
+      <div class="drawer-lang-badge" style="background:rgba(251,191,36,0.13);color:#fbbf24;border:1px solid #92400e">💊 약물 개요</div>
+      <div class="drawer-term-main">${escapeHtml(title)}</div>
+      ${subtitle ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(subtitle)}</div>` : ''}
+    </div>
+    <div class="drawer-section">
+      ${drugDetailGridHtml(d, true)}
+    </div>
+    <div class="drawer-section">
+      ${drugRefsHtml(d) || '<div class="drawer-missing">저장된 API 출처 없음</div>'}
+    </div>
+  `;
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('drugDrawer')?.classList.contains('open')) return;
+  if (e.key === 'Escape') closeDrugDrawer();
+  if (e.key === 'ArrowRight') drugDrawerNavigate(1);
+  if (e.key === 'ArrowLeft') drugDrawerNavigate(-1);
 });
 // ═══════════════════════════════════════════════════════
 
@@ -1068,7 +1177,7 @@ document.addEventListener('keydown', e => {
     background: linear-gradient(180deg, rgba(88,166,255,0.07), rgba(22,27,34,0.98));
     border: 1px solid rgba(88,166,255,0.28);
     border-radius: 13px;
-    padding: 14px 16px;
+    padding: 16px 18px;
     margin-bottom: 10px;
     cursor: pointer;
     transition: border-color 0.15s, transform 0.15s, background 0.15s;
@@ -1078,6 +1187,11 @@ document.addEventListener('keydown', e => {
     border-color: rgba(88,166,255,0.56);
     background: linear-gradient(180deg, rgba(88,166,255,0.11), rgba(22,27,34,0.98));
     transform: translateY(-1px);
+  }
+
+  .drug-card.selected {
+    border-color: rgba(251,191,36,0.62);
+    box-shadow: 0 0 0 1px rgba(251,191,36,0.18), 0 12px 28px rgba(0,0,0,0.22);
   }
 
   .drug-head {
@@ -1090,14 +1204,14 @@ document.addEventListener('keydown', e => {
 
   .drug-name {
     color: var(--text);
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 800;
     line-height: 1.45;
   }
 
   .drug-sub {
     color: #9cc7ff;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.5;
     margin-top: 2px;
   }
@@ -1115,7 +1229,7 @@ document.addEventListener('keydown', e => {
     padding: 3px 8px;
     color: #9cc7ff;
     background: rgba(88,166,255,0.08);
-    font-size: 10px;
+    font-size: 11px;
     white-space: nowrap;
   }
 
@@ -1141,8 +1255,8 @@ document.addEventListener('keydown', e => {
 
   .drug-section-text {
     color: var(--text2);
-    font-size: 11px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.75;
     white-space: pre-wrap;
   }
 
@@ -2521,6 +2635,8 @@ function canonicalDrugHashPayload(drugs) {
       ko_name: d.ko_name || '',
       brand_name: d.brand_name || '',
       drug_class: d.drug_class || '',
+      drug_form: d.drug_form || '',
+      atc_class: d.atc_class || '',
       target: d.target || '',
       route: d.route || '',
       concept_category: d.concept_category || 'Pharmacology',
@@ -2658,6 +2774,8 @@ function drugToRow(d) {
     ko_name: d.ko_name || '',
     brand_name: d.brand_name || '',
     drug_class: d.drug_class || '',
+    drug_form: d.drug_form || '',
+    atc_class: d.atc_class || '',
     target: d.target || '',
     route: d.route || '',
     concept_category: d.concept_category || 'Pharmacology',
@@ -2690,6 +2808,8 @@ function rowToDrug(r) {
     ko_name: r.ko_name || '',
     brand_name: r.brand_name || '',
     drug_class: r.drug_class || '',
+    drug_form: r.drug_form || '',
+    atc_class: r.atc_class || '',
     target: r.target || '',
     route: r.route || '',
     concept_category: r.concept_category || 'Pharmacology',
@@ -3217,6 +3337,8 @@ function normalizeDrugForStorage(d) {
     ko_name: koName,
     brand_name: capitalizeTermInitial(brand),
     drug_class: cleanTermString(d.drug_class || d.drugClass),
+    drug_form: cleanTermString(d.drug_form || d.drugForm || d.form),
+    atc_class: cleanTermString(d.atc_class || d.atcClass || d.atc || d.rxclass_atc),
     target: cleanTermString(d.target),
     route: cleanTermString(d.route),
     concept_category: 'Pharmacology',
@@ -3771,7 +3893,7 @@ function drugSystemValues(d) {
 }
 
 function drugClassDisplay(value) {
-  return value === '기타' ? '📁 미분류' : `💊 ${value}`;
+  return value === '기타' ? '📁 미분류' : `📚 ${value}`;
 }
 
 function drugSystemDisplay(value) {
@@ -3840,7 +3962,7 @@ function renderDrugFilterControls() {
   const systemOptions = countOptionsFromDrugs(drugSystemValues);
   if (currentDrugClassFilter !== 'all' && !classOptions.some(o => o.value === currentDrugClassFilter)) currentDrugClassFilter = 'all';
   if (currentDrugSystemFilter !== 'all' && !systemOptions.some(o => o.value === currentDrugSystemFilter)) currentDrugSystemFilter = 'all';
-  if (conceptTitle) conceptTitle.innerHTML = '💊 약물 계열 <span>어떤 계열인가?</span>';
+  if (conceptTitle) conceptTitle.innerHTML = '📚 USMLE 계열 <span>시험에서 어떤 계열인가?</span>';
   if (systemTitle) systemTitle.innerHTML = '🎯 관련 장기계 <span>어디에 쓰이는가?</span>';
 
   conceptRow.innerHTML = [
@@ -3884,7 +4006,7 @@ function updateLibraryModeControls() {
   termsBtn?.setAttribute('aria-selected', String(!isDrugs));
   drugsBtn?.setAttribute('aria-selected', String(isDrugs));
   if (hint) hint.textContent = isDrugs
-    ? '약물명 및 정보를 계열과 관련 장기계 기준으로 봅니다.'
+    ? '약물명 및 정보를 USMLE 계열과 관련 장기계 기준으로 봅니다.'
     : '일반 의학용어를 개념분류와 대표 장기계로 봅니다.';
   if (search) search.placeholder = isDrugs
     ? '성분명, 상품명, 표적, MOA, 부작용으로 검색...'
@@ -4066,7 +4188,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
 
 function drugSearchText(d) {
   return [
-    d.generic_name, d.ko_name, d.brand_name, d.drug_class, d.target, d.route,
+    d.generic_name, d.ko_name, d.brand_name, d.drug_class, d.drug_form, d.atc_class, d.target, d.route,
     d.category, d.usmle_yield, d.definition_ko, d.definition_en, d.definition_uz,
     d.causal_chain, d.why, d.moa, d.clinical_uses, d.adverse_effects,
     d.precautions, d.usmle_strategy, d.memory_line,
@@ -4136,7 +4258,7 @@ function renderDrugFrame(drugs = []) {
       ` : `
         <div class="icon">🔍</div>
         <h3>약물명 및 정보 결과 없음</h3>
-        <p>다른 검색어를 입력하거나<br>약물 계열·관련 장기계 필터를 변경해 보세요</p>
+        <p>다른 검색어를 입력하거나<br>USMLE 계열·관련 장기계 필터를 변경해 보세요</p>
       `;
       empty.style.display = 'block';
     }
@@ -4144,11 +4266,6 @@ function renderDrugFrame(drugs = []) {
     return;
   }
   if (empty) empty.style.display = 'none';
-  const row = (label, value) => value ? `
-    <div class="drug-section-box">
-      <div class="drug-section-label">${label}</div>
-      <div class="drug-section-text">${escapeHtml(value)}</div>
-    </div>` : '';
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
@@ -4161,7 +4278,7 @@ function renderDrugFrame(drugs = []) {
           d.moa, d.clinical_uses, d.adverse_effects, d.precautions, d.usmle_strategy, d.memory_line
         ].filter(v => String(v || '').trim()).length;
         return `
-        <article class="drug-card" onclick="openDrugDetailModal(${Number(d.id)})" title="클릭해서 약물 상세 보기">
+        <article class="drug-card" id="drug-card-${Number(d.id)}" onclick="openDrugDetailModal(${Number(d.id)})" title="클릭해서 약물 상세 보기">
           <div class="drug-head">
             <div>
               <div class="drug-name">${escapeHtml(d.generic_name || d.ko_name || d.brand_name || '이름 없음')}</div>
@@ -4170,7 +4287,9 @@ function renderDrugFrame(drugs = []) {
             <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집">✏️</button>
           </div>
           <div class="drug-chip-row">
-            ${d.drug_class ? `<span class="drug-chip">${escapeHtml(d.drug_class)}</span>` : ''}
+            ${d.drug_class ? `<span class="drug-chip">USMLE ${escapeHtml(d.drug_class)}</span>` : ''}
+            ${d.drug_form ? `<span class="drug-chip">${escapeHtml(d.drug_form)}</span>` : ''}
+            ${d.atc_class ? `<span class="drug-chip">ATC ${escapeHtml(d.atc_class)}</span>` : ''}
             ${d.target ? `<span class="drug-chip">Target ${escapeHtml(d.target)}</span>` : ''}
             ${d.route ? `<span class="drug-chip">${escapeHtml(d.route)}</span>` : ''}
             ${d.usmle_yield ? `<span class="drug-chip">${escapeHtml(d.usmle_yield)}</span>` : ''}
@@ -4180,19 +4299,6 @@ function renderDrugFrame(drugs = []) {
             <span class="drug-chip">세부 ${detailCount}개</span>
           </div>
           ${detailCount === 0 ? `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 카드를 클릭해 상세 화면을 열거나 연필 버튼으로 내용을 추가하세요.</div>` : ''}
-          ${d.causal_chain ? `<div class="drug-section-box" style="margin-bottom:8px"><div class="drug-section-label">① 핵심 공식</div><div class="drug-section-text">${escapeHtml(d.causal_chain)}</div></div>` : ''}
-          <div class="drug-section-grid">
-            ${row('정의 KO', d.definition_ko)}
-            ${row('Definition EN', d.definition_en)}
-            ${row('Oʻzbekcha', d.definition_uz)}
-            ${row('③ 왜 쓰는가', d.why)}
-            ${row('④ MOA', d.moa)}
-            ${row('⑤ 임상 사용', d.clinical_uses)}
-            ${row('⑥ 부작용', d.adverse_effects)}
-            ${row('⑦ 금기/주의', d.precautions)}
-            ${row('⑧ USMLE 전략', d.usmle_strategy)}
-            ${row('⑨ 한 줄 암기', d.memory_line)}
-          </div>
         </article>
       `}).join('')}
     </section>`;
@@ -4237,43 +4343,7 @@ function drugDetailGridHtml(d, includeEmpty = false) {
 }
 
 function openDrugDetailModal(id) {
-  const d = DRUGS.find(x => Number(x.id) === Number(id));
-  if (!d) { showToast('⚠️ 약물 항목을 찾지 못했습니다'); return; }
-  document.getElementById('drugDetailModal')?.remove();
-  const overlay = document.createElement('div');
-  overlay.id = 'drugDetailModal';
-  overlay.className = 'developer-modal-overlay';
-  const chips = [
-    d.drug_class,
-    d.target ? `Target ${d.target}` : '',
-    d.route,
-    d.category,
-    d.usmle_yield,
-    d.ipa ? `IPA ${d.ipa}` : '',
-    ...(Array.isArray(d.system_tags) ? d.system_tags : []),
-    ...drugApiSources(d),
-  ].filter(Boolean);
-  overlay.innerHTML = `
-    <section class="developer-modal" role="dialog" aria-modal="true">
-      <div class="developer-modal-head">
-        <div>
-          <div style="font-size:17px;font-weight:900;color:var(--text)">${escapeHtml(drugDisplayName(d))}</div>
-          <div style="font-size:12px;color:#9cc7ff;margin-top:3px">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</div>
-        </div>
-        <button onclick="document.getElementById('drugDetailModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
-      </div>
-      <div style="padding:16px 20px 22px">
-        <div class="drug-chip-row" style="margin-top:0">${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}</div>
-        ${drugDetailGridHtml(d, true)}
-        ${drugRefsHtml(d)}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-          <button class="data-action-btn primary" style="flex:1;min-width:150px" onclick="openDrugEditModal(event, ${Number(d.id)})">✏️ 항목 편집</button>
-          <button class="data-action-btn red" style="flex:1;min-width:150px" onclick="deleteDrug(${Number(d.id)})">삭제</button>
-        </div>
-      </div>
-    </section>`;
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
+  openDrugDrawer(id);
 }
 
 function openDrugEditModal(e, id) {
@@ -4301,7 +4371,9 @@ function openDrugEditModal(e, id) {
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">성분명</label><input id="drug_edit_generic" value="${esc(d.generic_name)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">한국어 약물명</label><input id="drug_edit_ko" value="${esc(d.ko_name)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">상품명</label><input id="drug_edit_brand" value="${esc(d.brand_name)}" style="${IS}"></div>
-          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE 계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" placeholder="예: IL-4Rα antagonist" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물형태</label><input id="drug_edit_form" value="${esc(d.drug_form)}" placeholder="human monoclonal antibody / biologic" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">ATC 분류</label><input id="drug_edit_atc" value="${esc(d.atc_class)}" placeholder="RxClass ATC API 보강값" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Target</label><input id="drug_edit_target" value="${esc(d.target)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">투여</label><input id="drug_edit_route" value="${esc(d.route)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">System</label><select id="drug_edit_category" style="${IS}">${cats.map(c => `<option value="${escapeHtml(c)}" ${d.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}</select></div>
@@ -4339,6 +4411,8 @@ function saveDrugEdit(id) {
     ko_name: document.getElementById('drug_edit_ko')?.value.trim() || '',
     brand_name: document.getElementById('drug_edit_brand')?.value.trim() || '',
     drug_class: document.getElementById('drug_edit_class')?.value.trim() || '',
+    drug_form: document.getElementById('drug_edit_form')?.value.trim() || '',
+    atc_class: document.getElementById('drug_edit_atc')?.value.trim() || '',
     target: document.getElementById('drug_edit_target')?.value.trim() || '',
     route: document.getElementById('drug_edit_route')?.value.trim() || '',
     category: document.getElementById('drug_edit_category')?.value || 'General',
@@ -4391,6 +4465,8 @@ function drugApiFieldIds(mode) {
     ko: edit ? 'drug_edit_ko' : 'add_drug_ko',
     brand: edit ? 'drug_edit_brand' : 'add_drug_brand',
     drugClass: edit ? 'drug_edit_class' : 'add_drug_class',
+    drugForm: edit ? 'drug_edit_form' : 'add_drug_form',
+    atcClass: edit ? 'drug_edit_atc' : 'add_drug_atc',
     refs: edit ? 'drug_edit_api_refs' : 'add_drug_api_refs',
     preview: edit ? 'drugApiPreview_edit' : 'drugApiPreview_add',
     button: edit ? 'drugApiBtn_edit' : 'drugApiBtn_add',
@@ -4539,8 +4615,8 @@ function renderDrugApiPreview(mode, bundle) {
     classText ? `
       <label class="drug-api-option">
         <input type="checkbox" value="class" checked>
-        <span><b>RxClass 계열</b>: ${escapeHtml(classText)}<br>
-        <span class="drug-api-source">약물 계열 필터에 활용됩니다.</span></span>
+        <span><b>RxClass ATC 분류</b>: ${escapeHtml(classText)}<br>
+        <span class="drug-api-source">ATC 분류 칸에 적용됩니다. USMLE 계열은 직접 정리하는 칸으로 유지합니다.</span></span>
       </label>` : '',
     refs.length ? `
       <label class="drug-api-option">
@@ -4610,7 +4686,7 @@ function applyDrugApiEnrichment(mode) {
   }
   const classText = drugApiClassText(bundle.rxclass);
   if (selected.has('class') && classText) {
-    if (drugApiSetInput(ids.drugClass, classText, 'append')) applied++;
+    if (drugApiSetInput(ids.atcClass, classText, 'append')) applied++;
   }
   if (selected.has('refs')) {
     storeDrugApiRefs(mode, buildDrugApiRefs(bundle));
@@ -5907,8 +5983,18 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
                 <input id="add_drug_brand" type="text" placeholder="e.g. Dupixent" style="${inputStyle()}">
               </div>
               <div>
-                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">계열</label>
-                <input id="add_drug_class" type="text" placeholder="IL-4 receptor alpha antagonist" style="${inputStyle()}">
+                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE 계열</label>
+                <input id="add_drug_class" type="text" placeholder="IL-4Rα antagonist" style="${inputStyle()}">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+              <div>
+                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물형태</label>
+                <input id="add_drug_form" type="text" placeholder="human monoclonal antibody / biologic" style="${inputStyle()}">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">ATC 분류</label>
+                <input id="add_drug_atc" type="text" placeholder="RxClass ATC API 보강값" style="${inputStyle()}">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
@@ -5949,7 +6035,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           <div class="drug-api-panel">
             <div class="drug-api-actions">
               <button id="drugApiBtn_add" class="drug-api-btn" onclick="fetchDrugApiForForm('add')">🔎 무료 API로 보강</button>
-              <span class="drug-api-source">RxNorm으로 표준 약물명을 확인하고 RxClass로 약물 계열을 보강합니다.</span>
+              <span class="drug-api-source">RxNorm으로 표준 약물명을 확인하고 RxClass로 ATC 분류를 보강합니다.</span>
             </div>
             <div id="drugApiPreview_add" class="drug-api-preview"></div>
             <textarea id="add_drug_api_refs" style="display:none"></textarea>
@@ -6433,6 +6519,8 @@ async function submitAddDrug() {
     ko_name: koName,
     brand_name: brand,
     drug_class: document.getElementById('add_drug_class')?.value.trim() || '',
+    drug_form: document.getElementById('add_drug_form')?.value.trim() || '',
+    atc_class: document.getElementById('add_drug_atc')?.value.trim() || '',
     target: document.getElementById('add_drug_target')?.value.trim() || '',
     route: document.getElementById('add_drug_route')?.value.trim() || '',
     category: document.getElementById('add_drug_category')?.value || 'General',
@@ -7872,16 +7960,32 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.43',
+  version: '3.45',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 16:51',
+  updatedAt: '2026년 6월 14일 17:19',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 약물 무료 API 보강',
+    title: '최신 · 약물 드로어 보기 개편',
+    items: [
+      '약물명 및 정보 카드에서 긴 상세 본문을 제거하고 compact 목록형 카드로 변경',
+      '약물 카드를 클릭하면 일반용어처럼 오른쪽 드로어에서 상세 내용을 확인하도록 구현',
+      '약물 카드와 드로어 상세 텍스트의 글자 크기를 키워 가독성을 개선',
+    ]
+  },
+  {
+    title: 'v3.44 · 약물 필드 개편',
+    items: [
+      '약물의 기존 “계열” 입력칸을 “USMLE 계열”로 명확히 변경',
+      '약물형태와 ATC 분류 입력칸을 추가하고 카드/상세/검색/동기화 저장 경로에 반영',
+      'RxClass 무료 API 보강값은 USMLE 계열이 아니라 ATC 분류 칸에 적용되도록 변경하고 통합 SQL을 갱신',
+    ]
+  },
+  {
+    title: 'v3.43 · 약물 무료 API 보강',
     items: [
       '약물명 및 정보 추가/편집 화면에 RxNorm/RxClass 기반 “무료 API로 보강” 버튼 추가',
       'API 조회 결과를 바로 덮어쓰지 않고 미리보기에서 표준명, 약물 계열, 출처 기록을 선택 적용하도록 설계',
@@ -8338,6 +8442,8 @@ create table if not exists public.medical_drugs (
   ko_name text default '',
   brand_name text default '',
   drug_class text default '',
+  drug_form text default '',
+  atc_class text default '',
   target text default '',
   route text default '',
   concept_category text default 'Pharmacology',
@@ -8367,6 +8473,8 @@ alter table public.medical_drugs
   add column if not exists ko_name text default '',
   add column if not exists brand_name text default '',
   add column if not exists drug_class text default '',
+  add column if not exists drug_form text default '',
+  add column if not exists atc_class text default '',
   add column if not exists target text default '',
   add column if not exists route text default '',
   add column if not exists concept_category text default 'Pharmacology',
@@ -8420,6 +8528,9 @@ create index if not exists medical_drugs_deleted_at_idx
 
 create index if not exists medical_drugs_generic_name_idx
   on public.medical_drugs (generic_name);
+
+create index if not exists medical_drugs_atc_class_idx
+  on public.medical_drugs (atc_class);
 
 create table if not exists public.language_sync_meta (
   key text primary key,
@@ -8483,6 +8594,14 @@ select
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_drugs' and column_name='deleted_at'
   ) as drug_deleted_at_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='medical_drugs' and column_name='drug_form'
+  ) as drug_form_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='medical_drugs' and column_name='atc_class'
+  ) as drug_atc_class_ready,
   exists (
     select 1 from public.language_sync_meta
     where key = 'medical_terms_canonical_version'
@@ -10475,6 +10594,29 @@ initApp();
       <button class="drawer-nav-btn" id="drawerNextBtn" onclick="drawerNavigate(1)">다음 ▶</button>
     </div>
     <div class="drawer-body" id="drawerBody"></div>
+  </div>
+  <!-- ═══════════════════════════════════ -->
+
+  <!-- ═══════════ DRUG DRAWER ═══════════ -->
+  <div class="term-drawer-overlay" id="drugDrawerOverlay" onclick="closeDrugDrawer()"></div>
+  <div class="term-drawer" id="drugDrawer">
+    <div class="drawer-handle"><div class="drawer-handle-bar"></div></div>
+    <div class="drawer-header">
+      <div class="drawer-header-left">
+        <div class="drawer-title-ko" id="drugDrawerTitle">—</div>
+        <div class="drawer-title-en" id="drugDrawerSubtitle">약물명 및 정보</div>
+      </div>
+      <div class="drawer-header-right">
+        <button class="drawer-action-btn" onclick="drugDrawerOpenEdit()" title="편집">✏️</button>
+        <button class="drawer-close-btn" onclick="closeDrugDrawer()" title="닫기">×</button>
+      </div>
+    </div>
+    <div class="drawer-nav">
+      <button class="drawer-nav-btn" id="drugDrawerPrevBtn" onclick="drugDrawerNavigate(-1)">◀ 이전</button>
+      <div class="drawer-nav-count" id="drugDrawerNavCount"></div>
+      <button class="drawer-nav-btn" id="drugDrawerNextBtn" onclick="drugDrawerNavigate(1)">다음 ▶</button>
+    </div>
+    <div class="drawer-body" id="drugDrawerBody"></div>
   </div>
   <!-- ═══════════════════════════════════ -->
 
