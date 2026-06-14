@@ -293,6 +293,7 @@ function _renderDrugDrawerContent(d) {
   const subtitle = [d.ko_name, d.brand_name].filter(Boolean).join(' · ');
   const chips = [
     d.drug_class ? `USMLE ${d.drug_class}` : '',
+    d.same_class_drugs ? `같은 계열 ${d.same_class_drugs}` : '',
     d.drug_form,
     d.atc_class ? `ATC ${d.atc_class}` : '',
     d.target ? `Target ${d.target}` : '',
@@ -332,10 +333,10 @@ function _renderDrugDrawerContent(d) {
       </div>
     </div>
     <div class="drawer-section">
-      ${drugDetailGridHtml(d, true)}
+      ${drugBasicCardHtml(d)}
     </div>
     <div class="drawer-section">
-      ${drugRefsHtml(d) || '<div class="drawer-missing">저장된 API 출처 없음</div>'}
+      ${drugAdvancedInfoHtml(d)}
     </div>
   `;
 }
@@ -1266,6 +1267,11 @@ document.addEventListener('keydown', e => {
     padding: 10px;
   }
 
+  .drug-section-box-emphasis {
+    border-color: rgba(63,185,80,0.42);
+    background: rgba(63,185,80,0.06);
+  }
+
   .drug-section-label {
     color: #7ee787;
     font-size: 10px;
@@ -1278,6 +1284,50 @@ document.addEventListener('keydown', e => {
     font-size: 13px;
     line-height: 1.75;
     white-space: pre-wrap;
+  }
+
+  .drug-core-formula {
+    border: 1px solid rgba(251,191,36,0.32);
+    border-radius: 10px;
+    background: rgba(251,191,36,0.06);
+    color: #fbbf24;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.65;
+    padding: 12px 13px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+  }
+
+  .drug-definition-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .drug-memory-line {
+    margin-top: 10px;
+    border: 1px solid rgba(63,185,80,0.34);
+    border-radius: 10px;
+    background: rgba(63,185,80,0.06);
+    color: #c8f7c5;
+    font-size: 13px;
+    line-height: 1.65;
+    padding: 11px 12px;
+  }
+
+  .drug-advanced-details {
+    border: 1px solid rgba(167,139,250,0.28);
+    border-radius: 10px;
+    background: rgba(167,139,250,0.05);
+    padding: 10px 12px;
+  }
+
+  .drug-advanced-details summary {
+    cursor: pointer;
+    color: #c9a4ff;
+    font-weight: 800;
+    font-size: 13px;
   }
 
   .drug-empty-note {
@@ -2328,6 +2378,10 @@ document.addEventListener('keydown', e => {
       grid-template-columns: 1fr;
     }
 
+    .drug-definition-grid {
+      grid-template-columns: 1fr;
+    }
+
     .bottom-nav {
       padding-bottom: env(safe-area-inset-bottom);
     }
@@ -2798,6 +2852,7 @@ function canonicalDrugHashPayload(drugs) {
       ko_name: d.ko_name || '',
       brand_name: d.brand_name || '',
       drug_class: d.drug_class || '',
+      same_class_drugs: d.same_class_drugs || '',
       drug_form: d.drug_form || '',
       atc_class: d.atc_class || '',
       target: d.target || '',
@@ -2937,6 +2992,7 @@ function drugToRow(d) {
     ko_name: d.ko_name || '',
     brand_name: d.brand_name || '',
     drug_class: d.drug_class || '',
+    same_class_drugs: d.same_class_drugs || '',
     drug_form: d.drug_form || '',
     atc_class: d.atc_class || '',
     target: d.target || '',
@@ -2971,6 +3027,7 @@ function rowToDrug(r) {
     ko_name: r.ko_name || '',
     brand_name: r.brand_name || '',
     drug_class: r.drug_class || '',
+    same_class_drugs: r.same_class_drugs || '',
     drug_form: r.drug_form || '',
     atc_class: r.atc_class || '',
     target: r.target || '',
@@ -3500,6 +3557,7 @@ function normalizeDrugForStorage(d) {
     ko_name: koName,
     brand_name: capitalizeTermInitial(brand),
     drug_class: cleanTermString(d.drug_class || d.drugClass),
+    same_class_drugs: cleanTermString(d.same_class_drugs || d.sameClassDrugs || d.class_drugs || d.related_drugs),
     drug_form: cleanTermString(d.drug_form || d.drugForm || d.form),
     atc_class: cleanTermString(d.atc_class || d.atcClass || d.atc || d.rxclass_atc),
     target: cleanTermString(d.target),
@@ -4399,7 +4457,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
 
 function drugSearchText(d) {
   return [
-    d.generic_name, d.ko_name, d.brand_name, d.drug_class, d.drug_form, d.atc_class, d.target, d.route,
+    d.generic_name, d.ko_name, d.brand_name, d.drug_class, d.same_class_drugs, d.drug_form, d.atc_class, d.target, d.route,
     d.category, d.usmle_yield, d.definition_ko, d.definition_en, d.definition_uz,
     d.causal_chain, d.why, d.moa, d.clinical_uses, d.adverse_effects,
     d.precautions, d.usmle_strategy, d.memory_line,
@@ -4505,6 +4563,7 @@ function renderDrugFrame(drugs = []) {
           </div>
           <div class="drug-chip-row">
             ${d.drug_class ? `<span class="drug-chip">USMLE ${escapeHtml(d.drug_class)}</span>` : ''}
+            ${d.same_class_drugs ? `<span class="drug-chip">같은 계열 ${escapeHtml(compactDrugText(d.same_class_drugs, 42))}</span>` : ''}
             ${d.drug_form ? `<span class="drug-chip">${escapeHtml(d.drug_form)}</span>` : ''}
             ${d.atc_class ? `<span class="drug-chip">ATC ${escapeHtml(d.atc_class)}</span>` : ''}
             ${d.target ? `<span class="drug-chip">Target ${escapeHtml(d.target)}</span>` : ''}
@@ -4526,6 +4585,11 @@ function drugDisplayName(d) {
   return d?.generic_name || d?.ko_name || d?.brand_name || '이름 없음';
 }
 
+function compactDrugText(value, max = 80) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
 function drugPronunciationText(d) {
   return String(d?.generic_name || d?.brand_name || '').trim();
 }
@@ -4539,6 +4603,65 @@ function speakDrugName(event, id, slot = 'drug-card') {
     return;
   }
   speakText(event, text, slot, Number(id));
+}
+
+function drugInfoBox(label, value, options = {}) {
+  const clean = String(value || '').trim();
+  if (!clean && !options.includeEmpty) return '';
+  return `
+    <div class="drug-section-box ${options.emphasis ? 'drug-section-box-emphasis' : ''}">
+      <div class="drug-section-label">${escapeHtml(label)}</div>
+      <div class="drug-section-text">${clean ? escapeHtml(clean) : '<span style="color:#6e7681">미입력</span>'}</div>
+    </div>`;
+}
+
+function drugBasicCardHtml(d) {
+  const systemText = [
+    d.category ? `Primary: ${categoryDisplay(d.category)}` : '',
+    Array.isArray(d.system_tags) && d.system_tags.length ? `Tags: ${d.system_tags.map(categoryDisplay).join(', ')}` : ''
+  ].filter(Boolean).join('\n');
+  const definitionBoxes = [
+    drugInfoBox('한국어 정의', d.definition_ko, { includeEmpty: false }),
+    drugInfoBox('English', d.definition_en, { includeEmpty: false }),
+    drugInfoBox("O'zbekcha", d.definition_uz, { includeEmpty: false }),
+  ].filter(Boolean).join('');
+  const coreBoxes = [
+    drugInfoBox('Target', d.target, { includeEmpty: true, emphasis: true }),
+    drugInfoBox('System', systemText, { includeEmpty: true }),
+    drugInfoBox('같은 계열 약물명', d.same_class_drugs, { includeEmpty: false }),
+    drugInfoBox('④ MOA', d.moa, { includeEmpty: false }),
+    drugInfoBox('⑤ 임상 사용', d.clinical_uses, { includeEmpty: false }),
+    drugInfoBox('⑥ 대표 부작용', d.adverse_effects, { includeEmpty: false }),
+    drugInfoBox('⑧ USMLE 함정', d.usmle_strategy, { includeEmpty: false }),
+  ].filter(Boolean).join('');
+  return `
+    <div class="drug-section-label" style="margin-bottom:8px;color:#9cc7ff">기본 카드 · 핵심 학습 정보</div>
+    ${d.causal_chain ? `<div class="drug-core-formula">${escapeHtml(d.causal_chain)}</div>` : ''}
+    <div class="drug-section-grid">${coreBoxes || drugInfoBox('핵심 정보', '', { includeEmpty: true })}</div>
+    ${definitionBoxes ? `
+      <div class="drug-section-label" style="margin:12px 0 8px;color:#8de36e">정의 3개 언어</div>
+      <div class="drug-definition-grid">${definitionBoxes}</div>` : ''}
+    ${d.memory_line ? `<div class="drug-memory-line">💡 ${escapeHtml(d.memory_line)}</div>` : ''}`;
+}
+
+function drugAdvancedInfoHtml(d) {
+  const advancedBoxes = [
+    drugInfoBox('약물형태', d.drug_form, { includeEmpty: false }),
+    drugInfoBox('ATC 분류', d.atc_class, { includeEmpty: false }),
+    drugInfoBox('투여', d.route, { includeEmpty: false }),
+    drugInfoBox('USMLE Yield', d.usmle_yield, { includeEmpty: false }),
+    drugInfoBox('IPA', d.ipa, { includeEmpty: false }),
+    drugInfoBox('③ 왜 쓰는가', d.why, { includeEmpty: false }),
+    drugInfoBox('⑦ 금기/주의', d.precautions, { includeEmpty: false }),
+  ].filter(Boolean).join('');
+  const refs = drugRefsHtml(d);
+  if (!advancedBoxes && !refs) return '<div class="drawer-missing">고급 정보 또는 저장된 API 출처 없음</div>';
+  return `
+    <details class="drug-advanced-details">
+      <summary>접혀있는 고급 정보</summary>
+      <div class="drug-section-grid" style="margin-top:10px">${advancedBoxes}</div>
+      ${refs || ''}
+    </details>`;
 }
 
 function drugDetailFields() {
@@ -4604,6 +4727,7 @@ function openDrugEditModal(e, id) {
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">한국어 약물명</label><input id="drug_edit_ko" value="${esc(d.ko_name)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">상품명</label><input id="drug_edit_brand" value="${esc(d.brand_name)}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE 계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" placeholder="예: IL-4Rα antagonist" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">같은 계열 약물명</label><input id="drug_edit_same_class" value="${esc(d.same_class_drugs)}" placeholder="예: mepolizumab, reslizumab, benralizumab" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물형태</label><input id="drug_edit_form" value="${esc(d.drug_form)}" placeholder="human monoclonal antibody / biologic" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">ATC 분류</label><input id="drug_edit_atc" value="${esc(d.atc_class)}" placeholder="RxClass ATC API 보강값" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Target</label><input id="drug_edit_target" value="${esc(d.target)}" style="${IS}"></div>
@@ -4643,6 +4767,7 @@ function saveDrugEdit(id) {
     ko_name: document.getElementById('drug_edit_ko')?.value.trim() || '',
     brand_name: document.getElementById('drug_edit_brand')?.value.trim() || '',
     drug_class: document.getElementById('drug_edit_class')?.value.trim() || '',
+    same_class_drugs: document.getElementById('drug_edit_same_class')?.value.trim() || '',
     drug_form: document.getElementById('drug_edit_form')?.value.trim() || '',
     atc_class: document.getElementById('drug_edit_atc')?.value.trim() || '',
     target: document.getElementById('drug_edit_target')?.value.trim() || '',
@@ -6244,6 +6369,10 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
                 <input id="add_drug_class" type="text" placeholder="IL-4Rα antagonist" style="${inputStyle()}">
               </div>
             </div>
+            <div style="margin-bottom:10px">
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">같은 계열 약물명</label>
+              <input id="add_drug_same_class" type="text" placeholder="예: mepolizumab, reslizumab, benralizumab" style="${inputStyle()}">
+            </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
               <div>
                 <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물형태</label>
@@ -6296,6 +6425,16 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             </div>
             <div id="drugApiPreview_add" class="drug-api-preview"></div>
             <textarea id="add_drug_api_refs" style="display:none"></textarea>
+          </div>
+
+          <div style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:12px;padding:12px;margin-bottom:10px">
+            <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+              <input id="add_drug_ai_enrich" type="checkbox" checked style="margin-top:3px;accent-color:#58a6ff">
+              <span>
+                <span style="display:block;color:#9cc7ff;font-size:12px;font-weight:800">비어있는 칸만 AI로 보강</span>
+                <span style="display:block;color:var(--text3);font-size:11px;line-height:1.45;margin-top:2px">직접 입력한 약물명, USMLE 계열, 같은 계열 약물명, 본문 내용은 덮어쓰지 않습니다. 체크를 끄면 직접 입력값만 저장합니다.</span>
+              </span>
+            </label>
           </div>
 
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
@@ -6760,6 +6899,72 @@ async function submitAddTerm() {
   }
 }
 
+async function enrichDrugWithAI(seed) {
+  const name = [seed.generic_name, seed.brand_name, seed.ko_name].filter(Boolean).join(' / ');
+  const prompt = `You are creating a concise USMLE-oriented drug learning card.
+
+Use only pharmacology facts that are broadly accepted. If unsure, leave the field empty or write "검토 필요".
+Preserve the user's existing information conceptually. Do not invent dosage.
+
+Drug:
+- generic_name: ${seed.generic_name || ''}
+- ko_name: ${seed.ko_name || ''}
+- brand_name: ${seed.brand_name || ''}
+- usmle_class: ${seed.drug_class || ''}
+- same_class_drugs: ${seed.same_class_drugs || ''}
+- target: ${seed.target || ''}
+- route: ${seed.route || ''}
+- system: ${seed.category || ''}
+
+Return ONLY valid JSON with these keys:
+{
+  "drug_class": "USMLE class, concise",
+  "same_class_drugs": "comma-separated peer drugs in the same or commonly contrasted class",
+  "drug_form": "drug form, e.g. human monoclonal antibody / biologic",
+  "atc_class": "ATC/RxClass-like broad class if known",
+  "target": "molecular target",
+  "route": "route, if commonly known",
+  "category": "one representative system from: General|Cardiovascular|Pulmonary|Renal|GI & Hepatobiliary|Endocrine|Neurology|Hematology & Oncology|Infectious Disease|Musculoskeletal|Dermatology|Ophthalmology|ENT|Reproductive|Psychiatry|Pediatrics|Immunology",
+  "system_tags": ["secondary systems from the same list"],
+  "usmle_yield": "High Yield|Moderate Yield|Low Yield",
+  "ipa": "IPA for English generic name if confident",
+  "causal_chain": "one high-yield formula chain",
+  "definition_ko": "Korean definition, 1 sentence",
+  "definition_en": "English definition, 1 sentence",
+  "definition_uz": "Uzbek definition, 1 sentence",
+  "why": "why it is used, pathophysiology connection",
+  "moa": "mechanism of action, Step 1 style",
+  "clinical_uses": "representative clinical uses and test clues",
+  "adverse_effects": "representative adverse effects",
+  "precautions": "key contraindications/precautions, no dosage",
+  "usmle_strategy": "answer clue + common wrong-answer traps",
+  "memory_line": "one-line memory point"
+}`;
+  try {
+    const text = await callAIText(prompt, 1200, 'enrich');
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch (err) {
+    console.warn('drug AI enrichment failed:', name, err);
+    return {};
+  }
+}
+
+function mergeDrugAiSuggestion(seed, enriched) {
+  const next = { ...seed };
+  [
+    'drug_class','same_class_drugs','drug_form','atc_class','target','route','category','usmle_yield','ipa',
+    'causal_chain','definition_ko','definition_en','definition_uz','why','moa','clinical_uses',
+    'adverse_effects','precautions','usmle_strategy','memory_line'
+  ].forEach(key => {
+    if (!String(next[key] || '').trim() && enriched?.[key]) next[key] = enriched[key];
+  });
+  if ((!next.system_tags || !String(next.system_tags).trim()) && Array.isArray(enriched?.system_tags)) {
+    next.system_tags = enriched.system_tags.join(', ');
+  }
+  return next;
+}
+
 // ─── Edit Term Modal ───
 async function submitAddDrug() {
   const generic = document.getElementById('add_drug_generic')?.value.trim() || '';
@@ -6771,12 +6976,13 @@ async function submitAddDrug() {
   }
 
   const now = new Date().toISOString();
-  const drug = normalizeDrugForStorage({
+  let drugInput = {
     id: nextDrugId(),
     generic_name: generic,
     ko_name: koName,
     brand_name: brand,
     drug_class: document.getElementById('add_drug_class')?.value.trim() || '',
+    same_class_drugs: document.getElementById('add_drug_same_class')?.value.trim() || '',
     drug_form: document.getElementById('add_drug_form')?.value.trim() || '',
     atc_class: document.getElementById('add_drug_atc')?.value.trim() || '',
     target: document.getElementById('add_drug_target')?.value.trim() || '',
@@ -6799,18 +7005,32 @@ async function submitAddDrug() {
     refs: collectDrugApiRefs('add'),
     createdAt: now,
     updatedAt: now,
-  });
+  };
+
+  const btn = document.getElementById('addSubmitBtn');
+  const idleText = '💊 약물명 및 정보로 저장';
+  const wantsAI = document.getElementById('add_drug_ai_enrich')?.checked !== false;
+  const canUseAI = wantsAI && (isClaudeAiEnv() || hasConfiguredAIKey());
+  if (canUseAI) {
+    if (btn) { btn.disabled = true; btn.textContent = '🤖 약물 카드 생성 중...'; }
+    const enriched = await enrichDrugWithAI(drugInput);
+    drugInput = mergeDrugAiSuggestion(drugInput, enriched);
+  }
+
+  const drug = normalizeDrugForStorage(drugInput);
 
   if (findDrugIndexByIdentity(drug) >= 0) {
     showAddFormNotice('⚠️ 중복된 약물입니다.');
+    if (btn) { btn.disabled = false; btn.textContent = idleText; }
     return;
   }
 
   DRUGS.push(drug);
   saveDrugsToLocalStorage();
   saveDrugToCloud(drug);
-  showToast(`💊 "${drug.ko_name || drug.generic_name || drug.brand_name}" 약물명 및 정보 저장 완료`);
+  showToast(`💊 "${drug.ko_name || drug.generic_name || drug.brand_name}" 약물명 및 정보 저장 완료${canUseAI ? ' · 빈칸 AI 제안 반영' : ''}`);
   finishAddFlow();
+  if (btn) { btn.disabled = false; btn.textContent = idleText; }
 }
 
 function openEditModal(e, id) {
@@ -8235,16 +8455,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.49',
+  version: '3.50',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 18:10',
+  updatedAt: '2026년 6월 14일 18:40',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · IndexedDB 로컬 캐시 전환',
+    title: '최신 · 약물 카드 2.0 기본/고급 개편',
+    items: [
+      '약물명 및 정보 드로어를 기본 카드와 접혀있는 고급 정보로 재구성해 핵심 USMLE 정보가 먼저 보이도록 개선',
+      '같은 계열 약물명 필드를 추가하고 약물 추가, 편집, 카드 표시, 검색, Supabase 저장 경로에 연결',
+      '약물 추가 시 “비어있는 칸만 AI로 보강” 선택을 추가해 직접 입력 전용 저장과 AI 보강 저장을 모두 지원',
+    ]
+  },
+  {
+    title: 'v3.49 · IndexedDB 로컬 캐시 전환',
     items: [
       '용어, 약물명 및 정보, 삭제기록, 학습상태처럼 용량이 커지는 로컬 캐시를 localStorage에서 IndexedDB 우선 저장으로 전환',
       'localStorage에는 Supabase 설정, device id, 작은 메타만 남기고 기존 대용량 localStorage 캐시는 첫 로딩 후 IndexedDB로 자동 이관',
@@ -8750,6 +8978,7 @@ create table if not exists public.medical_drugs (
   ko_name text default '',
   brand_name text default '',
   drug_class text default '',
+  same_class_drugs text default '',
   drug_form text default '',
   atc_class text default '',
   target text default '',
@@ -8781,6 +9010,7 @@ alter table public.medical_drugs
   add column if not exists ko_name text default '',
   add column if not exists brand_name text default '',
   add column if not exists drug_class text default '',
+  add column if not exists same_class_drugs text default '',
   add column if not exists drug_form text default '',
   add column if not exists atc_class text default '',
   add column if not exists target text default '',
@@ -8902,6 +9132,10 @@ select
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_drugs' and column_name='deleted_at'
   ) as drug_deleted_at_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='medical_drugs' and column_name='same_class_drugs'
+  ) as drug_same_class_ready,
   exists (
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_drugs' and column_name='drug_form'
