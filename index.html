@@ -997,6 +997,14 @@ document.addEventListener('keydown', e => {
     border-radius: 13px;
     padding: 14px 16px;
     margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  }
+
+  .drug-card:hover {
+    border-color: rgba(88,166,255,0.56);
+    background: linear-gradient(180deg, rgba(88,166,255,0.11), rgba(22,27,34,0.98));
+    transform: translateY(-1px);
   }
 
   .drug-head {
@@ -1063,6 +1071,16 @@ document.addEventListener('keydown', e => {
     font-size: 11px;
     line-height: 1.6;
     white-space: pre-wrap;
+  }
+
+  .drug-empty-note {
+    border: 1px dashed rgba(88,166,255,0.28);
+    border-radius: 9px;
+    padding: 10px;
+    color: var(--text3);
+    font-size: 11px;
+    line-height: 1.6;
+    background: rgba(13,17,23,0.42);
   }
 
   .chevron {
@@ -3655,14 +3673,19 @@ function renderDrugFrame(drugs = []) {
         <strong>💊 약물 프레임 · ${active.length}개</strong>
         <span style="font-size:10px;color:var(--text3)">일반 용어와 별도 저장</span>
       </div>
-      ${active.map(d => `
-        <article class="drug-card">
+      ${active.map(d => {
+        const detailCount = [
+          d.causal_chain, d.definition_ko, d.definition_en, d.definition_uz, d.why,
+          d.moa, d.clinical_uses, d.adverse_effects, d.precautions, d.usmle_strategy, d.memory_line
+        ].filter(v => String(v || '').trim()).length;
+        return `
+        <article class="drug-card" onclick="openDrugDetailModal(${Number(d.id)})" title="클릭해서 약물 상세 보기">
           <div class="drug-head">
             <div>
               <div class="drug-name">${escapeHtml(d.generic_name || d.ko_name || d.brand_name || '이름 없음')}</div>
               <div class="drug-sub">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</div>
             </div>
-            <button class="bookmark-btn" onclick="event.stopPropagation();showToast('약물 편집은 다음 업데이트에서 분리 제공 예정입니다')" title="약물 편집">✏️</button>
+            <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집">✏️</button>
           </div>
           <div class="drug-chip-row">
             ${d.drug_class ? `<span class="drug-chip">${escapeHtml(d.drug_class)}</span>` : ''}
@@ -3671,7 +3694,9 @@ function renderDrugFrame(drugs = []) {
             ${d.usmle_yield ? `<span class="drug-chip">${escapeHtml(d.usmle_yield)}</span>` : ''}
             ${d.ipa ? `<span class="drug-chip">IPA ${escapeHtml(d.ipa)}</span>` : ''}
             ${(Array.isArray(d.system_tags) ? d.system_tags : []).map(tag => `<span class="drug-chip">${escapeHtml(categoryDisplay(tag))}</span>`).join('')}
+            <span class="drug-chip">세부 ${detailCount}개</span>
           </div>
+          ${detailCount === 0 ? `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 카드를 클릭해 상세 화면을 열거나 연필 버튼으로 내용을 추가하세요.</div>` : ''}
           ${d.causal_chain ? `<div class="drug-section-box" style="margin-bottom:8px"><div class="drug-section-label">① 핵심 공식</div><div class="drug-section-text">${escapeHtml(d.causal_chain)}</div></div>` : ''}
           <div class="drug-section-grid">
             ${row('정의 KO', d.definition_ko)}
@@ -3686,8 +3711,182 @@ function renderDrugFrame(drugs = []) {
             ${row('⑨ 한 줄 암기', d.memory_line)}
           </div>
         </article>
-      `).join('')}
+      `}).join('')}
     </section>`;
+}
+
+function drugDisplayName(d) {
+  return d?.generic_name || d?.ko_name || d?.brand_name || '이름 없음';
+}
+
+function drugDetailFields() {
+  return [
+    ['① 핵심 공식', 'causal_chain'],
+    ['정의 KO', 'definition_ko'],
+    ['Definition EN', 'definition_en'],
+    ['Oʻzbekcha', 'definition_uz'],
+    ['③ 왜 쓰는가', 'why'],
+    ['④ MOA', 'moa'],
+    ['⑤ 임상 사용', 'clinical_uses'],
+    ['⑥ 부작용', 'adverse_effects'],
+    ['⑦ 금기/주의', 'precautions'],
+    ['⑧ USMLE 전략', 'usmle_strategy'],
+    ['⑨ 한 줄 암기', 'memory_line'],
+  ];
+}
+
+function drugDetailGridHtml(d, includeEmpty = false) {
+  const rows = drugDetailFields()
+    .map(([label, key]) => {
+      const value = String(d?.[key] || '').trim();
+      if (!includeEmpty && !value) return '';
+      return `
+        <div class="drug-section-box">
+          <div class="drug-section-label">${label}</div>
+          <div class="drug-section-text">${value ? escapeHtml(value) : '<span style="color:#6e7681">미입력</span>'}</div>
+        </div>`;
+    })
+    .filter(Boolean)
+    .join('');
+  if (rows) return `<div class="drug-section-grid">${rows}</div>`;
+  return `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 편집 버튼으로 약물 프레임 내용을 추가하세요.</div>`;
+}
+
+function openDrugDetailModal(id) {
+  const d = DRUGS.find(x => Number(x.id) === Number(id));
+  if (!d) { showToast('⚠️ 약물 항목을 찾지 못했습니다'); return; }
+  document.getElementById('drugDetailModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'drugDetailModal';
+  overlay.className = 'developer-modal-overlay';
+  const chips = [
+    d.drug_class,
+    d.target ? `Target ${d.target}` : '',
+    d.route,
+    d.category,
+    d.usmle_yield,
+    d.ipa ? `IPA ${d.ipa}` : '',
+    ...(Array.isArray(d.system_tags) ? d.system_tags : []),
+  ].filter(Boolean);
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div>
+          <div style="font-size:17px;font-weight:900;color:var(--text)">${escapeHtml(drugDisplayName(d))}</div>
+          <div style="font-size:12px;color:#9cc7ff;margin-top:3px">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</div>
+        </div>
+        <button onclick="document.getElementById('drugDetailModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:16px 20px 22px">
+        <div class="drug-chip-row" style="margin-top:0">${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}</div>
+        ${drugDetailGridHtml(d, true)}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="data-action-btn primary" style="flex:1;min-width:150px" onclick="openDrugEditModal(event, ${Number(d.id)})">✏️ 항목 편집</button>
+          <button class="data-action-btn red" style="flex:1;min-width:150px" onclick="deleteDrug(${Number(d.id)})">삭제</button>
+        </div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function openDrugEditModal(e, id) {
+  if (e) e.stopPropagation();
+  const d = DRUGS.find(x => Number(x.id) === Number(id));
+  if (!d) { showToast('⚠️ 약물 항목을 찾지 못했습니다'); return; }
+  document.getElementById('drugEditModal')?.remove();
+  const IS = `width:100%;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;box-sizing:border-box;`;
+  const TA = IS + `resize:vertical;`;
+  const cats = d.category && !CATEGORIES.includes(d.category) ? [d.category, ...CATEGORIES] : CATEGORIES;
+  const overlay = document.createElement('div');
+  overlay.id = 'drugEditModal';
+  overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div>
+          <div style="font-size:17px;font-weight:900;color:var(--text)">💊 약물 항목 편집</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(drugDisplayName(d))}</div>
+        </div>
+        <button onclick="document.getElementById('drugEditModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid #30363d;background:#21262d;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:16px 20px 22px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">성분명</label><input id="drug_edit_generic" value="${esc(d.generic_name)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">한국어 약물명</label><input id="drug_edit_ko" value="${esc(d.ko_name)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">상품명</label><input id="drug_edit_brand" value="${esc(d.brand_name)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Target</label><input id="drug_edit_target" value="${esc(d.target)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">투여</label><input id="drug_edit_route" value="${esc(d.route)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">System</label><select id="drug_edit_category" style="${IS}">${cats.map(c => `<option value="${escapeHtml(c)}" ${d.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}</select></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE</label><input id="drug_edit_yield" value="${esc(d.usmle_yield)}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">System Tags</label><input id="drug_edit_tags" value="${esc((d.system_tags || []).join(', '))}" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">IPA</label><input id="drug_edit_ipa" value="${esc(d.ipa)}" style="${IS}"></div>
+        </div>
+        ${drugDetailFields().map(([label, key]) => `
+          <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">${label}</label>
+          <textarea id="drug_edit_${key}" rows="3" style="${TA}">${esc(d[key])}</textarea>
+        `).join('')}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="data-action-btn primary" style="flex:1;min-width:150px" onclick="saveDrugEdit(${Number(d.id)})">저장</button>
+          <button class="data-action-btn red" style="flex:1;min-width:150px" onclick="deleteDrug(${Number(d.id)})">삭제</button>
+        </div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function saveDrugEdit(id) {
+  const idx = DRUGS.findIndex(x => Number(x.id) === Number(id));
+  if (idx === -1) return;
+  const next = normalizeDrugForStorage({
+    ...DRUGS[idx],
+    generic_name: document.getElementById('drug_edit_generic')?.value.trim() || '',
+    ko_name: document.getElementById('drug_edit_ko')?.value.trim() || '',
+    brand_name: document.getElementById('drug_edit_brand')?.value.trim() || '',
+    drug_class: document.getElementById('drug_edit_class')?.value.trim() || '',
+    target: document.getElementById('drug_edit_target')?.value.trim() || '',
+    route: document.getElementById('drug_edit_route')?.value.trim() || '',
+    category: document.getElementById('drug_edit_category')?.value || 'General',
+    system_tags: document.getElementById('drug_edit_tags')?.value || '',
+    usmle_yield: document.getElementById('drug_edit_yield')?.value.trim() || '',
+    ipa: document.getElementById('drug_edit_ipa')?.value.trim() || '',
+    ...Object.fromEntries(drugDetailFields().map(([, key]) => [key, document.getElementById(`drug_edit_${key}`)?.value.trim() || ''])),
+    updatedAt: new Date().toISOString(),
+  });
+  if (!next.generic_name && !next.ko_name && !next.brand_name) {
+    showToast('⚠️ 성분명, 한국어 약물명, 상품명 중 하나 이상 필요합니다');
+    return;
+  }
+  const duplicateIdx = DRUGS.findIndex((drug, i) => i !== idx && drugIdentityKey(drug) === drugIdentityKey(next));
+  if (duplicateIdx >= 0) {
+    showToast('⚠️ 중복된 약물입니다.');
+    return;
+  }
+  DRUGS[idx] = next;
+  saveDrugsToLocalStorage();
+  saveDrugToCloud(next);
+  document.getElementById('drugEditModal')?.remove();
+  document.getElementById('drugDetailModal')?.remove();
+  showToast('✅ 약물 항목 수정 완료');
+  applyFilters();
+  setTimeout(() => openDrugDetailModal(next.id), 80);
+}
+
+function deleteDrug(id) {
+  const d = DRUGS.find(x => Number(x.id) === Number(id));
+  const label = drugDisplayName(d);
+  showConfirm(`"${escapeHtml(label)}" 약물 항목을 삭제할까요?`, () => {
+    const idx = DRUGS.findIndex(x => Number(x.id) === Number(id));
+    if (idx !== -1) DRUGS.splice(idx, 1);
+    saveDrugsToLocalStorage();
+    deleteDrugFromCloud(id, new Date().toISOString());
+    document.getElementById('drugEditModal')?.remove();
+    document.getElementById('drugDetailModal')?.remove();
+    showToast('🗑️ 약물 항목 삭제 완료');
+    applyFilters();
+  });
 }
 
 function escapeHtml(str) {
@@ -6844,16 +7043,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.37',
+  version: '3.38',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 15:57',
+  updatedAt: '2026년 6월 14일 16:04',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 중복 용어 안내 보강',
+    title: '최신 · 약물 상세 보기와 편집 추가',
+    items: [
+      '약물 프레임 카드를 클릭하면 입력된 약물 구조를 상세 모달에서 확인하도록 보강',
+      '약물 카드의 연필 버튼을 실제 항목 편집 모달로 연결하고 모든 약물 프레임 필드를 수정 가능하게 변경',
+      '약물 편집 저장 시 updated_at을 갱신하고 로컬 저장 및 Supabase medical_drugs upsert를 즉시 실행',
+    ]
+  },
+  {
+    title: 'v3.37 · 중복 용어 안내 보강',
     items: [
       '용어 추가에서 이미 저장된 용어를 입력하면 “중복된 용어입니다.” 안내가 즉시 표시되도록 수정',
       '추가 모달 위에서도 토스트가 보이도록 toast 레이어 우선순위를 높이고, 입력창 하단 안내 문구도 함께 표시',
