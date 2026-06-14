@@ -311,6 +311,24 @@ document.addEventListener('keydown', e => {
     background: rgba(251,191,36,0.15);
   }
 
+  .kma-header-btn {
+    margin-left: 0;
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.5);
+    border-radius: 9px;
+    padding: 8px 12px;
+    color: #9cc7ff;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+  }
+
+  .kma-header-btn:hover {
+    background: rgba(88,166,255,0.16);
+  }
+
   .settings-header-btn {
     margin-left: 0;
     background: rgba(88,166,255,0.08);
@@ -478,6 +496,7 @@ document.addEventListener('keydown', e => {
       white-space: nowrap;
     }
     .data-header-btn { margin-left: 0; padding: 7px 9px; }
+    .kma-header-btn { padding: 7px 9px; }
     .settings-header-btn { padding: 7px 9px; }
     .category-stats-header-btn { padding: 7px 9px; }
     .developer-header-btn { padding: 7px 9px; }
@@ -843,29 +862,6 @@ document.addEventListener('keydown', e => {
   .inline-add-btn:hover {
     border-color: #3fb950;
     background: rgba(63,185,80,0.18);
-  }
-
-  .inline-kma-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    background: rgba(88,166,255,0.10);
-    border: 1px solid rgba(88,166,255,0.45);
-    border-radius: 10px;
-    padding: 7px 12px;
-    color: #9cc7ff;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Noto Sans KR', sans-serif;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-
-  .inline-kma-btn:hover {
-    border-color: #58a6ff;
-    background: rgba(88,166,255,0.18);
   }
 
   /* Term card */
@@ -1752,6 +1748,7 @@ document.addEventListener('keydown', e => {
     }
 
     .data-header-btn,
+    .kma-header-btn,
     .settings-header-btn,
     .category-stats-header-btn,
     .developer-header-btn {
@@ -1802,11 +1799,6 @@ document.addEventListener('keydown', e => {
       width: 100%;
       min-height: 38px;
       justify-content: center;
-    }
-
-    .inline-kma-btn {
-      width: 100%;
-      min-height: 38px;
     }
 
     .list-action-bar {
@@ -1934,6 +1926,7 @@ document.addEventListener('keydown', e => {
     }
 
     .data-header-btn,
+    .kma-header-btn,
     .settings-header-btn,
     .category-stats-header-btn,
     .developer-header-btn {
@@ -1959,6 +1952,7 @@ document.addEventListener('keydown', e => {
       <p>Medical Terminology · Tibbiy terminologiya</p>
     </div>
     <button class="data-header-btn" onclick="switchTab('export', getNavButton('export'))" title="가져오기 · 백업 · 동기화 데이터 관리">📁 <span class="wide-label">데이터</span><span class="mobile-label" style="display:none">데이터</span></button>
+    <button class="kma-header-btn" onclick="openKmaTermSearch(event)" title="대한의사협회 의학용어 검색을 화면 크기에 맞는 새 창으로 열기">🔎 <span class="wide-label">대한의사협회 용어검색</span><span class="mobile-label" style="display:none">KMA 검색</span></button>
     <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
     <button class="category-stats-header-btn" onclick="showCategoryStats()" title="분류별 용어 통계 보기">📊 통계</button>
     <button class="final-save-header-btn" onclick="saveCurrentStateToCloud()" title="현재 화면의 용어 목록을 클라우드 최종본으로 저장">💾 최종상태 저장</button>
@@ -3335,7 +3329,6 @@ function setSectionLabel(text = '') {
   label.innerHTML = `
     ${labelText}
     <button class="inline-add-btn" onclick="showAddTermModal()">➕ 용어 추가</button>
-    <button class="inline-kma-btn" onclick="openKmaTermSearch(event)" title="대한의사협회 의학용어 검색을 화면 크기에 맞는 새 창으로 열기">🔎 대한의사협회 용어검색</button>
   `;
 }
 
@@ -6144,16 +6137,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.33',
+  version: '3.34',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 11:48',
+  updatedAt: '2026년 6월 14일 14:03',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · KMA 검색창 자동 크기 조정',
+    title: '최신 · KMA 검색 버튼 상단 이동',
+    items: [
+      '대한의사협회 용어검색 버튼을 용어 추가 옆에서 상단 데이터 버튼 옆으로 이동',
+      '스크롤 중 용어 목록에 가려지지 않도록 고정 헤더 영역에서 KMA 검색을 바로 열 수 있게 정리',
+      '모바일에서는 KMA 검색으로 짧게 표시해 상단 버튼 줄의 폭 부담을 줄임',
+    ]
+  },
+  {
+    title: 'v3.33 · KMA 검색창 자동 크기 조정',
     items: [
       '대한의사협회 용어검색 버튼을 화면 크기에 맞는 새 창으로 열리도록 변경',
       '데스크톱에서는 화면 비율을 계산해 가운데 팝업으로 열고, 작은 화면과 모바일에서는 새 탭으로 열리도록 처리',
