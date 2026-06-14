@@ -2538,6 +2538,9 @@ const LEARNING_STORAGE_KEY = 'kma_medical_terms_v2_learning';
 const TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_tombstones';
 const DRUG_TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_drug_tombstones';
 const DEVICE_ID_STORAGE_KEY = 'kma_medical_terms_v2_device_id';
+const LOCAL_CACHE_DB_NAME = 'kma_medical_terms_v2_indexed_cache';
+const LOCAL_CACHE_STORE = 'kv';
+const LOCAL_CACHE_META_KEY = 'kma_medical_terms_v2_cache_meta';
 const SYNC_META_TABLE = 'language_sync_meta';
 const LEARNING_TABLE = 'medical_term_learning_state';
 const DRUGS_TABLE = 'medical_drugs';
@@ -2567,6 +2570,129 @@ function safeSetItem(key, value, options = {}) {
     }
     return false;
   }
+}
+
+let _localCacheDbPromise = null;
+let _localCacheWarned = false;
+let _localTombstonesCache = null;
+let _localDrugTombstonesCache = null;
+let _learningStateCache = null;
+let _localCacheBackend = 'localStorage';
+
+function localCacheSupported() {
+  return typeof indexedDB !== 'undefined';
+}
+
+function openLocalCacheDb() {
+  if (!localCacheSupported()) return Promise.resolve(null);
+  if (_localCacheDbPromise) return _localCacheDbPromise;
+  _localCacheDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(LOCAL_CACHE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(LOCAL_CACHE_STORE)) {
+        db.createObjectStore(LOCAL_CACHE_STORE, { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+  }).catch(err => {
+    _localCacheDbPromise = null;
+    throw err;
+  });
+  return _localCacheDbPromise;
+}
+
+async function idbGetValue(key) {
+  const db = await openLocalCacheDb();
+  if (!db) return undefined;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_CACHE_STORE, 'readonly');
+    const req = tx.objectStore(LOCAL_CACHE_STORE).get(key);
+    req.onsuccess = () => resolve(req.result?.value);
+    req.onerror = () => reject(req.error || new Error(`IndexedDB read failed: ${key}`));
+  });
+}
+
+async function idbSetValue(key, value) {
+  const db = await openLocalCacheDb();
+  if (!db) throw new Error('IndexedDB unavailable');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_CACHE_STORE, 'readwrite');
+    tx.objectStore(LOCAL_CACHE_STORE).put({ key, value, updatedAt: new Date().toISOString() });
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error || new Error(`IndexedDB write failed: ${key}`));
+    tx.onabort = () => reject(tx.error || new Error(`IndexedDB write aborted: ${key}`));
+  });
+}
+
+function rememberLocalCacheMeta(partial = {}) {
+  const current = safeJsonParse(localStorage.getItem(LOCAL_CACHE_META_KEY), {}) || {};
+  safeSetItem(LOCAL_CACHE_META_KEY, JSON.stringify({
+    ...current,
+    ...partial,
+    backend: _localCacheBackend,
+    updatedAt: new Date().toISOString(),
+  }), { silent: true });
+}
+
+function scheduleLargeCacheWrite(key, value, metaKey, meta = {}) {
+  const payload = Array.isArray(value) ? [...value] : value;
+  const metaPayload = {
+    ...meta,
+    cacheBackend: localCacheSupported() ? 'IndexedDB' : 'localStorage',
+    savedAt: new Date().toISOString(),
+  };
+  if (metaKey) safeSetItem(metaKey, JSON.stringify(metaPayload), { silent: true });
+
+  if (!localCacheSupported()) {
+    _localCacheBackend = 'localStorage';
+    rememberLocalCacheMeta({ lastFallbackKey: key });
+    return safeSetItem(key, JSON.stringify(payload), { silent: true });
+  }
+
+  _localCacheBackend = 'IndexedDB';
+  rememberLocalCacheMeta({ lastWriteKey: key });
+  idbSetValue(key, payload)
+    .then(() => {
+      try { localStorage.removeItem(key); } catch (_) {}
+      if (metaKey) safeSetItem(metaKey, JSON.stringify({ ...metaPayload, cacheBackend: 'IndexedDB' }), { silent: true });
+      _localCacheWarned = false;
+    })
+    .catch(err => {
+      console.warn('IndexedDB cache write failed:', key, err);
+      _localCacheBackend = 'localStorage';
+      rememberLocalCacheMeta({ lastErrorKey: key, lastError: err?.message || String(err) });
+      const ok = safeSetItem(key, JSON.stringify(payload), { silent: true });
+      if (!ok && !_localCacheWarned && typeof showToast === 'function') {
+        _localCacheWarned = true;
+        showToast('⚠️ 로컬 캐시 저장 실패 · Supabase 저장은 계속 시도됩니다');
+      }
+    });
+  return true;
+}
+
+async function readLargeCacheValue(key, fallback = []) {
+  if (localCacheSupported()) {
+    try {
+      const value = await idbGetValue(key);
+      if (value !== undefined && value !== null) {
+        _localCacheBackend = 'IndexedDB';
+        return value;
+      }
+    } catch (err) {
+      console.warn('IndexedDB cache read failed:', key, err);
+    }
+  }
+  const stored = safeJsonParse(localStorage.getItem(key), fallback);
+  if (stored !== undefined && stored !== null) {
+    if (localCacheSupported() && ((Array.isArray(stored) && stored.length) || (!Array.isArray(stored) && Object.keys(stored || {}).length))) {
+      scheduleLargeCacheWrite(key, stored, null, { migratedFrom: 'localStorage' });
+    }
+    _localCacheBackend = localCacheSupported() ? 'IndexedDB+legacy' : 'localStorage';
+    return stored;
+  }
+  return fallback;
 }
 
 function getDeviceId() {
@@ -3499,17 +3625,13 @@ function saveTermsToLocalStorage() {
     const payload = dedupeTermsById(TERMS).filter(t => !t.deletedAt);
     TERMS.length = 0;
     TERMS.push(...payload);
-    const termsSaved = safeSetItem(TERMS_STORAGE_KEY, JSON.stringify(payload), { silent: true });
-    const metaSaved = safeSetItem(TERMS_STORAGE_META_KEY, JSON.stringify({
+    return scheduleLargeCacheWrite(TERMS_STORAGE_KEY, payload, TERMS_STORAGE_META_KEY, {
       count: payload.length,
-      savedAt: new Date().toISOString(),
       app: 'DrBugeon Medical Terms',
-    }), { silent: true });
-    if (!termsSaved || !metaSaved) throw new Error('localStorage save failed');
-    return true;
+    });
   } catch (err) {
-    console.warn('Local save failed', err);
-    if (typeof showToast === 'function') showToast('⚠️ 브라우저 저장공간이 부족합니다');
+    console.warn('Local terms cache save failed', err);
+    if (typeof showToast === 'function') showToast('⚠️ 로컬 용어 캐시 저장에 실패했습니다');
     return false;
   }
 }
@@ -3519,37 +3641,41 @@ function saveDrugsToLocalStorage() {
     const payload = dedupeDrugsById(DRUGS).filter(d => !d.deletedAt);
     DRUGS.length = 0;
     DRUGS.push(...payload);
-    const drugsSaved = safeSetItem(DRUGS_STORAGE_KEY, JSON.stringify(payload), { silent: true });
-    const metaSaved = safeSetItem(DRUGS_STORAGE_META_KEY, JSON.stringify({
+    return scheduleLargeCacheWrite(DRUGS_STORAGE_KEY, payload, DRUGS_STORAGE_META_KEY, {
       count: payload.length,
-      savedAt: new Date().toISOString(),
       app: 'DrBugeon Medical Drugs',
-    }), { silent: true });
-    if (!drugsSaved || !metaSaved) throw new Error('drug localStorage save failed');
-    return true;
+    });
   } catch (err) {
-    console.warn('Drug local save failed', err);
-    if (typeof showToast === 'function') showToast('⚠️ 약물 저장공간이 부족합니다');
+    console.warn('Drug cache save failed', err);
+    if (typeof showToast === 'function') showToast('⚠️ 약물 로컬 캐시 저장에 실패했습니다');
     return false;
   }
 }
 
 function loadLocalTombstones() {
-  const rows = safeJsonParse(localStorage.getItem(TOMBSTONE_STORAGE_KEY), []);
+  const rows = _localTombstonesCache ?? safeJsonParse(localStorage.getItem(TOMBSTONE_STORAGE_KEY), []);
   return Array.isArray(rows) ? dedupeTermsById(rows).filter(t => t.deletedAt) : [];
 }
 
 function saveLocalTombstones(rows) {
-  return safeSetItem(TOMBSTONE_STORAGE_KEY, JSON.stringify(dedupeTermsById(rows).filter(t => t.deletedAt)));
+  _localTombstonesCache = dedupeTermsById(rows).filter(t => t.deletedAt);
+  return scheduleLargeCacheWrite(TOMBSTONE_STORAGE_KEY, _localTombstonesCache, `${TOMBSTONE_STORAGE_KEY}_meta`, {
+    count: _localTombstonesCache.length,
+    app: 'DrBugeon Medical Term Tombstones',
+  });
 }
 
 function loadLocalDrugTombstones() {
-  const rows = safeJsonParse(localStorage.getItem(DRUG_TOMBSTONE_STORAGE_KEY), []);
+  const rows = _localDrugTombstonesCache ?? safeJsonParse(localStorage.getItem(DRUG_TOMBSTONE_STORAGE_KEY), []);
   return Array.isArray(rows) ? dedupeDrugsById(rows).filter(d => d.deletedAt) : [];
 }
 
 function saveLocalDrugTombstones(rows) {
-  return safeSetItem(DRUG_TOMBSTONE_STORAGE_KEY, JSON.stringify(dedupeDrugsById(rows).filter(d => d.deletedAt)));
+  _localDrugTombstonesCache = dedupeDrugsById(rows).filter(d => d.deletedAt);
+  return scheduleLargeCacheWrite(DRUG_TOMBSTONE_STORAGE_KEY, _localDrugTombstonesCache, `${DRUG_TOMBSTONE_STORAGE_KEY}_meta`, {
+    count: _localDrugTombstonesCache.length,
+    app: 'DrBugeon Medical Drug Tombstones',
+  });
 }
 
 function hideLocalTombstonesFromTrash(ids) {
@@ -3684,11 +3810,18 @@ function deleteDrugFromCloud(id, deletedAt) {
 }
 
 function getLearningStateMap() {
-  return safeJsonParse(localStorage.getItem(LEARNING_STORAGE_KEY), {}) || {};
+  if (_learningStateCache === null) {
+    _learningStateCache = safeJsonParse(localStorage.getItem(LEARNING_STORAGE_KEY), {}) || {};
+  }
+  return { ...(_learningStateCache || {}) };
 }
 
 function saveLearningStateMap(map) {
-  return safeSetItem(LEARNING_STORAGE_KEY, JSON.stringify(map || {}));
+  _learningStateCache = { ...(map || {}) };
+  return scheduleLargeCacheWrite(LEARNING_STORAGE_KEY, _learningStateCache, `${LEARNING_STORAGE_KEY}_meta`, {
+    count: Object.keys(_learningStateCache).length,
+    app: 'DrBugeon Medical Learning State',
+  });
 }
 
 function updateLearningState(termId, patch, pushCloud = true) {
@@ -3797,25 +3930,65 @@ async function syncLearningStateToCloud() {
   for (const state of Object.values(merged)) await sbUpsertLearningState(state);
 }
 
-function loadTermsFromLocalStorage() {
-  const saved = safeJsonParse(localStorage.getItem(TERMS_STORAGE_KEY), []);
+async function loadTermsFromLocalStorage() {
+  const saved = await readLargeCacheValue(TERMS_STORAGE_KEY, []);
   if (!Array.isArray(saved) || saved.length === 0) return 0;
   TERMS.length = 0;
   TERMS.push(...saved.map(normalizeTermForStorage));
   return TERMS.length;
 }
 
-function loadDrugsFromLocalStorage() {
-  const saved = safeJsonParse(localStorage.getItem(DRUGS_STORAGE_KEY), []);
+async function loadDrugsFromLocalStorage() {
+  const saved = await readLargeCacheValue(DRUGS_STORAGE_KEY, []);
   if (!Array.isArray(saved) || saved.length === 0) return 0;
   DRUGS.length = 0;
   DRUGS.push(...dedupeDrugsById(saved).filter(d => !d.deletedAt));
   return DRUGS.length;
 }
 
+async function loadAuxiliaryLocalCaches() {
+  const [tombstones, drugTombstones, learning] = await Promise.all([
+    readLargeCacheValue(TOMBSTONE_STORAGE_KEY, []),
+    readLargeCacheValue(DRUG_TOMBSTONE_STORAGE_KEY, []),
+    readLargeCacheValue(LEARNING_STORAGE_KEY, {}),
+  ]);
+  _localTombstonesCache = Array.isArray(tombstones)
+    ? dedupeTermsById(tombstones).filter(t => t.deletedAt)
+    : [];
+  _localDrugTombstonesCache = Array.isArray(drugTombstones)
+    ? dedupeDrugsById(drugTombstones).filter(d => d.deletedAt)
+    : [];
+  _learningStateCache = learning && typeof learning === 'object' && !Array.isArray(learning)
+    ? learning
+    : {};
+  return {
+    tombstones: _localTombstonesCache.length,
+    drugTombstones: _localDrugTombstonesCache.length,
+    learningStates: Object.keys(_learningStateCache).length,
+  };
+}
+
+async function loadLocalCacheForStartup() {
+  const [localCount, drugCount, aux] = await Promise.all([
+    loadTermsFromLocalStorage(),
+    loadDrugsFromLocalStorage(),
+    loadAuxiliaryLocalCaches(),
+  ]);
+  rememberLocalCacheMeta({
+    terms: localCount,
+    drugs: drugCount,
+    tombstones: aux.tombstones,
+    drugTombstones: aux.drugTombstones,
+    learningStates: aux.learningStates,
+    loadedAt: new Date().toISOString(),
+  });
+  return { localCount, drugCount, ...aux };
+}
+
 function clearTermsLocalStorage() {
   localStorage.removeItem(TERMS_STORAGE_KEY);
   localStorage.removeItem(TERMS_STORAGE_META_KEY);
+  if (localCacheSupported()) idbSetValue(TERMS_STORAGE_KEY, []).catch(() => {});
 }
 
 function getDeviceIdShard() {
@@ -7285,6 +7458,7 @@ function showExportMenu() {
   const tombstones = loadLocalTombstones();
   const visibleTrashCount = tombstones.filter(t => !t.hiddenAt).length;
   const localMeta = getLocalSyncMeta();
+  const cacheMeta = safeJsonParse(localStorage.getItem(LOCAL_CACHE_META_KEY), {}) || {};
   const categories = [...new Set(TERMS.map(t => t.category || '기타'))].sort();
   const reviewed = Object.values(learning).filter(s => s.lastReviewedAt).length;
   const due = Object.values(learning).filter(s => s.dueAt && new Date(s.dueAt) <= new Date()).length;
@@ -7324,6 +7498,7 @@ function showExportMenu() {
             <div class="data-status-grid">
               <div class="data-status-box"><div class="data-status-label">연결 상태</div><div class="data-status-value">${getSupabaseConfig() ? '연결 설정됨' : '미설정'}</div></div>
               <div class="data-status-box"><div class="data-status-label">로컬 용어</div><div class="data-status-value">${TERMS.length}개</div></div>
+              <div class="data-status-box"><div class="data-status-label">로컬 캐시</div><div class="data-status-value">${escapeHtml(cacheMeta.backend || _localCacheBackend || '확인 전')}</div></div>
               <div class="data-status-box"><div class="data-status-label">canonical_version</div><div class="data-status-value">${escapeHtml(localMeta.canonicalVersion || '아직 없음')}</div></div>
               <div class="data-status-box"><div class="data-status-label">마지막 로컬 기록</div><div class="data-status-value">${formatDataDate(localMeta.savedAt)}</div></div>
             </div>
@@ -8060,16 +8235,25 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.48',
+  version: '3.49',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 18:03',
+  updatedAt: '2026년 6월 14일 18:10',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 부분 렌더링과 비동기 안정화',
+    title: '최신 · IndexedDB 로컬 캐시 전환',
+    items: [
+      '용어, 약물명 및 정보, 삭제기록, 학습상태처럼 용량이 커지는 로컬 캐시를 localStorage에서 IndexedDB 우선 저장으로 전환',
+      'localStorage에는 Supabase 설정, device id, 작은 메타만 남기고 기존 대용량 localStorage 캐시는 첫 로딩 후 IndexedDB로 자동 이관',
+      '앱 시작 시 IndexedDB 캐시는 빠른 임시 표시로 사용하고 Supabase 설정이 있으면 클라우드 기준본 확인 중임을 안내',
+      '데이터 관리 화면에 현재 로컬 캐시 백엔드를 표시해 Supabase 기준본과 로컬 캐시 역할을 구분',
+    ]
+  },
+  {
+    title: 'v3.48 · 부분 렌더링과 비동기 안정화',
     items: [
       '즐겨찾기 별표 토글 시 일반 목록에서는 전체 리스트를 다시 그리지 않고 해당 카드 버튼만 갱신하도록 최적화',
       'AI 필드 재생성 완료 전에 편집 모달이 닫히거나 입력값이 바뀐 경우 늦은 결과가 덮어쓰지 않도록 방어',
@@ -10660,9 +10844,10 @@ document.getElementById('searchInput').addEventListener('input', e => {
 
 // 앱 초기화: Supabase가 있으면 클라우드를 기준본으로 사용
 async function initApp() {
-  const localCount = loadTermsFromLocalStorage();
-  const drugCount = loadDrugsFromLocalStorage();
+  const { localCount, drugCount } = await loadLocalCacheForStartup();
   const learning = getLearningStateMap();
+  const learnedBookmarkIds = Object.values(learning).filter(s => s?.bookmarked).map(s => Number(s.termId)).filter(Number.isFinite);
+  if (learnedBookmarkIds.length) bookmarks = new Set([...bookmarks, ...learnedBookmarkIds]);
   bookmarks.forEach(id => {
     const key = String(id);
     if (!learning[key]) {
@@ -10679,7 +10864,10 @@ async function initApp() {
   });
   saveLearningStateMap(learning);
   if (localCount > 0 || drugCount > 0) {
-    showToast(`📱 로컬 ${localCount}개 · 약물 ${drugCount}개 복원됨`);
+    const cacheLabel = _localCacheBackend.includes('IndexedDB') ? 'IndexedDB 캐시' : '로컬 캐시';
+    showToast(getSupabaseConfig()
+      ? `📱 ${cacheLabel} ${localCount}개 · 약물 ${drugCount}개 표시 · 클라우드 기준본 확인 중`
+      : `📱 ${cacheLabel} ${localCount}개 · 약물 ${drugCount}개 복원됨`);
     updateBookmarkCount();
     applyFilters();
   }
