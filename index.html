@@ -1156,6 +1156,73 @@ document.addEventListener('keydown', e => {
     background: rgba(13,17,23,0.42);
   }
 
+  .drug-api-panel {
+    background: rgba(88,166,255,0.07);
+    border: 1px solid rgba(88,166,255,0.25);
+    border-radius: 12px;
+    padding: 12px;
+    margin: 10px 0;
+  }
+
+  .drug-api-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .drug-api-btn {
+    border: 1px solid rgba(88,166,255,0.38);
+    background: rgba(88,166,255,0.12);
+    color: #9cc7ff;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .drug-api-btn.apply {
+    border-color: rgba(63,185,80,0.42);
+    background: rgba(63,185,80,0.14);
+    color: #7ee787;
+  }
+
+  .drug-api-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
+  .drug-api-preview {
+    margin-top: 10px;
+    color: var(--text2);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .drug-api-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .drug-api-option:first-child {
+    border-top: 0;
+  }
+
+  .drug-api-option input {
+    margin-top: 3px;
+    accent-color: var(--accent);
+  }
+
+  .drug-api-source {
+    color: var(--text3);
+    font-size: 11px;
+  }
+
   .chevron {
     color: var(--text3);
     font-size: 12px;
@@ -3680,6 +3747,7 @@ let visibleTermLimit = LIST_PAGE_SIZE;
 let selectedTermIds = new Set();
 let _lastListSignature = '';
 let currentTab = 'search';
+const pendingDrugApiEnrichment = { add: null, edit: null };
 
 function getActiveDrugs() {
   return dedupeDrugsById(DRUGS).filter(d => !d.deletedAt);
@@ -4002,7 +4070,8 @@ function drugSearchText(d) {
     d.category, d.usmle_yield, d.definition_ko, d.definition_en, d.definition_uz,
     d.causal_chain, d.why, d.moa, d.clinical_uses, d.adverse_effects,
     d.precautions, d.usmle_strategy, d.memory_line,
-    ...(Array.isArray(d.system_tags) ? d.system_tags : [])
+    ...(Array.isArray(d.system_tags) ? d.system_tags : []),
+    ...(Array.isArray(d.refs) ? d.refs.flatMap(ref => [ref?.source, ref?.title, ref?.name, ref?.rxcui]) : [])
   ].join(' ').toLowerCase();
 }
 
@@ -4020,6 +4089,35 @@ function filterDrugsForQuery(query = '') {
   return filtered.sort((a, b) =>
     String(a.generic_name || a.ko_name || '').localeCompare(String(b.generic_name || b.ko_name || ''), 'en', { sensitivity: 'base', numeric: true })
   );
+}
+
+function drugApiSources(d) {
+  const refs = Array.isArray(d?.refs) ? d.refs : [];
+  return [...new Set(refs.map(ref => String(ref?.source || '').trim()).filter(Boolean))];
+}
+
+function drugApiSourceChipsHtml(d) {
+  return drugApiSources(d)
+    .map(source => `<span class="drug-chip" style="border-color:rgba(251,191,36,0.36);color:#fbbf24;background:rgba(251,191,36,0.08)">${escapeHtml(source)}</span>`)
+    .join('');
+}
+
+function drugRefsHtml(d) {
+  const refs = Array.isArray(d?.refs) ? d.refs : [];
+  if (!refs.length) return '';
+  return `
+    <div class="drug-section-box" style="margin-top:10px">
+      <div class="drug-section-label">공식 API 출처</div>
+      <div class="drug-section-text">
+        ${refs.map(ref => {
+          const label = ref.title || [ref.source, ref.name, ref.rxcui].filter(Boolean).join(' · ') || '출처';
+          const url = ref.url || '';
+          return url
+            ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:#9cc7ff;text-decoration:none">${escapeHtml(label)}</a>`
+            : `<span>${escapeHtml(label)}</span>`;
+        }).join('<br>')}
+      </div>
+    </div>`;
 }
 
 function renderDrugFrame(drugs = []) {
@@ -4078,6 +4176,7 @@ function renderDrugFrame(drugs = []) {
             ${d.usmle_yield ? `<span class="drug-chip">${escapeHtml(d.usmle_yield)}</span>` : ''}
             ${d.ipa ? `<span class="drug-chip">IPA ${escapeHtml(d.ipa)}</span>` : ''}
             ${(Array.isArray(d.system_tags) ? d.system_tags : []).map(tag => `<span class="drug-chip">${escapeHtml(categoryDisplay(tag))}</span>`).join('')}
+            ${drugApiSourceChipsHtml(d)}
             <span class="drug-chip">세부 ${detailCount}개</span>
           </div>
           ${detailCount === 0 ? `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 카드를 클릭해 상세 화면을 열거나 연필 버튼으로 내용을 추가하세요.</div>` : ''}
@@ -4152,6 +4251,7 @@ function openDrugDetailModal(id) {
     d.usmle_yield,
     d.ipa ? `IPA ${d.ipa}` : '',
     ...(Array.isArray(d.system_tags) ? d.system_tags : []),
+    ...drugApiSources(d),
   ].filter(Boolean);
   overlay.innerHTML = `
     <section class="developer-modal" role="dialog" aria-modal="true">
@@ -4165,6 +4265,7 @@ function openDrugDetailModal(id) {
       <div style="padding:16px 20px 22px">
         <div class="drug-chip-row" style="margin-top:0">${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}</div>
         ${drugDetailGridHtml(d, true)}
+        ${drugRefsHtml(d)}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
           <button class="data-action-btn primary" style="flex:1;min-width:150px" onclick="openDrugEditModal(event, ${Number(d.id)})">✏️ 항목 편집</button>
           <button class="data-action-btn red" style="flex:1;min-width:150px" onclick="deleteDrug(${Number(d.id)})">삭제</button>
@@ -4208,6 +4309,14 @@ function openDrugEditModal(e, id) {
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">System Tags</label><input id="drug_edit_tags" value="${esc((d.system_tags || []).join(', '))}" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">IPA</label><input id="drug_edit_ipa" value="${esc(d.ipa)}" style="${IS}"></div>
         </div>
+        <div class="drug-api-panel">
+          <div class="drug-api-actions">
+            <button id="drugApiBtn_edit" class="drug-api-btn" onclick="fetchDrugApiForForm('edit')">🔎 무료 API로 보강</button>
+            <span class="drug-api-source">기존 입력은 바로 덮어쓰지 않고 미리보기에서 선택 적용합니다.</span>
+          </div>
+          <div id="drugApiPreview_edit" class="drug-api-preview"></div>
+          <textarea id="drug_edit_api_refs" style="display:none"></textarea>
+        </div>
         ${drugDetailFields().map(([label, key]) => `
           <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">${label}</label>
           <textarea id="drug_edit_${key}" rows="3" style="${TA}">${esc(d[key])}</textarea>
@@ -4237,6 +4346,7 @@ function saveDrugEdit(id) {
     usmle_yield: document.getElementById('drug_edit_yield')?.value.trim() || '',
     ipa: document.getElementById('drug_edit_ipa')?.value.trim() || '',
     ...Object.fromEntries(drugDetailFields().map(([, key]) => [key, document.getElementById(`drug_edit_${key}`)?.value.trim() || ''])),
+    refs: mergeDrugRefs(DRUGS[idx].refs || [], collectDrugApiRefs('edit')),
     updatedAt: new Date().toISOString(),
   });
   if (!next.generic_name && !next.ko_name && !next.brand_name) {
@@ -4272,6 +4382,241 @@ function deleteDrug(id) {
     showToast('🗑️ 약물 항목 삭제 완료');
     applyFilters();
   });
+}
+
+function drugApiFieldIds(mode) {
+  const edit = mode === 'edit';
+  return {
+    generic: edit ? 'drug_edit_generic' : 'add_drug_generic',
+    ko: edit ? 'drug_edit_ko' : 'add_drug_ko',
+    brand: edit ? 'drug_edit_brand' : 'add_drug_brand',
+    drugClass: edit ? 'drug_edit_class' : 'add_drug_class',
+    refs: edit ? 'drug_edit_api_refs' : 'add_drug_api_refs',
+    preview: edit ? 'drugApiPreview_edit' : 'drugApiPreview_add',
+    button: edit ? 'drugApiBtn_edit' : 'drugApiBtn_add',
+  };
+}
+
+function drugApiValue(id) {
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+function drugApiQuery(mode) {
+  const ids = drugApiFieldIds(mode);
+  return drugApiValue(ids.generic) || drugApiValue(ids.brand) || drugApiValue(ids.ko);
+}
+
+function drugApiClassText(classes) {
+  return (Array.isArray(classes) ? classes : [])
+    .map(c => [c.name, c.id].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(' · ');
+}
+
+function combineUniqueText(existing, incoming) {
+  const parts = [
+    ...String(existing || '').split(/[;,·]/),
+    ...String(incoming || '').split(/[;,·]/)
+  ].map(v => v.trim()).filter(Boolean);
+  return [...new Set(parts)].join(' · ');
+}
+
+function drugApiSetInput(id, value, mode = 'blank') {
+  const el = document.getElementById(id);
+  if (!el || !value) return false;
+  const current = el.value.trim();
+  if (mode === 'append') {
+    const next = combineUniqueText(current, value);
+    if (next !== current) {
+      el.value = next;
+      return true;
+    }
+    return false;
+  }
+  if (!current) {
+    el.value = value;
+    return true;
+  }
+  return false;
+}
+
+function rxNormLooksBrand(rx) {
+  return ['BN', 'SBD', 'BPCK'].includes(String(rx?.tty || '').toUpperCase());
+}
+
+function rxNormLooksGeneric(rx) {
+  return ['IN', 'PIN', 'MIN', 'SCD', 'GPCK'].includes(String(rx?.tty || '').toUpperCase());
+}
+
+function drugApiRefKey(ref) {
+  return [
+    ref?.source || '',
+    ref?.rxcui || '',
+    ref?.url || '',
+    ref?.title || ''
+  ].join('|');
+}
+
+function mergeDrugRefs(existing, incoming) {
+  const out = [];
+  const seen = new Set();
+  [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].forEach(ref => {
+    if (!ref) return;
+    const key = drugApiRefKey(ref);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(ref);
+  });
+  return out;
+}
+
+function buildDrugApiRefs(bundle) {
+  const refs = [];
+  const rx = bundle?.rxnorm;
+  const classes = Array.isArray(bundle?.rxclass) ? bundle.rxclass : [];
+  const retrievedAt = new Date().toISOString();
+  if (rx?.rxcui) {
+    refs.push({
+      source: 'RxNorm',
+      title: `RxNorm ${rx.name || bundle.query || ''} (${rx.rxcui})`.trim(),
+      name: rx.name || '',
+      synonym: rx.synonym || '',
+      tty: rx.tty || '',
+      rxcui: rx.rxcui,
+      url: rx.url || `https://mor.nlm.nih.gov/RxNav/search?searchBy=RXCUI&searchTerm=${encodeURIComponent(rx.rxcui)}`,
+      retrievedAt,
+    });
+  }
+  if (classes.length) {
+    refs.push({
+      source: 'RxClass',
+      title: `RxClass ATC · ${drugApiClassText(classes)}`,
+      rxcui: rx?.rxcui || '',
+      classes,
+      url: rx?.rxcui ? `https://mor.nlm.nih.gov/RxNav/search?searchBy=RXCUI&searchTerm=${encodeURIComponent(rx.rxcui)}` : 'https://mor.nlm.nih.gov/RxNav/',
+      retrievedAt,
+    });
+  }
+  return refs;
+}
+
+function parseDrugApiRefs(mode) {
+  const el = document.getElementById(drugApiFieldIds(mode).refs);
+  if (!el) return [];
+  return safeJsonParse(el.value || '[]', []);
+}
+
+function storeDrugApiRefs(mode, refs) {
+  const el = document.getElementById(drugApiFieldIds(mode).refs);
+  if (!el) return;
+  el.value = JSON.stringify(mergeDrugRefs(parseDrugApiRefs(mode), refs));
+}
+
+function collectDrugApiRefs(mode) {
+  return parseDrugApiRefs(mode);
+}
+
+function renderDrugApiPreview(mode, bundle) {
+  const ids = drugApiFieldIds(mode);
+  const target = document.getElementById(ids.preview);
+  if (!target) return;
+  pendingDrugApiEnrichment[mode] = bundle;
+  const rx = bundle?.rxnorm;
+  const classText = drugApiClassText(bundle?.rxclass);
+  const refs = buildDrugApiRefs(bundle);
+  if (!rx && !classText) {
+    target.innerHTML = `<div class="drug-empty-note">공식 API에서 확인 가능한 결과를 찾지 못했습니다. 성분명 또는 영문 상품명으로 다시 검색해보세요.</div>`;
+    return;
+  }
+  const options = [
+    rx?.name ? `
+      <label class="drug-api-option">
+        <input type="checkbox" value="standard" checked>
+        <span><b>RxNorm 표준명</b>: ${escapeHtml(rx.name)} ${rx.tty ? `<span class="drug-api-source">(${escapeHtml(rx.tty)})</span>` : ''}<br>
+        <span class="drug-api-source">RxCUI ${escapeHtml(rx.rxcui || '')}${rx.synonym ? ` · ${escapeHtml(rx.synonym)}` : ''}</span></span>
+      </label>` : '',
+    classText ? `
+      <label class="drug-api-option">
+        <input type="checkbox" value="class" checked>
+        <span><b>RxClass 계열</b>: ${escapeHtml(classText)}<br>
+        <span class="drug-api-source">약물 계열 필터에 활용됩니다.</span></span>
+      </label>` : '',
+    refs.length ? `
+      <label class="drug-api-option">
+        <input type="checkbox" value="refs" checked>
+        <span><b>출처 기록</b>: RxNorm/RxClass 조회 결과를 이 약물의 refs에 저장<br>
+        <span class="drug-api-source">나중에 라벨 API를 붙일 때도 같은 출처 구조를 재사용합니다.</span></span>
+      </label>` : ''
+  ].filter(Boolean).join('');
+  target.innerHTML = `
+    <div style="font-weight:900;color:#9cc7ff;margin-bottom:6px">API 보강 미리보기</div>
+    ${options}
+    <div class="drug-api-actions" style="margin-top:8px">
+      <button class="drug-api-btn apply" onclick="applyDrugApiEnrichment('${mode}')">선택 적용</button>
+      <button class="drug-api-btn" onclick="document.getElementById('${ids.preview}').innerHTML=''; pendingDrugApiEnrichment['${mode}']=null;">미리보기 닫기</button>
+    </div>`;
+}
+
+async function fetchDrugApiForForm(mode) {
+  const ids = drugApiFieldIds(mode);
+  const btn = document.getElementById(ids.button);
+  const preview = document.getElementById(ids.preview);
+  const query = drugApiQuery(mode);
+  if (!query) {
+    showToast('⚠️ 성분명 또는 영문 상품명을 먼저 입력해주세요');
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '🔎 API 조회 중...';
+  }
+  if (preview) preview.innerHTML = `<div class="drug-api-source">RxNorm/RxClass 조회 중...</div>`;
+  try {
+    const rxnorm = await fetchRxNorm(query);
+    const rxclass = rxnorm?.rxcui ? await fetchRxClass(rxnorm.rxcui) : null;
+    const bundle = { query, rxnorm, rxclass: Array.isArray(rxclass) ? rxclass : [] };
+    renderDrugApiPreview(mode, bundle);
+  } catch (err) {
+    console.warn('Drug API enrichment failed:', err);
+    if (preview) preview.innerHTML = `<div class="drug-empty-note">API 조회에 실패했습니다. 네트워크 연결 또는 API 응답을 확인해주세요.</div>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔎 무료 API로 보강';
+    }
+  }
+}
+
+function applyDrugApiEnrichment(mode) {
+  const bundle = pendingDrugApiEnrichment[mode];
+  const ids = drugApiFieldIds(mode);
+  const preview = document.getElementById(ids.preview);
+  if (!bundle || !preview) {
+    showToast('⚠️ 먼저 API 조회를 실행해주세요');
+    return;
+  }
+  const selected = new Set([...preview.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value));
+  let applied = 0;
+  const rx = bundle.rxnorm;
+  if (selected.has('standard') && rx?.name) {
+    if (rxNormLooksBrand(rx)) {
+      if (drugApiSetInput(ids.brand, rx.name)) applied++;
+    } else if (rxNormLooksGeneric(rx)) {
+      if (drugApiSetInput(ids.generic, rx.name)) applied++;
+    } else {
+      if (drugApiSetInput(ids.generic, rx.name) || drugApiSetInput(ids.brand, rx.name)) applied++;
+    }
+  }
+  const classText = drugApiClassText(bundle.rxclass);
+  if (selected.has('class') && classText) {
+    if (drugApiSetInput(ids.drugClass, classText, 'append')) applied++;
+  }
+  if (selected.has('refs')) {
+    storeDrugApiRefs(mode, buildDrugApiRefs(bundle));
+    applied++;
+  }
+  showToast(applied ? '✅ 무료 API 보강값을 적용했습니다' : 'ℹ️ 적용할 새 값이 없습니다');
 }
 
 function escapeHtml(str) {
@@ -5601,6 +5946,15 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             </div>
           </div>
 
+          <div class="drug-api-panel">
+            <div class="drug-api-actions">
+              <button id="drugApiBtn_add" class="drug-api-btn" onclick="fetchDrugApiForForm('add')">🔎 무료 API로 보강</button>
+              <span class="drug-api-source">RxNorm으로 표준 약물명을 확인하고 RxClass로 약물 계열을 보강합니다.</span>
+            </div>
+            <div id="drugApiPreview_add" class="drug-api-preview"></div>
+            <textarea id="add_drug_api_refs" style="display:none"></textarea>
+          </div>
+
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
             <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:10px">약물명 및 정보 본문</div>
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">① 핵심 공식 / 병태생리 인과사슬</label>
@@ -6096,6 +6450,7 @@ async function submitAddDrug() {
     precautions: document.getElementById('add_drug_precautions')?.value.trim() || '',
     usmle_strategy: document.getElementById('add_drug_usmle_strategy')?.value.trim() || '',
     memory_line: document.getElementById('add_drug_memory_line')?.value.trim() || '',
+    refs: collectDrugApiRefs('add'),
     createdAt: now,
     updatedAt: now,
   });
@@ -7517,16 +7872,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.42',
+  version: '3.43',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 16:32',
+  updatedAt: '2026년 6월 14일 16:51',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 메인화면 용어/약물 스위치',
+    title: '최신 · 약물 무료 API 보강',
+    items: [
+      '약물명 및 정보 추가/편집 화면에 RxNorm/RxClass 기반 “무료 API로 보강” 버튼 추가',
+      'API 조회 결과를 바로 덮어쓰지 않고 미리보기에서 표준명, 약물 계열, 출처 기록을 선택 적용하도록 설계',
+      'RxNorm/RxClass 출처를 refs에 저장하고 카드/상세 화면에 API 출처 배지를 표시하도록 보강',
+    ]
+  },
+  {
+    title: 'v3.42 · 메인화면 용어/약물 스위치',
     items: [
       '검색 메인 화면에 일반용어와 약물명 및 정보를 전환하는 세그먼트 버튼을 추가',
       '약물명 및 정보 모드에서는 분류 버튼이 약물 계열과 관련 장기계 기준으로 자동 전환되도록 변경',
@@ -9225,10 +9588,12 @@ async function fetchMedlinePlus(term) {
 async function fetchRxNorm(term) {
   try {
     const searchRes = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(term)}&search=2`);
+    if (!searchRes.ok) return null;
     const searchData = await searchRes.json();
     const rxcui = searchData.idGroup?.rxnormId?.[0];
     if (!rxcui) return null;
     const propRes = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui/${rxcui}/properties.json`);
+    if (!propRes.ok) return null;
     const propData = await propRes.json();
     const props = propData.properties;
     return {
@@ -9327,6 +9692,7 @@ async function fetchRxClass(rxcui) {
     const res = await fetch(
       `https://rxnav.nlm.nih.gov/REST/rxclass/class/byRxcui.json?rxcui=${rxcui}&relaSource=ATC`
     );
+    if (!res.ok) return null;
     const data = await res.json();
     const classes = data.rxclassDrugInfoList?.rxclassDrugInfo || [];
     const atcClasses = classes
