@@ -845,6 +845,29 @@ document.addEventListener('keydown', e => {
     background: rgba(63,185,80,0.18);
   }
 
+  .inline-kma-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: rgba(88,166,255,0.10);
+    border: 1px solid rgba(88,166,255,0.45);
+    border-radius: 10px;
+    padding: 7px 12px;
+    color: #9cc7ff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .inline-kma-btn:hover {
+    border-color: #58a6ff;
+    background: rgba(88,166,255,0.18);
+  }
+
   /* Term card */
   .term-card {
     background: var(--surface);
@@ -1779,6 +1802,11 @@ document.addEventListener('keydown', e => {
       width: 100%;
       min-height: 38px;
       justify-content: center;
+    }
+
+    .inline-kma-btn {
+      width: 100%;
+      min-height: 38px;
     }
 
     .list-action-bar {
@@ -3307,7 +3335,49 @@ function setSectionLabel(text = '') {
   label.innerHTML = `
     ${labelText}
     <button class="inline-add-btn" onclick="showAddTermModal()">➕ 용어 추가</button>
+    <button class="inline-kma-btn" onclick="openKmaTermSearch(event)" title="대한의사협회 의학용어 검색을 화면 크기에 맞는 새 창으로 열기">🔎 대한의사협회 용어검색</button>
   `;
+}
+
+function openKmaTermSearch(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  const url = 'https://term.kma.org/search/list.asp';
+  const ua = navigator.userAgent || '';
+  const isSmallScreen = Math.min(window.innerWidth || 9999, screen.availWidth || 9999) <= 720;
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(ua);
+
+  if (isSmallScreen || isMobile) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  const availLeft = Number(screen.availLeft || 0);
+  const availTop = Number(screen.availTop || 0);
+  const availW = Number(screen.availWidth || window.innerWidth || 1280);
+  const availH = Number(screen.availHeight || window.innerHeight || 820);
+  const width = Math.min(Math.max(Math.round(availW * 0.72), 900), Math.max(availW - 40, 640));
+  const height = Math.min(Math.max(Math.round(availH * 0.84), 680), Math.max(availH - 40, 520));
+  const left = Math.max(availLeft, availLeft + Math.round((availW - width) / 2));
+  const top = Math.max(availTop, availTop + Math.round((availH - height) / 2));
+  const features = [
+    'popup=yes',
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    'resizable=yes',
+    'scrollbars=yes'
+  ].join(',');
+
+  const win = window.open('', 'kmaTermSearch', features);
+  if (!win) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  win.opener = null;
+  win.location.href = url;
+  win.focus();
 }
 
 function highlight(text, query) {
@@ -6074,16 +6144,32 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.31',
+  version: '3.33',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 11:36',
+  updatedAt: '2026년 6월 14일 11:48',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 중복 최종본 버튼 정리',
+    title: '최신 · KMA 검색창 자동 크기 조정',
+    items: [
+      '대한의사협회 용어검색 버튼을 화면 크기에 맞는 새 창으로 열리도록 변경',
+      '데스크톱에서는 화면 비율을 계산해 가운데 팝업으로 열고, 작은 화면과 모바일에서는 새 탭으로 열리도록 처리',
+      '외부 사이트 내부 확대율은 보안상 제어하지 않고 창 크기와 스크롤/리사이즈 동작을 안정화',
+    ]
+  },
+  {
+    title: 'v3.32 · 대한의사협회 용어검색 버튼 추가',
+    items: [
+      '용어 추가 버튼 옆에 대한의사협회 용어검색 버튼을 추가',
+      '대한의사협회 의학용어 검색 페이지를 새 창으로 열어 앱 입력 흐름을 유지하도록 구성',
+      '모바일에서도 용어 추가와 외부 용어검색 버튼이 각각 안정적인 터치 영역을 갖도록 스타일 보강',
+    ]
+  },
+  {
+    title: 'v3.31 · 중복 최종본 버튼 정리',
     items: [
       '상단 최종상태 저장과 같은 동작으로 이어지던 클라우드 최종본 덮어쓰기 버튼을 주요 화면에서 제거',
       'Supabase 설정 모달과 데이터 관리 화면의 중복 덮어쓰기 진입점을 정리해 최종본 지정 동선을 하나로 통일',
