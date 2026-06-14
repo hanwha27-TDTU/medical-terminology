@@ -756,6 +756,79 @@ document.addEventListener('keydown', e => {
     color: #c4b5fd;
   }
 
+  .library-mode-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 24px 0;
+  }
+
+  .library-mode-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(13,17,23,0.68);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .library-mode-btn {
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text3);
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .library-mode-btn.active {
+    background: rgba(88,166,255,0.16);
+    color: #9cc7ff;
+    box-shadow: inset 0 0 0 1px rgba(88,166,255,0.45);
+  }
+
+  .library-mode-btn.drug.active {
+    background: rgba(251,191,36,0.14);
+    color: #facc15;
+    box-shadow: inset 0 0 0 1px rgba(251,191,36,0.45);
+  }
+
+  .library-mode-hint {
+    color: var(--text3);
+    font-size: 11px;
+    line-height: 1.5;
+    min-width: 180px;
+    flex: 1;
+  }
+
+  .top-tool-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 24px 0;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn.drug-mode {
+    max-width: min(360px, 100%);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .filter-count {
+    color: #7ee787;
+    font-size: 10px;
+    font-weight: 900;
+    margin-left: 4px;
+  }
+
   /* Stats bar */
   .stats-bar {
     display: flex;
@@ -2053,6 +2126,32 @@ document.addEventListener('keydown', e => {
       padding-right: 10px;
     }
 
+    .library-mode-bar,
+    .top-tool-row,
+    .filter-group,
+    .stats-bar {
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .library-mode-switch {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .library-mode-btn {
+      width: 100%;
+      padding-left: 8px;
+      padding-right: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .library-mode-hint {
+      flex-basis: 100%;
+    }
+
     .data-header-btn,
     .kma-header-btn,
     .settings-header-btn,
@@ -2095,7 +2194,15 @@ document.addEventListener('keydown', e => {
   </div>
 </header>
 
-<div style="display:flex;gap:6px;align-items:center;padding:6px 24px 0;flex-wrap:wrap">
+<div class="library-mode-bar" role="region" aria-label="자료 모드 선택">
+  <div class="library-mode-switch" role="tablist" aria-label="일반용어와 약물명 및 정보 전환">
+    <button id="libraryModeTermsBtn" class="library-mode-btn active" role="tab" aria-selected="true" onclick="setLibraryMode('terms')">📘 일반용어</button>
+    <button id="libraryModeDrugsBtn" class="library-mode-btn drug" role="tab" aria-selected="false" onclick="setLibraryMode('drugs')">💊 약물명 및 정보</button>
+  </div>
+  <div class="library-mode-hint" id="libraryModeHint">일반 의학용어를 개념분류와 대표 장기계로 봅니다.</div>
+</div>
+
+<div class="top-tool-row">
   <button onclick="searchUMLSFromInput()" style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:8px;padding:6px 12px;color:#74b0ff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🏥 NIH UMLS 검색</button>
   <select id="sortSelect" onchange="setSort(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
     <option value="default">정렬: 완성 우선 · A→Z</option>
@@ -2105,7 +2212,7 @@ document.addEventListener('keydown', e => {
   </select>
 </div>
 <div class="filter-group">
-  <div class="filter-group-title">🧭 개념분류 <span>무엇인가?</span></div>
+  <div class="filter-group-title" id="primaryFilterTitle">🧭 개념분류 <span>무엇인가?</span></div>
   <div class="filter-row" id="conceptFilterRow">
     <button class="filter-btn concept active" onclick="setConceptFilter('all', this)">전체</button>
     <button class="filter-btn concept" onclick="setConceptFilter('Anatomy', this)">🦴 Anatomy</button>
@@ -2123,7 +2230,7 @@ document.addEventListener('keydown', e => {
   </div>
 </div>
 <div class="filter-group">
-  <div class="filter-group-title">🫀 대표 장기계 <span>어디와 관련 있는가?</span></div>
+  <div class="filter-group-title" id="secondaryFilterTitle">🫀 대표 장기계 <span>어디와 관련 있는가?</span></div>
   <div class="filter-row" id="filterRow">
   <button class="filter-btn active" onclick="setFilter('all', this)">전체</button>
   <button class="filter-btn" onclick="setFilter('General', this)">📌 General</button>
@@ -3513,8 +3620,11 @@ function getStorageStatusText() {
   return `자동저장 ${meta.count || 0}개 · ${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
 }
 
+let currentLibraryMode = 'terms';
 let currentFilter = 'all';
 let currentConceptFilter = 'all';
+let currentDrugClassFilter = 'all';
+let currentDrugSystemFilter = 'all';
 let currentSort = 'default'; // 'default' | 'en_asc' | 'ko_asc' | 'uz_asc'
 let _idCounter = Date.now() * 1000;
 function makeId() { return nextTermId(); }
@@ -3570,6 +3680,180 @@ let visibleTermLimit = LIST_PAGE_SIZE;
 let selectedTermIds = new Set();
 let _lastListSignature = '';
 let currentTab = 'search';
+
+function getActiveDrugs() {
+  return dedupeDrugsById(DRUGS).filter(d => !d.deletedAt);
+}
+
+function normalizeDrugFilterValue(value, fallback = '기타') {
+  const clean = String(value || '').trim();
+  return clean || fallback;
+}
+
+function drugClassValue(d) {
+  return normalizeDrugFilterValue(d?.drug_class, '기타');
+}
+
+function drugSystemValues(d) {
+  const values = [
+    normalizeDrugFilterValue(d?.category, ''),
+    ...(Array.isArray(d?.system_tags) ? d.system_tags : [])
+  ].map(v => normalizeDrugFilterValue(v, '')).filter(Boolean);
+  return [...new Set(values.length ? values : ['General'])];
+}
+
+function drugClassDisplay(value) {
+  return value === '기타' ? '📁 미분류' : `💊 ${value}`;
+}
+
+function drugSystemDisplay(value) {
+  return value === '기타' ? '📁 기타' : categoryDisplay(value);
+}
+
+function countOptionsFromDrugs(valueGetter) {
+  const map = new Map();
+  getActiveDrugs().forEach(drug => {
+    const values = valueGetter(drug);
+    (Array.isArray(values) ? values : [values]).forEach(value => {
+      const clean = normalizeDrugFilterValue(value);
+      map.set(clean, (map.get(clean) || 0) + 1);
+    });
+  });
+  return [...map.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'ko', { sensitivity: 'base', numeric: true }));
+}
+
+function filterButtonHtml({ value, label, active, onclick, extraClass = '', count = null, id = '' }) {
+  const idAttr = id ? ` id="${escapeHtml(id)}"` : '';
+  return `<button${idAttr} class="filter-btn ${extraClass} ${active ? 'active' : ''}" onclick="${onclick}('${escapeJsString(value)}', this)" title="${escapeHtml(label)}">${escapeHtml(label)}${count === null ? '' : `<span class="filter-count">${count}</span>`}</button>`;
+}
+
+function renderTermFilterControls() {
+  const conceptTitle = document.getElementById('primaryFilterTitle');
+  const systemTitle = document.getElementById('secondaryFilterTitle');
+  const conceptRow = document.getElementById('conceptFilterRow');
+  const systemRow = document.getElementById('filterRow');
+  if (!conceptRow || !systemRow) return;
+  if (conceptTitle) conceptTitle.innerHTML = '🧭 개념분류 <span>무엇인가?</span>';
+  if (systemTitle) systemTitle.innerHTML = '🫀 대표 장기계 <span>어디와 관련 있는가?</span>';
+
+  conceptRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentConceptFilter === 'all', onclick: 'setConceptFilter', extraClass: 'concept' }),
+    ...CONCEPT_CATEGORIES.map(concept => filterButtonHtml({
+      value: concept,
+      label: conceptDisplay(concept),
+      active: currentConceptFilter === concept,
+      onclick: 'setConceptFilter',
+      extraClass: 'concept'
+    }))
+  ].join('');
+
+  systemRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentFilter === 'all', onclick: 'setFilter' }),
+    ...VALID_CATS.map(cat => filterButtonHtml({
+      value: cat,
+      label: categoryDisplay(cat),
+      active: currentFilter === cat,
+      onclick: 'setFilter'
+    })),
+    filterButtonHtml({ value: '기타', label: '📁 기타', active: currentFilter === '기타', onclick: 'setFilter' }),
+    filterButtonHtml({ value: '즐겨찾기', label: '⭐ 즐겨찾기', active: currentFilter === '즐겨찾기', onclick: 'setFilter', id: 'filterBookmarkBtn' })
+  ].join('');
+}
+
+function renderDrugFilterControls() {
+  const conceptTitle = document.getElementById('primaryFilterTitle');
+  const systemTitle = document.getElementById('secondaryFilterTitle');
+  const conceptRow = document.getElementById('conceptFilterRow');
+  const systemRow = document.getElementById('filterRow');
+  if (!conceptRow || !systemRow) return;
+  const classOptions = countOptionsFromDrugs(drugClassValue);
+  const systemOptions = countOptionsFromDrugs(drugSystemValues);
+  if (currentDrugClassFilter !== 'all' && !classOptions.some(o => o.value === currentDrugClassFilter)) currentDrugClassFilter = 'all';
+  if (currentDrugSystemFilter !== 'all' && !systemOptions.some(o => o.value === currentDrugSystemFilter)) currentDrugSystemFilter = 'all';
+  if (conceptTitle) conceptTitle.innerHTML = '💊 약물 계열 <span>어떤 계열인가?</span>';
+  if (systemTitle) systemTitle.innerHTML = '🎯 관련 장기계 <span>어디에 쓰이는가?</span>';
+
+  conceptRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentDrugClassFilter === 'all', onclick: 'setDrugClassFilter', extraClass: 'concept drug-mode' }),
+    ...classOptions.map(option => filterButtonHtml({
+      value: option.value,
+      label: drugClassDisplay(option.value),
+      active: currentDrugClassFilter === option.value,
+      onclick: 'setDrugClassFilter',
+      extraClass: 'concept drug-mode',
+      count: option.count
+    }))
+  ].join('');
+
+  systemRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentDrugSystemFilter === 'all', onclick: 'setDrugSystemFilter', extraClass: 'drug-mode' }),
+    ...systemOptions.map(option => filterButtonHtml({
+      value: option.value,
+      label: drugSystemDisplay(option.value),
+      active: currentDrugSystemFilter === option.value,
+      onclick: 'setDrugSystemFilter',
+      extraClass: 'drug-mode',
+      count: option.count
+    }))
+  ].join('');
+}
+
+function renderFilterControls() {
+  if (currentLibraryMode === 'drugs') renderDrugFilterControls();
+  else renderTermFilterControls();
+}
+
+function updateLibraryModeControls() {
+  const isDrugs = currentLibraryMode === 'drugs';
+  const termsBtn = document.getElementById('libraryModeTermsBtn');
+  const drugsBtn = document.getElementById('libraryModeDrugsBtn');
+  const hint = document.getElementById('libraryModeHint');
+  const search = document.getElementById('searchInput');
+  termsBtn?.classList.toggle('active', !isDrugs);
+  drugsBtn?.classList.toggle('active', isDrugs);
+  termsBtn?.setAttribute('aria-selected', String(!isDrugs));
+  drugsBtn?.setAttribute('aria-selected', String(isDrugs));
+  if (hint) hint.textContent = isDrugs
+    ? '약물명 및 정보를 계열과 관련 장기계 기준으로 봅니다.'
+    : '일반 의학용어를 개념분류와 대표 장기계로 봅니다.';
+  if (search) search.placeholder = isDrugs
+    ? '성분명, 상품명, 표적, MOA, 부작용으로 검색...'
+    : '한국어, 영어, 우즈베크어로 검색...';
+  const stat = document.getElementById('bookmarkCount');
+  if (stat) {
+    const validCount = TERMS.filter(t => bookmarks.has(t.id)).length;
+    stat.textContent = isDrugs ? `약물 ${getActiveDrugs().length}개` : `즐겨찾기 ${validCount}`;
+  }
+}
+
+function setLibraryMode(mode, silent = false) {
+  const nextMode = mode === 'drugs' ? 'drugs' : 'terms';
+  if (nextMode !== currentLibraryMode) {
+    selectedTermIds.clear();
+    visibleTermLimit = LIST_PAGE_SIZE;
+    _lastListSignature = '';
+  }
+  currentLibraryMode = nextMode;
+  updateLibraryModeControls();
+  renderFilterControls();
+  if (!silent) applyFilters();
+}
+
+function setDrugClassFilter(filter, btn) {
+  currentDrugClassFilter = filter || 'all';
+  document.querySelectorAll('#conceptFilterRow .filter-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  applyFilters();
+}
+
+function setDrugSystemFilter(filter, btn) {
+  currentDrugSystemFilter = filter || 'all';
+  document.querySelectorAll('#filterRow .filter-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  applyFilters();
+}
 
 // ─── Render ───
 function renderTerms(terms, bookmarkDivider = 0) {
@@ -3725,7 +4009,14 @@ function drugSearchText(d) {
 function filterDrugsForQuery(query = '') {
   const q = String(query || '').toLowerCase().trim();
   const active = dedupeDrugsById(DRUGS).filter(d => !d.deletedAt);
-  const filtered = q ? active.filter(d => drugSearchText(d).includes(q)) : active;
+  let filtered = active;
+  if (currentDrugClassFilter !== 'all') {
+    filtered = filtered.filter(d => drugClassValue(d) === currentDrugClassFilter);
+  }
+  if (currentDrugSystemFilter !== 'all') {
+    filtered = filtered.filter(d => drugSystemValues(d).includes(currentDrugSystemFilter));
+  }
+  if (q) filtered = filtered.filter(d => drugSearchText(d).includes(q));
   return filtered.sort((a, b) =>
     String(a.generic_name || a.ko_name || '').localeCompare(String(b.generic_name || b.ko_name || ''), 'en', { sensitivity: 'base', numeric: true })
   );
@@ -3738,6 +4029,20 @@ function renderDrugFrame(drugs = []) {
   const active = Array.isArray(drugs) ? drugs.filter(d => !d.deletedAt) : [];
   if (!active.length) {
     frame.innerHTML = '';
+    if (empty && currentLibraryMode === 'drugs') {
+      const totalDrugs = getActiveDrugs().length;
+      empty.innerHTML = totalDrugs === 0 ? `
+        <div class="icon">💊</div>
+        <h3>약물명 및 정보 데이터가 없습니다</h3>
+        <p>용어 추가에서 저장 위치를 약물명 및 정보로 선택해<br>약물 구조 정보를 추가하세요</p>
+      ` : `
+        <div class="icon">🔍</div>
+        <h3>약물명 및 정보 결과 없음</h3>
+        <p>다른 검색어를 입력하거나<br>약물 계열·관련 장기계 필터를 변경해 보세요</p>
+      `;
+      empty.style.display = 'block';
+    }
+    updateCounts(0, 0, 'drugs');
     return;
   }
   if (empty) empty.style.display = 'none';
@@ -3792,6 +4097,7 @@ function renderDrugFrame(drugs = []) {
         </article>
       `}).join('')}
     </section>`;
+  updateCounts(active.length, active.length, 'drugs');
 }
 
 function drugDisplayName(d) {
@@ -4080,9 +4386,10 @@ function setSectionLabel(text = '') {
   const labelText = clean && clean !== '전체 용어'
     ? `<span class="section-label-text">${escapeHtml(clean)}</span>`
     : '';
+  const addLabel = currentLibraryMode === 'drugs' ? '➕ 약물명 및 정보 추가' : '➕ 용어 추가';
   label.innerHTML = `
     ${labelText}
-    <button class="inline-add-btn" onclick="showAddTermModal()">➕ 용어 추가</button>
+    <button class="inline-add-btn" onclick="showAddTermModal()">${addLabel}</button>
   `;
 }
 
@@ -4226,13 +4533,39 @@ function deleteSelectedTerms() {
 
 function applyFilters() {
   if (!document.getElementById('termList')) return;  // ← bail when export/quiz/add tab active
+  updateLibraryModeControls();
+  renderFilterControls();
   const query = document.getElementById('searchInput').value.toLowerCase();
-  const signature = `${currentFilter}|${currentConceptFilter}|${currentSort}|${query}`;
+  const signature = `${currentLibraryMode}|${currentFilter}|${currentConceptFilter}|${currentDrugClassFilter}|${currentDrugSystemFilter}|${currentSort}|${query}`;
   if (signature !== _lastListSignature) {
     visibleTermLimit = LIST_PAGE_SIZE;
     selectedTermIds.clear();
     _lastListSignature = signature;
   }
+  document.getElementById('searchClear').classList.toggle('visible', query.length > 0);
+
+  // 데이터 없을 때 홈 화면: 즐겨찾기 or 빈 안내
+  if (TERMS.length === 0 && DRUGS.length === 0 && !query) {
+    renderHome();
+    return;
+  }
+
+  if (currentLibraryMode === 'drugs') {
+    const list = document.getElementById('termList');
+    if (list) list.innerHTML = '';
+    const results = filterDrugsForQuery(query);
+    const labelParts = [];
+    if (currentDrugClassFilter !== 'all') labelParts.push(drugClassDisplay(currentDrugClassFilter));
+    if (currentDrugSystemFilter !== 'all') labelParts.push(drugSystemDisplay(currentDrugSystemFilter));
+    const baseLabel = query ? '약물명 및 정보 검색 결과' : '전체 약물명 및 정보';
+    const sectionLabel = labelParts.length ? `${baseLabel} · ${labelParts.join(' · ')}` : baseLabel;
+    setSectionLabel(`${sectionLabel} — ${results.length}개`);
+    renderDrugFrame(results);
+    return;
+  }
+
+  const drugFrame = document.getElementById('drugFrame');
+  if (drugFrame) drugFrame.innerHTML = '';
   let results = TERMS;
 
   if (currentFilter === '즐겨찾기') {
@@ -4262,19 +4595,10 @@ function applyFilters() {
     );
   }
 
-  document.getElementById('searchClear').classList.toggle('visible', query.length > 0);
-
-  // 데이터 없을 때 홈 화면: 즐겨찾기 or 빈 안내
-  if (TERMS.length === 0 && DRUGS.length === 0 && !query) {
-    renderHome();
-    return;
-  }
-
   // 기본 정렬: 완성된 용어 먼저, 그 안에서 영어 A-Z
   results = sortTermsForCurrentMode(results);
   _lastFilteredTerms = results;
   renderTerms(results);
-  renderDrugFrame(filterDrugsForQuery(query));
 }
 
 function renderHome() {
@@ -4306,7 +4630,7 @@ function renderHome() {
 
 function setFilter(filter, btn) {
   currentFilter = filter;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#filterRow .filter-btn').forEach(b => b.classList.remove('active'));
   btn?.classList.add('active');
   applyFilters();
 }
@@ -4342,12 +4666,15 @@ function searchUMLSFromInput() {
   searchUMLS(q);
 }
 
-function updateCounts(shown, filtered = shown) {
+function updateCounts(shown, filtered = shown, mode = currentLibraryMode) {
   const el = document.getElementById('totalCount');
   if (!el) return;
-  el.textContent = filtered === TERMS.length
-    ? `${shown}개 표시 / 전체 ${TERMS.length}개`
-    : `${shown}개 표시 / 결과 ${filtered}개 / 전체 ${TERMS.length}개`;
+  const isDrugs = mode === 'drugs';
+  const total = isDrugs ? getActiveDrugs().length : TERMS.length;
+  const label = isDrugs ? '약물' : '용어';
+  el.textContent = filtered === total
+    ? `${shown}개 표시 / 전체 ${label} ${total}개`
+    : `${shown}개 표시 / 결과 ${filtered}개 / 전체 ${label} ${total}개`;
 }
 
 function updateBookmarkCount() {
@@ -4355,7 +4682,11 @@ function updateBookmarkCount() {
   // Prune stale IDs that no longer exist in TERMS
   [...bookmarks].forEach(id => { if (!TERMS.some(t => t.id === id)) bookmarks.delete(id); });
   safeSetItem('kma_bookmarks', JSON.stringify([...bookmarks]));
-  document.getElementById('bookmarkCount').textContent = `즐겨찾기 ${validCount}`;
+  const el = document.getElementById('bookmarkCount');
+  if (!el) return;
+  el.textContent = currentLibraryMode === 'drugs'
+    ? `약물 ${getActiveDrugs().length}개`
+    : `즐겨찾기 ${validCount}`;
 }
 
 // ─── Saved home HTML for tab restoration ───
@@ -4369,11 +4700,11 @@ const HOME_HTML = `
     <p>데이터 관리에서 TSV·Excel을 가져오거나<br>전체 백업 JSON을 복원하세요</p>
   </div>`;
 
-function restoreHomeTab() {
+function restoreHomeTab(skipApply = false) {
   const main = document.getElementById('mainContent');
   main.innerHTML = HOME_HTML;
   updateBookmarkCount();
-  applyFilters();
+  if (!skipApply) applyFilters();
 }
 
 function getNavButton(tab) {
@@ -4392,11 +4723,19 @@ function switchTab(tab, btn) {
   else if (tab === 'quiz')    showQuizSetup();
   else if (tab === 'add')     { showAddTermModal(); }
   else if (tab === 'bookmark') {
-    restoreHomeTab();
+    restoreHomeTab(true);
+    setLibraryMode('terms', true);
     setFilter('즐겨찾기', document.getElementById('filterBookmarkBtn'));
   } else {
-    restoreHomeTab();
-    setFilter('all', document.querySelector('.filter-btn.active') || document.querySelector('.filter-btn'));
+    restoreHomeTab(true);
+    if (currentLibraryMode === 'drugs') {
+      currentDrugClassFilter = 'all';
+      currentDrugSystemFilter = 'all';
+      renderFilterControls();
+      applyFilters();
+    } else {
+      setFilter('all', document.querySelector('#filterRow .filter-btn') || document.querySelector('.filter-btn'));
+    }
   }
 }
 
@@ -5324,6 +5663,7 @@ function showAddTermModal() {
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) closeAddTermModal(); });
   showAddTermForm(document.getElementById('addTermModalBody'));
+  if (currentLibraryMode === 'drugs') switchAddKind('drug');
   setTimeout(updateAddKeyHint, 0);
 }
 
@@ -7177,16 +7517,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.41',
+  version: '3.42',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 16:15',
+  updatedAt: '2026년 6월 14일 16:32',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 대규모 변경 점검 보강',
+    title: '최신 · 메인화면 용어/약물 스위치',
+    items: [
+      '검색 메인 화면에 일반용어와 약물명 및 정보를 전환하는 세그먼트 버튼을 추가',
+      '약물명 및 정보 모드에서는 분류 버튼이 약물 계열과 관련 장기계 기준으로 자동 전환되도록 변경',
+      '약물 모드에서 검색창 placeholder, 추가 버튼, 결과 카운트, 빈 상태 안내가 약물명 및 정보 기준으로 표시되도록 정리',
+    ]
+  },
+  {
+    title: 'v3.41 · 대규모 변경 점검 보강',
     items: [
       '약물명 및 정보 삭제 시 로컬 tombstone을 남겨 클라우드 삭제 실패나 다른 기기 동기화 때 항목이 되살아나는 위험을 줄임',
       '전체 JSON 백업과 복원에 약물명 및 정보와 약물 삭제 보호 기록을 포함하도록 보강',
