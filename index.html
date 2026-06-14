@@ -3670,7 +3670,7 @@ function renderDrugFrame(drugs = []) {
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
-        <strong>💊 약물 프레임 · ${active.length}개</strong>
+        <strong>💊 약물명 및 정보 · ${active.length}개</strong>
         <span style="font-size:10px;color:var(--text3)">일반 용어와 별도 저장</span>
       </div>
       ${active.map(d => {
@@ -3749,7 +3749,7 @@ function drugDetailGridHtml(d, includeEmpty = false) {
     .filter(Boolean)
     .join('');
   if (rows) return `<div class="drug-section-grid">${rows}</div>`;
-  return `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 편집 버튼으로 약물 프레임 내용을 추가하세요.</div>`;
+  return `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 편집 버튼으로 약물명 및 정보 내용을 추가하세요.</div>`;
 }
 
 function openDrugDetailModal(id) {
@@ -5049,10 +5049,10 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
       <div id="addSection_single">
         <input id="add_kind" type="hidden" value="term">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px">저장 프레임 선택</div>
+          <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px">저장 항목 선택</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
             <button id="addKind_term" onclick="switchAddKind('term')" style="background:var(--accent);border:none;border-radius:10px;padding:11px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📘 일반 용어</button>
-            <button id="addKind_drug" onclick="switchAddKind('drug')" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💊 약물 프레임</button>
+            <button id="addKind_drug" onclick="switchAddKind('drug')" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💊 약물명 및 정보</button>
           </div>
         </div>
         <div id="termAddFields">
@@ -5179,7 +5179,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           </div>
 
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
-            <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:10px">약물 프레임 본문</div>
+            <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:10px">약물명 및 정보 본문</div>
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">① 핵심 공식 / 병태생리 인과사슬</label>
             <textarea id="add_drug_causal_chain" rows="2" placeholder="Dupilumab = IL-4Rα blockade → ↓ IL-4/IL-13 signaling → ..." style="${inputStyle(true)}"></textarea>
             <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">정의 한국어</label>
@@ -5308,7 +5308,7 @@ function switchAddKind(kind) {
   };
   setKindButton(termBtn, !isDrug);
   setKindButton(drugBtn, isDrug);
-  if (submitBtn) submitBtn.textContent = isDrug ? '💊 약물 프레임으로 저장' : '✨ AI 자동완성으로 추가';
+  if (submitBtn) submitBtn.textContent = isDrug ? '💊 약물명 및 정보로 저장' : '✨ AI 자동완성으로 추가';
   updateAddKeyHint();
 }
 
@@ -5684,7 +5684,7 @@ async function submitAddDrug() {
   DRUGS.push(drug);
   saveDrugsToLocalStorage();
   saveDrugToCloud(drug);
-  showToast(`💊 "${drug.ko_name || drug.generic_name || drug.brand_name}" 약물 프레임 저장 완료`);
+  showToast(`💊 "${drug.ko_name || drug.generic_name || drug.brand_name}" 약물명 및 정보 저장 완료`);
   finishAddFlow();
 }
 
@@ -7043,19 +7043,27 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.38',
+  version: '3.39',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 14일 16:04',
+  updatedAt: '2026년 6월 14일 16:08',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 약물 상세 보기와 편집 추가',
+    title: '최신 · 약물명 및 정보 명칭 변경',
     items: [
-      '약물 프레임 카드를 클릭하면 입력된 약물 구조를 상세 모달에서 확인하도록 보강',
-      '약물 카드의 연필 버튼을 실제 항목 편집 모달로 연결하고 모든 약물 프레임 필드를 수정 가능하게 변경',
+      '사용자 화면의 약물 관련 표시명을 더 직관적인 “약물명 및 정보”로 일괄 변경',
+      '용어 추가의 저장 선택, 저장 버튼, 약물 목록 제목, 빈 세부내용 안내 문구를 새 명칭으로 통일',
+      '기능과 Supabase 저장 구조는 그대로 유지하고 사용자 표시명만 정리',
+    ]
+  },
+  {
+    title: 'v3.38 · 약물 상세 보기와 편집 추가',
+    items: [
+      '약물명 및 정보 카드를 클릭하면 입력된 약물 구조를 상세 모달에서 확인하도록 보강',
+      '약물 카드의 연필 버튼을 실제 항목 편집 모달로 연결하고 모든 약물명 및 정보 필드를 수정 가능하게 변경',
       '약물 편집 저장 시 updated_at을 갱신하고 로컬 저장 및 Supabase medical_drugs upsert를 즉시 실행',
     ]
   },
@@ -7064,14 +7072,14 @@ const UPDATE_HISTORY = [
     items: [
       '용어 추가에서 이미 저장된 용어를 입력하면 “중복된 용어입니다.” 안내가 즉시 표시되도록 수정',
       '추가 모달 위에서도 토스트가 보이도록 toast 레이어 우선순위를 높이고, 입력창 하단 안내 문구도 함께 표시',
-      '약물 프레임 추가에서도 중복 약물 입력 시 “중복된 약물입니다.” 안내를 표시',
+      '약물명 및 정보 추가에서도 중복 약물 입력 시 “중복된 약물입니다.” 안내를 표시',
     ]
   },
   {
-    title: 'v3.36 · 약물 프레임 분리 저장',
+    title: 'v3.36 · 약물명 및 정보 분리 저장',
     items: [
-      '일반 의학용어와 약물을 별도 저장 구조로 분리하고 검색 화면 하단에 약물 프레임을 별도 렌더링',
-      '용어 추가에서 일반 용어/약물 프레임을 선택하도록 하고 약물 정의, MOA, 임상 사용, 부작용, 주의사항, USMLE 전략 필드를 추가',
+      '일반 의학용어와 약물을 별도 저장 구조로 분리하고 검색 화면 하단에 약물명 및 정보를 별도 렌더링',
+      '용어 추가에서 일반 용어/약물명 및 정보를 선택하도록 하고 약물 정의, MOA, 임상 사용, 부작용, 주의사항, USMLE 전략 필드를 추가',
       'Supabase medical_drugs 테이블과 약물 canonical meta row를 포함한 통합 SQL을 제공',
     ]
   },
