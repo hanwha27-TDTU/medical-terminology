@@ -992,6 +992,28 @@ document.addEventListener('keydown', e => {
     box-shadow: inset 0 0 0 1px rgba(251,191,36,0.45);
   }
 
+  html[data-theme="light"] .library-mode-switch {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  }
+
+  html[data-theme="light"] .library-mode-btn {
+    color: #64748b;
+  }
+
+  html[data-theme="light"] .library-mode-btn.active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    box-shadow: inset 0 0 0 1px #93c5fd;
+  }
+
+  html[data-theme="light"] .library-mode-btn.drug.active {
+    background: #fef3c7;
+    color: #b45309;
+    box-shadow: inset 0 0 0 1px #facc15;
+  }
+
   .library-mode-hint {
     color: var(--text3);
     font-size: 11px;
@@ -8722,16 +8744,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.56',
+  version: '3.57',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 17일 18:09',
+  updatedAt: '2026년 6월 17일 18:13',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 현재 파일명 표시 개선',
+    title: '최신 · 라이트모드 전환 스위치 대비 개선',
+    items: [
+      '라이트모드에서 일반용어/약물명 및 정보 전환 스위치의 진한 배경이 과하게 튀던 문제를 완화',
+      '전환 스위치를 밝은 표면색, 옅은 테두리, 낮은 그림자 기준으로 조정해 주변 필터 UI와 톤을 맞춤',
+      '활성 버튼 색상은 일반용어 파랑, 약물명 및 정보 노랑 계열로 유지하되 라이트모드 대비에 맞게 정리',
+    ]
+  },
+  {
+    title: 'v3.56 · 현재 파일명 표시 개선',
     items: [
       '개발자 정보의 현재 파일명 표시가 경로를 읽지 못할 때 단순 웹 앱으로 보이지 않도록 개선',
       '파일명 fallback을 앱 이름과 최신 업데이트 내역 기반으로 생성해 저장본 식별성을 높임',
