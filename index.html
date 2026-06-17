@@ -602,12 +602,15 @@ document.addEventListener('keydown', e => {
     padding: 20px;
     background: var(--overlay-bg);
     backdrop-filter: blur(7px);
+    overflow-x: hidden;
   }
 
   .developer-modal {
     width: min(760px, 100%);
+    max-width: calc(100vw - 40px);
     max-height: 88vh;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -652,10 +655,14 @@ document.addEventListener('keydown', e => {
     font-size: 12px;
     line-height: 1.55;
     overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
   }
 
   .update-history {
     padding: 10px 20px 22px;
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .update-history-card {
@@ -664,11 +671,101 @@ document.addEventListener('keydown', e => {
     border-radius: 11px;
     padding: 14px 16px;
     margin-top: 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .update-history-card.latest {
     border-color: rgba(63,185,80,0.5);
     background: rgba(63,185,80,0.06);
+  }
+
+  @media (max-width: 1100px) {
+    header {
+      overflow-x: hidden;
+    }
+
+    .header-top {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .header-titles {
+      flex: 1 1 260px;
+      min-width: 0;
+    }
+
+    .data-header-btn,
+    .kma-header-btn,
+    .settings-header-btn,
+    .category-stats-header-btn,
+    .developer-header-btn,
+    .theme-toggle-btn,
+    .final-save-header-btn,
+    .version-check-header-btn {
+      margin-left: 0;
+      flex: 1 1 132px;
+      min-width: 0;
+      max-width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .final-save-header-btn,
+    .version-check-header-btn {
+      flex-basis: 180px;
+    }
+
+    .header-top button span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .developer-modal {
+      width: calc(100vw - 28px);
+      max-width: calc(100vw - 28px);
+    }
+
+    .developer-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .developer-modal-overlay {
+      align-items: flex-start;
+      padding: 10px;
+    }
+
+    .developer-modal {
+      width: calc(100vw - 20px);
+      max-width: calc(100vw - 20px);
+      max-height: calc(100vh - 20px);
+      border-radius: 14px;
+    }
+
+    .developer-modal-head {
+      padding: 14px 14px;
+      gap: 10px;
+    }
+
+    .developer-grid {
+      padding: 14px 14px 6px;
+      gap: 10px;
+    }
+
+    .update-history {
+      padding: 8px 14px 18px;
+    }
+
+    .update-history-card {
+      padding: 12px 12px;
+    }
   }
 
   @media (max-width: 600px) {
@@ -8744,16 +8841,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.58',
+  version: '3.59',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 17일 20:31',
+  updatedAt: '2026년 6월 17일 20:40',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 라이트모드 잔여 고정색 정리',
+    title: '최신 · 모바일 태블릿 좌우 스크롤 개선',
+    items: [
+      '태블릿 폭에서 상단 기능 버튼들이 한 줄로 넘치지 않고 여러 줄로 자연스럽게 감기도록 조정',
+      '개발자 정보, 통계, 저장본 확인 등 정보 모달의 최대 폭을 visual viewport 기준으로 제한하고 내부 긴 텍스트 줄바꿈을 보강',
+      '모바일 모달 여백과 grid 배치를 세로 읽기 중심으로 정리해 좌우 스크롤 없이 확인하기 쉽게 개선',
+    ]
+  },
+  {
+    title: 'v3.58 · 라이트모드 잔여 고정색 정리',
     items: [
       '라이트모드에서 일부 모달과 관리 패널에 남아 있던 다크모드 고정 배경색을 전역 색상 토큰으로 교체',
       '고정 테두리와 본문 텍스트 색상을 var(--border), var(--text), var(--text3) 기준으로 정리',
