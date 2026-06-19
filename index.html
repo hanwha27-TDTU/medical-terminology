@@ -3522,19 +3522,6 @@ async function sbLoadCanonicalMeta() {
   }
 }
 
-async function sbSetCanonicalMeta(version) {
-  const cfg = getSupabaseConfig();
-  if (!cfg) return false;
-  const now = new Date().toISOString();
-  const res = await fetch(`${cfg.url}/rest/v1/${SYNC_META_TABLE}`, {
-    method: 'POST',
-    headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
-    body: JSON.stringify({ key: CANONICAL_META_KEY, value: version, updated_at: now })
-  });
-  if (!res.ok) throw new Error(`canonical meta save failed: ${res.status} ${await res.text()}`);
-  return true;
-}
-
 function hasCanonicalVersion(meta) {
   return !!(meta && String(meta.version || '').trim() && (Date.parse(meta.updatedAt || '') || 0));
 }
@@ -3705,10 +3692,6 @@ async function sbPushAll(options = {}) {
     saveLocalSyncMeta({ pendingCanonicalStatus: 'failed', pendingCanonicalError: String(e?.message || e) });
     showToast('⚠️ 클라우드 최종본 덮어쓰기 실패 · 데이터 탭에서 다시 실행하세요');
   }
-}
-
-function confirmPushLocalToCloud() {
-  return sbPushAll({ confirmOverwrite: true });
 }
 
 function saveCurrentStateToCloud() {
@@ -4398,12 +4381,6 @@ async function loadLocalCacheForStartup() {
   return { localCount, drugCount, ...aux };
 }
 
-function clearTermsLocalStorage() {
-  localStorage.removeItem(TERMS_STORAGE_KEY);
-  localStorage.removeItem(TERMS_STORAGE_META_KEY);
-  if (localCacheSupported()) idbSetValue(TERMS_STORAGE_KEY, []).catch(() => {});
-}
-
 function getDeviceIdShard() {
   const text = getDeviceId();
   let hash = 0;
@@ -4423,13 +4400,6 @@ function nextDrugId() {
   const deviceTimeId = Date.now() * 1000 + getDeviceIdShard();
   _idCounter = Math.max(_idCounter, deviceTimeId, maxId);
   return ++_idCounter;
-}
-
-function getStorageStatusText() {
-  const meta = safeJsonParse(localStorage.getItem(TERMS_STORAGE_META_KEY), null);
-  if (!meta?.savedAt) return '자동저장 대기';
-  const d = new Date(meta.savedAt);
-  return `자동저장 ${meta.count || 0}개 · ${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
 }
 
 let currentLibraryMode = 'terms';
@@ -4837,17 +4807,6 @@ function filterDrugsForQuery(query = '') {
   );
 }
 
-function drugApiSources(d) {
-  const refs = Array.isArray(d?.refs) ? d.refs : [];
-  return [...new Set(refs.map(ref => String(ref?.source || '').trim()).filter(Boolean))];
-}
-
-function drugApiSourceChipsHtml(d) {
-  return drugApiSources(d)
-    .map(source => `<span class="drug-chip" style="border-color:rgba(251,191,36,0.36);color:#fbbf24;background:rgba(251,191,36,0.08)">${escapeHtml(source)}</span>`)
-    .join('');
-}
-
 function drugRefsHtml(d) {
   const refs = Array.isArray(d?.refs) ? d.refs : [];
   if (!refs.length) return '';
@@ -5039,23 +4998,6 @@ function drugDetailFields() {
   ];
 }
 
-function drugDetailGridHtml(d, includeEmpty = false) {
-  const rows = drugDetailFields()
-    .map(([label, key]) => {
-      const value = String(d?.[key] || '').trim();
-      if (!includeEmpty && !value) return '';
-      return `
-        <div class="drug-section-box">
-          <div class="drug-section-label">${label}</div>
-          <div class="drug-section-text">${value ? escapeHtml(value) : '<span style="color:var(--text3)">미입력</span>'}</div>
-        </div>`;
-    })
-    .filter(Boolean)
-    .join('');
-  if (rows) return `<div class="drug-section-grid">${rows}</div>`;
-  return `<div class="drug-empty-note">세부 내용이 아직 입력되지 않았습니다. 편집 버튼으로 약물명 및 정보 내용을 추가하세요.</div>`;
-}
-
 function openDrugDetailModal(id) {
   openDrugDrawer(id);
 }
@@ -5151,7 +5093,6 @@ function saveDrugEdit(id) {
   saveDrugsToLocalStorage();
   saveDrugToCloud(next);
   document.getElementById('drugEditModal')?.remove();
-  document.getElementById('drugDetailModal')?.remove();
   showToast('✅ 약물 항목 수정 완료');
   applyFilters();
   setTimeout(() => openDrugDetailModal(next.id), 80);
@@ -5167,7 +5108,6 @@ function deleteDrug(id) {
     saveDrugsToLocalStorage();
     deleteDrugFromCloud(id, tombstone?.deletedAt || new Date().toISOString());
     document.getElementById('drugEditModal')?.remove();
-    document.getElementById('drugDetailModal')?.remove();
     showToast('🗑️ 약물 항목 삭제 완료');
     applyFilters();
   });
@@ -8993,22 +8933,26 @@ async function confirmDangerousDrugDelete() {
   showExportMenu();
 }
 
-function showDevInfo() {
-  showDeveloperInfo();
-}
-
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.63',
+  version: '3.64',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 19일 12:10',
+  updatedAt: '2026년 6월 19일 12:31',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 용어 추가 닫기 버튼 전용화',
+    title: '최신 · 레거시 죽은 코드 정리',
+    items: [
+      '구 업로드 확인 모달, 구 Excel/Anki 내보내기, 호출되지 않는 개발자/캐시/최종본 wrapper를 제거해 실제 데이터 관리 경로와 코드 구조를 일치',
+      '약물 상세 모달에서 드로어 방식으로 전환된 뒤 남아 있던 미사용 렌더 helper와 방어 제거 코드를 정리',
+      '현재 사용하는 백업/복원, 범위별 내보내기, 최종상태 저장, 저장본 버전 확인 흐름은 유지하면서 향후 유지보수 혼선을 줄임',
+    ]
+  },
+  {
+    title: 'v3.63 · 용어 추가 닫기 버튼 전용화',
     items: [
       '용어 추가 모달에서 바깥쪽 배경을 클릭해도 창이 닫히지 않도록 변경해 모바일 입력 중 실수로 닫히는 문제를 방지',
       '일반용어 저장 버튼 문구를 “AI 자동완성으로 추가”에서 “용어 추가”로 변경해 직접 입력과 AI 보강이 함께 가능한 실제 동작에 맞춤',
@@ -10282,26 +10226,6 @@ async function bulkFillBlanks(scope = 'all') {
   showToast(`✅ ${done}개 용어 빈칸 채우기 완료`);
 }
 
-function exportExcel() {
-  if (!TERMS.length) { showToast('⚠️ 내보낼 용어가 없습니다'); return; }
-  try {
-    const displayHeader = ['Korean','English','Uzbek','Concept_category','System','System_tags','Def_ko','Def_en','Def_uz','USMLE','IPA'];
-    const dataKeys      = ['ko',     'en',     'uz',   'concept_category','category','system_tags','def_ko','def_en','def_uz','usmle','ipa'];
-    const rows = TERMS.map(t => dataKeys.map(k => Array.isArray(t[k]) ? t[k].join(', ') : (t[k] || '')));
-    const ws = XLSX.utils.aoa_to_sheet([displayHeader, ...rows]);
-    // 컬럼 너비
-    ws['!cols'] = [12,18,18,20,16,20,40,40,40,50,14].map(w => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '의학용어');
-    const filename = `${new Date().toISOString().slice(0,10).replace(/-/g,'.')} Bugeon Medical Terms.xlsx`;
-    XLSX.writeFile(wb, filename);
-    showToast('📊 Excel 내보내기 완료!');
-  } catch(e) {
-    console.error(e);
-    showToast('⚠️ Excel 내보내기 실패 — TSV를 사용해주세요');
-  }
-}
-
 function cleanTsvCell(value) {
   return String(value ?? '')
     .replace(/\r?\n/g, ' ')
@@ -10433,34 +10357,6 @@ function evSelectAll() {
   ta.select();
   // iOS 대응
   ta.setSelectionRange(0, ta.value.length);
-}
-
-function exportAnki() {
-  if (TERMS.length === 0) { showToast('⚠️ 내보낼 용어가 없습니다'); return; }
-
-  const header = '#separator:tab\n#html:true\n#columns:Front\tBack\tTags';
-  const rows = TERMS.map(t => {
-    const front = [
-      `<b>${cleanAnkiHtml(t.en || t.ko || t.uz)}</b>`,
-      t.ipa ? `<br><span style="color:#888">${cleanAnkiHtml(t.ipa)}</span>` : ''
-    ].join('');
-
-    const back = [
-      t.ko ? `<b>한국어</b>: ${cleanAnkiHtml(t.ko)}` : '',
-      t.uz ? `<br><b>O'zbek</b>: ${cleanAnkiHtml(t.uz)}` : '',
-      t.def_ko ? `<hr><b>정의</b><br>${cleanAnkiHtml(t.def_ko)}` : '',
-      t.def_en ? `<br><br><b>English definition</b><br>${cleanAnkiHtml(t.def_en)}` : '',
-      t.def_uz ? `<br><br><b>O'zbek ta'rif</b><br>${cleanAnkiHtml(t.def_uz)}` : '',
-      t.usmle ? `<hr><b>USMLE High-Yield</b><br>${cleanAnkiHtml(t.usmle)}` : '',
-      t.category ? `<hr><small>Category: ${cleanAnkiHtml(t.category)}</small>` : ''
-    ].join('');
-
-    return [front, back, ankiTags(t)].map(cleanTsvCell).join('\t');
-  });
-
-  const tsv = [header, ...rows].join('\n');
-  downloadTextFile(tsv, `${new Date().toISOString().slice(0,10).replace(/-/g,'.')} Bugeon Medical Terms Anki.tsv`);
-  showToast(`📋 Anki TSV ${TERMS.length}개 내보내기 완료`);
 }
 
 // ─── Quiz (3-step) ───
@@ -10808,73 +10704,6 @@ function showQuizResult() {
         </button>
       </div>
     </div>`;
-}
-
-// ─── Upload confirm modal ───
-let pendingUploadEvent = null;
-
-function confirmUpload(e) {
-  const userTerms = TERMS.filter(t => t.id >= 1000);
-  // 기존 업로드 데이터가 없으면 바로 진행
-  if (userTerms.length === 0) {
-    handleFileUpload(e, 'replace');
-    return;
-  }
-
-  pendingUploadEvent = e;
-
-  const modal = document.createElement('div');
-  modal.id = 'uploadConfirmModal';
-  modal.style.cssText = `
-    position:fixed;inset:0;background:var(--overlay-bg);
-    display:flex;align-items:center;justify-content:center;
-    z-index:999;backdrop-filter:blur(6px);padding:24px;
-  `;
-  modal.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:320px">
-      <div style="font-size:22px;text-align:center;margin-bottom:10px">📂</div>
-      <div style="font-family:'Noto Serif KR',serif;font-size:15px;color:var(--text);text-align:center;margin-bottom:6px">업로드 방식 선택</div>
-      <div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:20px;line-height:1.6">
-        현재 <span style="color:#58a6ff;font-weight:600">${userTerms.length}개</span>의 업로드된 용어가 있습니다
-      </div>
-
-      <button onclick="doUpload('replace')" style="width:100%;background:rgba(248,81,73,0.12);border:1px solid #f85149;border-radius:10px;padding:13px 16px;color:#f85149;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
-        🗑️ 기존 데이터 삭제 후 새로 시작
-        <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:3px">현재 모든 용어 삭제 후 새 파일로 교체</div>
-      </button>
-
-      <button onclick="doUpload('append')" style="width:100%;background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:10px;padding:13px 16px;color:#74b0ff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
-        🔄 갱신+추가
-        <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:3px">같은 용어는 새 파일 내용으로 갱신하고, 새 용어는 추가</div>
-      </button>
-
-      <button onclick="doUpload('add_only')" style="width:100%;background:rgba(63,185,80,0.1);border:1px solid #3fb950;border-radius:10px;padding:13px 16px;color:#3fb950;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px;text-align:left">
-        ➕ 신규만 추가
-        <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:3px">기존 용어는 그대로 두고, 겹치지 않는 새 용어만 추가</div>
-      </button>
-
-      <button onclick="closeUploadConfirmModal()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text3);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
-        취소
-      </button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-}
-
-function closeUploadConfirmModal() {
-  document.getElementById('uploadConfirmModal')?.remove();
-  const legacyInput = document.getElementById('fileInput');
-  if (legacyInput) legacyInput.value = '';
-  pendingUploadEvent = null;
-}
-
-function doUpload(mode) {
-  const modal = document.getElementById('uploadConfirmModal');
-  if (modal) modal.remove();
-  if (pendingUploadEvent) {
-    handleFileUpload(pendingUploadEvent, mode);
-    pendingUploadEvent = null;
-  }
 }
 
 // ─── External Medical APIs ───
