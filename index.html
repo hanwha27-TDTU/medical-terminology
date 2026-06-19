@@ -1451,8 +1451,8 @@ document.addEventListener('keydown', e => {
   }
 
   .drug-section-box {
-    background: rgba(13,17,23,0.72);
-    border: 1px solid rgba(48,54,61,0.9);
+    background: var(--surface2);
+    border: 1px solid var(--border);
     border-radius: 9px;
     padding: 10px;
   }
@@ -1527,7 +1527,66 @@ document.addEventListener('keydown', e => {
     color: var(--text3);
     font-size: 11px;
     line-height: 1.6;
-    background: rgba(13,17,23,0.42);
+    background: var(--surface2);
+  }
+
+  html[data-theme="light"] .term-drawer {
+    box-shadow: -10px 0 34px rgba(15, 23, 42, 0.18);
+  }
+
+  html[data-theme="light"] .drawer-header,
+  html[data-theme="light"] .drawer-nav {
+    background: #f8fafc;
+  }
+
+  html[data-theme="light"] .drawer-section {
+    background: transparent;
+  }
+
+  html[data-theme="light"] .drug-section-box {
+    background: #ffffff;
+    border-color: #cfd8e6;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  html[data-theme="light"] .drug-section-box-emphasis {
+    background: #f0fdf4;
+    border-color: #86efac;
+  }
+
+  html[data-theme="light"] .drug-section-label {
+    color: #15803d;
+  }
+
+  html[data-theme="light"] .drug-section-text {
+    color: #334155;
+  }
+
+  html[data-theme="light"] .drug-core-formula {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #b45309;
+  }
+
+  html[data-theme="light"] .drug-memory-line {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+  }
+
+  html[data-theme="light"] .drug-advanced-details {
+    background: #faf5ff;
+    border-color: #d8b4fe;
+  }
+
+  html[data-theme="light"] .drug-advanced-details summary {
+    color: #7e22ce;
+  }
+
+  html[data-theme="light"] .drug-empty-note {
+    background: #f8fafc;
+    border-color: #93c5fd;
+    color: #64748b;
   }
 
   .drug-api-panel {
@@ -8841,16 +8900,24 @@ function showDevInfo() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.59',
+  version: '3.60',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 17일 20:40',
+  updatedAt: '2026년 6월 19일 11:37',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 모바일 태블릿 좌우 스크롤 개선',
+    title: '최신 · 라이트모드 약물 드로어 가독성 개선',
+    items: [
+      '라이트모드에서 약물 상세 드로어의 일부 카드가 어두운 배경과 낮은 대비로 깨져 보이던 문제를 수정',
+      '약물 정보 박스, Target/System/MOA/임상 사용 카드, 핵심 공식, 고급 정보 영역에 라이트모드 전용 팔레트를 적용',
+      '드로어 헤더와 네비게이션 배경, 카드 테두리와 텍스트 대비를 밝은 화면 기준으로 정리해 좌우 상세 보기 가독성을 개선',
+    ]
+  },
+  {
+    title: 'v3.59 · 모바일 태블릿 좌우 스크롤 개선',
     items: [
       '태블릿 폭에서 상단 기능 버튼들이 한 줄로 넘치지 않고 여러 줄로 자연스럽게 감기도록 조정',
       '개발자 정보, 통계, 저장본 확인 등 정보 모달의 최대 폭을 visual viewport 기준으로 제한하고 내부 긴 텍스트 줄바꿈을 보강',
