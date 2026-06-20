@@ -1699,6 +1699,130 @@ document.addEventListener('keydown', e => {
     color: #475569;
   }
 
+  .formula-input-helper {
+    margin: 8px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface2);
+    overflow: hidden;
+  }
+
+  .formula-input-helper summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .formula-input-helper summary::-webkit-details-marker { display: none; }
+
+  .formula-input-helper summary::after {
+    content: '펼치기';
+    color: var(--text3);
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .formula-input-helper[open] summary::after { content: '접기'; }
+
+  .formula-input-panel {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px 12px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .formula-input-group-title {
+    color: var(--text3);
+    font-size: 10px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+
+  .formula-input-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .formula-input-chip {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--button-bg);
+    color: var(--text2);
+    min-height: 30px;
+    padding: 5px 9px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+  }
+
+  .formula-input-chip:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .formula-input-chip:active { transform: translateY(1px); }
+
+  .formula-input-chip.template {
+    background: rgba(167,139,250,0.1);
+    border-color: rgba(167,139,250,0.35);
+    color: #c4b5fd;
+  }
+
+  .formula-input-preview {
+    margin-top: 7px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text2);
+    padding: 8px 10px;
+    font-family: Consolas, 'Cascadia Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    min-height: 34px;
+    overflow-wrap: anywhere;
+  }
+
+  html[data-theme="light"] .formula-input-helper {
+    background: #f8fafc;
+    border-color: #d7e0ee;
+  }
+
+  html[data-theme="light"] .formula-input-chip {
+    background: #ffffff;
+    border-color: #d7e0ee;
+    color: #334155;
+  }
+
+  html[data-theme="light"] .formula-input-chip:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #2563eb;
+  }
+
+  html[data-theme="light"] .formula-input-chip.template {
+    background: #faf5ff;
+    border-color: #d8b4fe;
+    color: #7e22ce;
+  }
+
+  html[data-theme="light"] .formula-input-preview {
+    background: #ffffff;
+    border-color: #d7e0ee;
+    color: #334155;
+  }
+
   .add-modal-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -5915,6 +6039,94 @@ function formulaFieldValue(id) {
   return document.getElementById(id)?.value?.trim() || '';
 }
 
+const FORMULA_INPUT_GROUPS = [
+  { title: '연산자 · 기호', chips: [' + ', ' - ', ' × ', ' ÷ ', ' = ', ' ≈ ', ' > ', ' < ', ' ≥ ', ' ≤ ', ' ± ', ' %', '√(▮)', 'Δ', 'Σ', '↑', '↓', '→', '(▮)', '[▮]', ' / ', ' per ', 'kg', 'm²', '10^▮', 'log(▮)'] },
+  { title: '전해질 · 산염기', chips: ['Na', 'K', 'Cl', 'HCO3', 'pH', 'PaCO2', 'PaO2', 'FiO2', 'SaO2', 'SpO2', 'AG', 'Albumin', 'Glucose', 'Osm', 'BUN', 'EtOH', 'Lactate', 'Ca', 'Mg', 'Phos'] },
+  { title: '신장 · 체액', chips: ['Cr', 'SCr', 'eGFR', 'CrCl', 'UCr', 'PCr', 'UNa', 'UOsm', 'POsm', 'FeNa', 'FeUrea', 'GFR', 'UOP', 'TBW', 'urine Na', 'urine Cr', 'plasma Cr'] },
+  { title: '심장 · 호흡', chips: ['HR', 'SBP', 'DBP', 'MAP', 'SV', 'CO', 'CI', 'SVR', 'PVR', 'EF', 'RR', 'VT', 'VE', 'PEEP', 'A-a gradient', 'PAO2', 'PB', 'PH2O', 'R'] },
+  { title: '혈액 · 약물 · 영양', chips: ['Hb', 'Hct', 'MCV', 'Retic', 'INR', 'PT', 'aPTT', 'dose', 'weight', 'BSA', 'BMI', 'mL/hr', 'mg/kg', 'mcg/kg/min', 'kcal', 'protein', 'IBW', 'ABW'] },
+  { title: '소아 · 산과 · 통계', chips: ['GA', 'EDD', 'LMP', 'Naegele', 'Sensitivity', 'Specificity', 'PPV', 'NPV', 'LR+', 'LR-', 'ARR', 'RRR', 'NNT', 'OR', 'RR', 'Prevalence'] },
+];
+
+const FORMULA_TEMPLATE_CHIPS = [
+  { label: 'Anion gap', value: 'AG = Na - (Cl + HCO3)' },
+  { label: 'Corrected Na', value: 'Corrected Na = Na + 1.6 × ((Glucose - 100) / 100)' },
+  { label: 'Corrected Ca', value: 'Corrected Ca = Ca + 0.8 × (4 - Albumin)' },
+  { label: 'Serum Osm', value: 'Serum Osm = 2 × Na + Glucose/18 + BUN/2.8' },
+  { label: "Winter's formula", value: 'Expected PaCO2 = 1.5 × HCO3 + 8 ± 2' },
+  { label: 'A-a gradient', value: 'A-a gradient = PAO2 - PaO2' },
+  { label: 'Alveolar gas', value: 'PAO2 = FiO2 × (PB - PH2O) - PaCO2/R' },
+  { label: 'CrCl', value: 'CrCl = ((140 - age) × weight) / (72 × SCr)' },
+  { label: 'FeNa', value: 'FeNa = (UNa × PCr) / (PNa × UCr) × 100' },
+  { label: 'FeUrea', value: 'FeUrea = (UUrea × PCr) / (BUN × UCr) × 100' },
+  { label: 'MAP', value: 'MAP = DBP + 1/3 × (SBP - DBP)' },
+  { label: 'BMI', value: 'BMI = weight(kg) / height(m)²' },
+  { label: 'BSA', value: 'BSA = √((height(cm) × weight(kg)) / 3600)' },
+  { label: 'Pack-year', value: 'Pack-years = packs/day × years smoked' },
+  { label: 'LDL', value: 'LDL = Total cholesterol - HDL - TG/5' },
+  { label: 'NNT', value: 'NNT = 1 / ARR' },
+  { label: 'Sensitivity', value: 'Sensitivity = TP / (TP + FN)' },
+  { label: 'Specificity', value: 'Specificity = TN / (TN + FP)' },
+  { label: 'PPV', value: 'PPV = TP / (TP + FP)' },
+  { label: 'NPV', value: 'NPV = TN / (TN + FN)' },
+  { label: 'LR+', value: 'LR+ = Sensitivity / (1 - Specificity)' },
+  { label: 'LR-', value: 'LR- = (1 - Sensitivity) / Specificity' },
+];
+
+function updateFormulaPreview(prefix) {
+  const textarea = document.getElementById(`${prefix}_formula`);
+  const preview = document.getElementById(`${prefix}_formula_preview`);
+  if (!textarea || !preview) return;
+  preview.textContent = textarea.value.trim() || '계산식을 입력하거나 칩을 누르면 미리보기가 표시됩니다.';
+}
+
+function insertFormulaText(prefix, rawText) {
+  const textarea = document.getElementById(`${prefix}_formula`);
+  if (!textarea) return;
+  const selected = textarea.value.slice(textarea.selectionStart || 0, textarea.selectionEnd || 0);
+  let text = String(rawText || '').replaceAll('{selection}', selected);
+  const cursorMarker = '▮';
+  const markerIndex = text.indexOf(cursorMarker);
+  text = text.replace(cursorMarker, '');
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  textarea.value = `${textarea.value.slice(0, start)}${text}${textarea.value.slice(end)}`;
+  const cursor = markerIndex >= 0 ? start + markerIndex : start + text.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+  updateFormulaPreview(prefix);
+}
+
+function formulaInputChipButton(prefix, label, value = label, extraClass = '') {
+  return `<button type="button" class="formula-input-chip ${extraClass}" onclick="insertFormulaText('${escapeJsString(prefix)}','${escapeJsString(value)}')">${escapeHtml(label)}</button>`;
+}
+
+function formulaInputHelperHtml(prefix, currentFormula = '') {
+  const groups = FORMULA_INPUT_GROUPS.map(group => `
+    <div>
+      <div class="formula-input-group-title">${escapeHtml(group.title)}</div>
+      <div class="formula-input-chip-row">
+        ${group.chips.map(chip => formulaInputChipButton(prefix, chip)).join('')}
+      </div>
+    </div>`).join('');
+  const templates = `
+    <div>
+      <div class="formula-input-group-title">주요 의학공식 템플릿</div>
+      <div class="formula-input-chip-row">
+        ${FORMULA_TEMPLATE_CHIPS.map(item => formulaInputChipButton(prefix, item.label, item.value, 'template')).join('')}
+      </div>
+    </div>`;
+  return `
+    <details class="formula-input-helper">
+      <summary>수식입력기 <span style="font-weight:600;color:var(--text3)">변수·기호·공식 템플릿 삽입</span></summary>
+      <div class="formula-input-panel">
+        ${templates}
+        ${groups}
+      </div>
+    </details>
+    <div id="${prefix}_formula_preview" class="formula-input-preview">${escapeHtml(currentFormula || '계산식을 입력하거나 칩을 누르면 미리보기가 표시됩니다.')}</div>`;
+}
+
 function formulaFormFieldsHtml(prefix, f = {}, IS = inputStyle(), TA = inputStyle(true)) {
   const escVal = value => escapeHtml(value || '');
   return `
@@ -5925,7 +6137,8 @@ function formulaFormFieldsHtml(prefix, f = {}, IS = inputStyle(), TA = inputStyl
       <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">관련 장기계</label><select id="${prefix}_system" style="${IS}">${['General', ...VALID_CATS.filter(c => c !== 'General')].map(c => `<option value="${escapeHtml(c)}" ${(f.system || 'General') === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     </div>
     <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">계산식</label>
-    <textarea id="${prefix}_formula" rows="2" placeholder="예: Na - (Cl + HCO3)" style="${TA}">${escVal(f.formula)}</textarea>
+    <textarea id="${prefix}_formula" rows="2" placeholder="예: Na - (Cl + HCO3)" style="${TA}" oninput="updateFormulaPreview('${escapeJsString(prefix)}')">${escVal(f.formula)}</textarea>
+    ${formulaInputHelperHtml(prefix, f.formula || '')}
     <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">언제 쓰는가</label>
     <textarea id="${prefix}_use" rows="2" placeholder="예: 대사성 산증 감별" style="${TA}">${escVal(f.use_case)}</textarea>
     <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">정상값/판정 기준</label>
@@ -10129,16 +10342,24 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.69',
+  version: '3.70',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 20일 13:36',
+  updatedAt: '2026년 6월 20일 13:50',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 편집 저장삭제 버튼 정돈',
+    title: '최신 · 공식 수식입력기 추가',
+    items: [
+      '주요 의학계산공식의 계산식 입력칸 아래에 접이식 수식입력기를 추가',
+      '전해질·산염기·신장·심폐·혈액·약물·소아·산과·통계 변수와 연산자 칩을 커서 위치에 바로 삽입하도록 구현',
+      'Anion gap, Corrected Na/Ca, Serum Osm, Winter formula, A-a gradient, CrCl, FeNa, MAP, BMI, BSA, NNT 등 주요 공식 템플릿과 미리보기를 추가',
+    ]
+  },
+  {
+    title: 'v3.69 · 편집 저장삭제 버튼 정돈',
     items: [
       '일반용어 편집 모달 하단의 강한 파랑 저장 버튼과 이모지 삭제 버튼을 차분한 공통 버튼 스타일로 교체',
       '약물명 및 정보, 주요 의학계산공식 편집 모달도 같은 저장/삭제 버튼 스타일을 사용하도록 통일',
