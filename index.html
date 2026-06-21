@@ -10716,16 +10716,24 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.73',
+  version: '3.74',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 21일 12:11',
+  updatedAt: '2026년 6월 21일 12:42',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 데스크톱 용어추가창 확장',
+    title: '최신 · 통계 모달 현행화',
+    items: [
+      '기존 일반용어 중심의 분류별 통계를 일반용어, 약물명 및 정보, 주요 의학계산공식 전체를 보여주는 앱 통계로 개편',
+      '라이브러리별 활성 항목 수, 완성도, 정리 필요 항목, tombstone 보호 기록을 함께 표시해 현재 앱 구조와 맞춤',
+      '라이트모드에서 튀던 원색 칩과 진행바를 CSS 토큰 기반의 차분한 카드/버튼/진행바로 정리',
+    ]
+  },
+  {
+    title: 'v3.73 · 데스크톱 용어추가창 확장',
     items: [
       '윈도우/데스크톱 화면에서 용어 추가 모달 폭을 560px에서 최대 860px로 확장해 긴 입력과 표 편집이 더 여유 있게 보이도록 조정',
       '모달 본문 여백을 CSS 기준으로 일원화하고 태블릿·모바일 폭에서는 화면 너비에 맞춰 자동 축소되도록 반응형 보강',
@@ -11736,6 +11744,41 @@ function termCompletionPercent(t) {
   return Math.round(filled / fields.length * 100);
 }
 
+function drugCompletionPercent(d) {
+  const fields = ['generic_name','ko_name','drug_class','same_class_drugs','drug_form','atc_class','target','route','category','definition_ko','definition_en','definition_uz','causal_chain','moa','clinical_uses','adverse_effects','usmle_strategy','memory_line','ipa'];
+  const filled = fields.filter(key => {
+    const value = d?.[key];
+    return Array.isArray(value) ? value.length > 0 : String(value || '').trim();
+  }).length;
+  const tagsFilled = Array.isArray(d?.system_tags) && d.system_tags.length ? 1 : 0;
+  return Math.round((filled + tagsFilled) / (fields.length + 1) * 100);
+}
+
+function formulaCompletionPercent(f) {
+  const fields = ['name','short_name','formula','category','system','use_case','variables','normal_range','interpretation','example','memory_tip','usmle_trap'];
+  const filled = fields.filter(key => String(f?.[key] || '').trim()).length;
+  const tagsFilled = Array.isArray(f?.tags) && f.tags.length ? 1 : 0;
+  return Math.round((filled + tagsFilled) / (fields.length + 1) * 100);
+}
+
+function averagePercent(rows, getter) {
+  return rows.length ? Math.round(rows.reduce((sum, item) => sum + getter(item), 0) / rows.length) : 0;
+}
+
+function countByValues(rows, valueGetter) {
+  const map = new Map();
+  rows.forEach(row => {
+    const values = valueGetter(row);
+    (Array.isArray(values) ? values : [values]).forEach(raw => {
+      const value = String(raw || 'General').trim() || 'General';
+      map.set(value, (map.get(value) || 0) + 1);
+    });
+  });
+  return [...map.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+}
+
 function getCategoryStats() {
   const order = [...VALID_CATS, '기타'];
   const stats = {};
@@ -11776,43 +11819,116 @@ function applyCategoryFromStats(cat) {
   setFilter(filter, targetBtn || document.querySelector('.filter-btn'));
 }
 
+function applyStatsFilter(mode, filterType, value) {
+  document.getElementById('categoryStatsModal')?.remove();
+  switchTab('search', document.querySelector('.nav-btn'));
+  setLibraryMode(mode || 'terms', true);
+  renderFilterControls();
+  if (mode === 'terms' && filterType === 'concept') {
+    setConceptFilter(value || 'all');
+  } else if (mode === 'terms') {
+    setFilter(value || 'all');
+  } else {
+    setDrugSystemFilter(value || 'all');
+  }
+}
+
+function statPillHtml(label, value, onclick = '') {
+  const click = onclick ? ` onclick="${onclick}"` : '';
+  const cursor = onclick ? 'cursor:pointer;' : '';
+  return `<button type="button"${click} style="background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 12px;color:var(--text2);font-size:12px;font-weight:750;font-family:'Noto Sans KR',sans-serif;${cursor}">${label} <span style="color:var(--text);font-weight:850">${value}</span></button>`;
+}
+
+function progressLineHtml(percent) {
+  const width = Math.max(3, Math.min(100, Number(percent) || 0));
+  return `<div style="height:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;overflow:hidden"><div style="height:100%;width:${width}%;background:var(--accent);opacity:.72;border-radius:999px"></div></div>`;
+}
+
 function showCategoryStats() {
   document.getElementById('categoryStatsModal')?.remove();
-  const total = TERMS.length;
+  const activeTerms = TERMS.filter(t => !t.deletedAt);
+  const activeDrugs = getActiveDrugs();
+  const activeFormulas = getActiveFormulas();
+  const total = activeTerms.length;
+  const totalAll = activeTerms.length + activeDrugs.length + activeFormulas.length;
   const rows = getCategoryStats();
   const conceptRows = getConceptStats();
   const activeRows = rows.filter(r => r.count > 0);
   const top = activeRows.slice().sort((a,b) => b.count - a.count)[0];
-  const maxCount = Math.max(...rows.map(r => r.count), 1);
+  const drugSystems = countByValues(activeDrugs, drugSystemValues);
+  const formulaSystems = countByValues(activeFormulas, formulaSystemValues);
+  const combinedSystemMap = new Map();
+  rows.forEach(r => { if (r.count) combinedSystemMap.set(r.category, { system: r.category, terms: r.count, drugs: 0, formulas: 0 }); });
+  drugSystems.forEach(r => {
+    const item = combinedSystemMap.get(r.value) || { system: r.value, terms: 0, drugs: 0, formulas: 0 };
+    item.drugs += r.count;
+    combinedSystemMap.set(r.value, item);
+  });
+  formulaSystems.forEach(r => {
+    const item = combinedSystemMap.get(r.value) || { system: r.value, terms: 0, drugs: 0, formulas: 0 };
+    item.formulas += r.count;
+    combinedSystemMap.set(r.value, item);
+  });
+  const systemRows = [...combinedSystemMap.values()]
+    .map(r => ({ ...r, total: r.terms + r.drugs + r.formulas }))
+    .sort((a, b) => b.total - a.total || a.system.localeCompare(b.system));
+  const maxCount = Math.max(...systemRows.map(r => r.total), 1);
   const avgCompletion = total
-    ? Math.round(TERMS.reduce((sum, t) => sum + termCompletionPercent(t), 0) / total)
+    ? Math.round(activeTerms.reduce((sum, t) => sum + termCompletionPercent(t), 0) / total)
+    : 0;
+  const drugCompletion = averagePercent(activeDrugs, drugCompletionPercent);
+  const formulaCompletion = averagePercent(activeFormulas, formulaCompletionPercent);
+  const overallCompletion = totalAll
+    ? Math.round(((avgCompletion * activeTerms.length) + (drugCompletion * activeDrugs.length) + (formulaCompletion * activeFormulas.length)) / totalAll)
     : 0;
   const uncategorized = rows.find(r => r.category === '기타')?.count || 0;
-  const zeroCategories = rows.filter(r => r.category !== '기타' && r.count === 0).length;
+  const missingDrugs = activeDrugs.filter(d => drugCompletionPercent(d) < 70).length;
+  const missingFormulas = activeFormulas.filter(f => formulaCompletionPercent(f) < 70).length;
+  const tombstoneCount = loadLocalTombstones().length + loadLocalDrugTombstones().length + loadLocalFormulaTombstones().length;
+  const conceptHtml = conceptRows
+    .filter(r => r.count > 0)
+    .map(r => statPillHtml(
+      escapeHtml(conceptDisplay(r.concept)),
+      `${r.count}`,
+      `applyStatsFilter('terms','concept','${escapeJsString(r.concept)}')`
+    )).join('');
 
-  const rowHtml = rows.map(r => {
-    const width = Math.max(5, Math.round(r.count / maxCount * 100));
-    const pct = total ? Math.round(r.count / total * 100) : 0;
+  const systemHtml = systemRows.map(r => {
+    const percent = Math.round(r.total / maxCount * 100);
+    const targetMode = r.terms ? 'terms' : (r.drugs ? 'drugs' : 'formulas');
+    const detail = [
+      r.terms ? `용어 ${r.terms}` : '',
+      r.drugs ? `약물 ${r.drugs}` : '',
+      r.formulas ? `공식 ${r.formulas}` : ''
+    ].filter(Boolean).join(' · ');
     return `
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:12px 14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-          <button onclick="applyCategoryFromStats('${escapeJsString(r.category)}')" style="background:none;border:none;color:var(--text);font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;padding:0;text-align:left">${escapeHtml(categoryDisplay(r.category))}</button>
-          <div style="font-size:12px;color:#7ee787;font-weight:800">${r.count}개</div>
+          <button onclick="applyStatsFilter('${targetMode}','system','${escapeJsString(r.system)}')" style="background:none;border:none;color:var(--text);font-size:13px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif;padding:0;text-align:left">${escapeHtml(categoryDisplay(r.system))}</button>
+          <div style="font-size:12px;color:var(--text2);font-weight:850">${r.total}개</div>
         </div>
-        <div style="height:8px;background:var(--surface);border-radius:999px;overflow:hidden;border:1px solid var(--border);margin-bottom:7px">
-          <div style="height:100%;width:${width}%;background:linear-gradient(90deg,#58a6ff,#7ee787);border-radius:999px"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--text3)">
-          <span>전체 대비 ${pct}%</span>
-          <span>완성도 ${r.completion}% · 즐겨찾기 ${r.bookmarks}개</span>
+        ${progressLineHtml(percent)}
+        <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.65">
+          ${escapeHtml(detail || '아직 항목 없음')}
         </div>
       </div>`;
   }).join('');
 
-  const conceptHtml = conceptRows.map(r => `
-    <button onclick="document.getElementById('categoryStatsModal').remove();switchTab('search', document.querySelector('.nav-btn'));setConceptFilter('${escapeJsString(r.concept)}')" style="background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:7px 10px;color:var(--text);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-align:left">
-      ${escapeHtml(conceptDisplay(r.concept))} <span style="color:#7ee787">${r.count}</span>
-    </button>`).join('');
+  const libraryHtml = [
+    { icon: '▮', title: '일반용어', count: activeTerms.length, sub: `완성도 ${avgCompletion}% · 즐겨찾기 ${activeTerms.filter(t => bookmarks.has(Number(t.id))).length}개`, mode: 'terms' },
+    { icon: '•', title: '약물명 및 정보', count: activeDrugs.length, sub: `완성도 ${drugCompletion}% · 정리 필요 ${missingDrugs}개`, mode: 'drugs' },
+    { icon: '∑', title: '주요 의학계산공식', count: activeFormulas.length, sub: `완성도 ${formulaCompletion}% · 정리 필요 ${missingFormulas}개`, mode: 'formulas' }
+  ].map(item => `
+    <button onclick="document.getElementById('categoryStatsModal').remove();switchTab('search', document.querySelector('.nav-btn'));setLibraryMode('${item.mode}')"
+      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="font-size:13px;font-weight:850">${item.icon} ${item.title}</div>
+        <div style="font-size:16px;font-weight:850;color:var(--text)">${item.count}개</div>
+      </div>
+      <div style="margin-top:9px">${progressLineHtml(item.mode === 'terms' ? avgCompletion : item.mode === 'drugs' ? drugCompletion : formulaCompletion)}</div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)">${item.sub}</div>
+    </button>
+  `).join('');
 
   const overlay = document.createElement('div');
   overlay.id = 'categoryStatsModal';
@@ -11820,23 +11936,34 @@ function showCategoryStats() {
   overlay.innerHTML = `
     <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="categoryStatsTitle">
       <div class="developer-modal-head">
-        <div id="categoryStatsTitle" style="font-size:18px;font-weight:800;color:var(--text)">📊 분류별 통계</div>
+        <div>
+          <div id="categoryStatsTitle" style="font-size:18px;font-weight:850;color:var(--text)">📊 앱 통계</div>
+          <div style="margin-top:5px;color:var(--text3);font-size:11px">일반용어, 약물명 및 정보, 주요 의학계산공식을 현재 구조 기준으로 봅니다.</div>
+        </div>
         <button onclick="document.getElementById('categoryStatsModal').remove()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div class="developer-grid">
-        <div class="developer-field"><div class="developer-field-label">전체 용어</div><div class="developer-field-value">${total}개</div></div>
-        <div class="developer-field"><div class="developer-field-label">최다 분류</div><div class="developer-field-value">${top ? `${escapeHtml(categoryDisplay(top.category))} · ${top.count}개` : '아직 없음'}</div></div>
-        <div class="developer-field"><div class="developer-field-label">평균 완성도</div><div class="developer-field-value">${avgCompletion}%</div></div>
-        <div class="developer-field"><div class="developer-field-label">정리 필요</div><div class="developer-field-value">기타 ${uncategorized}개 · 빈 분류 ${zeroCategories}개</div></div>
+        <div class="developer-field"><div class="developer-field-label">전체 활성 항목</div><div class="developer-field-value">${totalAll}개</div></div>
+        <div class="developer-field"><div class="developer-field-label">라이브러리 구성</div><div class="developer-field-value">용어 ${activeTerms.length} · 약물 ${activeDrugs.length} · 공식 ${activeFormulas.length}</div></div>
+        <div class="developer-field"><div class="developer-field-label">평균 완성도</div><div class="developer-field-value">${overallCompletion}%</div></div>
+        <div class="developer-field"><div class="developer-field-label">정리 필요</div><div class="developer-field-value">기타 ${uncategorized} · 약물 ${missingDrugs} · 공식 ${missingFormulas}</div></div>
+        <div class="developer-field"><div class="developer-field-label">최다 일반용어 장기계</div><div class="developer-field-value">${top ? `${escapeHtml(categoryDisplay(top.category))} · ${top.count}개` : '아직 없음'}</div></div>
+        <div class="developer-field"><div class="developer-field-label">동기화 보호 기록</div><div class="developer-field-value">tombstone ${tombstoneCount}개</div></div>
       </div>
-      <div style="padding:8px 20px 0;color:var(--text3);font-size:11px;line-height:1.7">
-        개념분류는 “무엇인가”, 대표 장기계는 “어디와 관련 있는가”입니다. 분류명을 누르면 해당 필터로 바로 이동합니다.
+      <div style="padding:14px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        ${libraryHtml}
+      </div>
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">
+        개념분류
       </div>
       <div style="padding:12px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
-        ${conceptHtml}
+        ${conceptHtml || '<span style="color:var(--text3);font-size:12px">아직 개념분류 통계가 없습니다.</span>'}
+      </div>
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">
+        장기계 · 시스템 분포
       </div>
       <div style="padding:14px 20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-        ${rowHtml || '<div style="color:var(--text3);font-size:12px">아직 통계를 낼 용어가 없습니다.</div>'}
+        ${systemHtml || '<div style="color:var(--text3);font-size:12px">아직 통계를 낼 항목이 없습니다.</div>'}
       </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
