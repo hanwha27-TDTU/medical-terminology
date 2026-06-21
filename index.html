@@ -195,7 +195,7 @@ function _renderDrawerContent(t) {
     <div class="drawer-section">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
         <div class="drawer-lang-badge" style="background:var(--tag-en);color:#4ade80;border:1px solid #166534;margin-bottom:0">🇺🇸 English</div>
-        <button class="speak-btn" id="drawer-speak-term" onclick="speakTermField(event,${termId},'en','term')">
+        <button class="speak-btn" id="drawer-speak-term" onclick="speakTermField(event,${termId},'en','term')" aria-label="영어 용어 발음 듣기">
           <div class="wave"><span></span><span></span><span></span><span></span></div>
           발음 듣기
         </button>
@@ -213,7 +213,7 @@ function _renderDrawerContent(t) {
         ? `<div class="drawer-term-def" style="margin-top:6px">${escapeHtml(t.def_en)}</div>`
         : `<div class="drawer-missing">영어 정의 없음</div>`}
       <div class="drawer-speak-row">
-        <button class="speak-btn" id="drawer-speak-def" onclick="speakTermField(event,${termId},'def_en','def')" style="font-size:11px;padding:4px 10px">
+        <button class="speak-btn" id="drawer-speak-def" onclick="speakTermField(event,${termId},'def_en','def')" aria-label="영어 정의 발음 듣기" style="font-size:11px;padding:4px 10px">
           <div class="wave"><span></span><span></span><span></span><span></span></div>
           정의 읽기
         </button>
@@ -338,7 +338,7 @@ function _renderDrugDrawerContent(d) {
     <div class="drawer-section">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
         <div class="drawer-lang-badge" style="background:rgba(251,191,36,0.13);color:#fbbf24;border:1px solid #92400e;margin-bottom:0">💊 약물 개요</div>
-        <button class="speak-btn" id="speak-drug-drawer-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-drawer')" title="약물명(영어) 발음 듣기">
+        <button class="speak-btn" id="speak-drug-drawer-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-drawer')" title="약물명(영어) 발음 듣기" aria-label="약물명 영어 발음 듣기">
           <div class="wave"><span></span><span></span><span></span><span></span></div>
           발음 듣기
         </button>
@@ -3545,8 +3545,8 @@ document.addEventListener('keydown', e => {
   </div>
   <div class="search-wrap autocomplete-wrap">
     <span class="search-icon">🔍</span>
-    <input class="search-input" id="searchInput" type="text" placeholder="한국어, 영어, 우즈베크어로 검색..." autocomplete="off">
-    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+    <input class="search-input" id="searchInput" type="text" placeholder="한국어, 영어, 우즈베크어로 검색..." autocomplete="off" aria-label="의학용어 검색">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="검색어 지우기">✕</button>
     <div class="autocomplete-list" id="acList"></div>
   </div>
 </header>
@@ -5841,8 +5841,8 @@ function renderTerms(terms, bookmarkDivider = 0) {
               ? `<span class="term-complete-badge" title="${missing.join(', ')} 빈칸" style="color:#f85149;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);margin-right:4px">✗ ${missing.join(' · ')}</span>`
               : `<span class="term-complete-badge" title="모든 필드 완성" style="color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);margin-right:4px">✓</span>`;
           })()}
-          <button class="bookmark-btn ${bookmarks.has(t.id) ? 'saved' : ''}" data-role="bookmark" onclick="toggleBookmark(event, ${termId})" title="즐겨찾기">${bookmarks.has(t.id) ? '⭐' : '☆'}</button>
-          <button class="bookmark-btn" onclick="openEditModal(event, ${termId})" title="편집" style="font-size:14px">✏️</button>
+          <button class="bookmark-btn ${bookmarks.has(t.id) ? 'saved' : ''}" data-role="bookmark" onclick="toggleBookmark(event, ${termId})" title="즐겨찾기" aria-label="${bookmarks.has(t.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'}">${bookmarks.has(t.id) ? '⭐' : '☆'}</button>
+          <button class="bookmark-btn" onclick="openEditModal(event, ${termId})" title="편집" aria-label="용어 편집" style="font-size:14px">✏️</button>
           <span class="chevron">▼</span>
         </div>
       </div>
@@ -5855,7 +5855,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
         <div class="detail-section">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
             <div class="lang-badge en">🇺🇸 English</div>
-            <button class="speak-btn" id="speak-term-${termId}" onclick="speakTermField(event,${termId},'en','term')">
+            <button class="speak-btn" id="speak-term-${termId}" onclick="speakTermField(event,${termId},'en','term')" aria-label="영어 용어 발음 듣기">
               <div class="wave"><span></span><span></span><span></span><span></span></div>
               발음 듣기
             </button>
@@ -5868,7 +5868,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
           </div>
           <div class="ipa-tip">Cambridge 방식 · 강세: ˈ(1차) ˌ(2차) · 장모음: ː</div>` : ''}
           <div class="detail-text">${escapeHtml(t.def_en)}</div>
-          <button class="speak-btn" id="speak-def-${termId}" onclick="speakTermField(event,${termId},'def_en','def')" style="font-size:11px;padding:4px 10px">
+          <button class="speak-btn" id="speak-def-${termId}" onclick="speakTermField(event,${termId},'def_en','def')" aria-label="영어 정의 발음 듣기" style="font-size:11px;padding:4px 10px">
             <div class="wave"><span></span><span></span><span></span><span></span></div>
             정의 읽기
           </button>
@@ -5999,11 +5999,11 @@ function renderDrugFrame(drugs = []) {
               <div class="drug-sub">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</div>
             </div>
             <div class="drug-head-actions">
-              <button class="speak-btn drug-speak-btn" id="speak-drug-card-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-card')" title="약물명(영어) 발음 듣기">
+              <button class="speak-btn drug-speak-btn" id="speak-drug-card-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-card')" title="약물명(영어) 발음 듣기" aria-label="약물명 영어 발음 듣기">
                 <div class="wave"><span></span><span></span><span></span><span></span></div>
                 발음
               </button>
-              <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집">✏️</button>
+              <button class="bookmark-btn" onclick="openDrugEditModal(event, ${Number(d.id)})" title="약물 편집" aria-label="약물 항목 편집">✏️</button>
             </div>
           </div>
           <div class="drug-chip-row">
@@ -6072,7 +6072,7 @@ function renderFormulaFrame(formulas = []) {
               <div class="formula-name">${escapeHtml(f.name || f.short_name || '이름 없음')}</div>
               <div class="formula-sub">${escapeHtml([f.short_name, f.use_case].filter(Boolean).join(' · '))}</div>
             </div>
-            <button class="bookmark-btn" onclick="openFormulaEditModal(event, ${Number(f.id)})" title="공식 편집">✏️</button>
+            <button class="bookmark-btn" onclick="openFormulaEditModal(event, ${Number(f.id)})" title="공식 편집" aria-label="공식 항목 편집">✏️</button>
           </div>
           <div class="formula-expression">${escapeHtml(f.formula || '공식 미입력')}</div>
           <div class="formula-chip-row">
@@ -6221,7 +6221,7 @@ function openDrugEditModal(e, id) {
           <div style="font-size:17px;font-weight:900;color:var(--text)">💊 약물 항목 편집</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(drugDisplayName(d))}</div>
         </div>
-        <button onclick="document.getElementById('drugEditModal').remove()" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('drugEditModal').remove()" title="닫기" aria-label="약물 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">
@@ -6507,7 +6507,7 @@ function openUsmleTableEditor(targetId, type = 'compare') {
           <div style="font-size:17px;font-weight:900;color:var(--text)">표 편집기</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">셀에 직접 입력한 뒤 USMLE High-Yield 칸에 삽입합니다.</div>
         </div>
-        <button onclick="document.getElementById('usmleTableEditorModal').remove()" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('usmleTableEditorModal').remove()" title="닫기" aria-label="표 편집기 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         <div class="usmle-table-editor-wrap" id="usmleVisualTableWrap">${renderUsmleVisualTable(usmleTablePreset(type))}</div>
@@ -6709,7 +6709,7 @@ function openFormulaEditModal(e, id) {
           <div style="font-size:17px;font-weight:900;color:var(--text)">∑ 의학계산공식 편집</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(f.name || f.short_name || '')}</div>
         </div>
-        <button onclick="document.getElementById('formulaEditModal').remove()" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('formulaEditModal').remove()" title="닫기" aria-label="공식 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         ${formulaFormFieldsHtml('formula_edit', f, IS, TA)}
@@ -7351,6 +7351,15 @@ function applyFilters() {
   renderTerms(results);
 }
 
+let searchInputDebounceTimer = null;
+function scheduleSearchInputUpdate(value) {
+  window.clearTimeout(searchInputDebounceTimer);
+  searchInputDebounceTimer = window.setTimeout(() => {
+    applyFilters();
+    handleSearchAutocomplete(String(value || '').trim());
+  }, 140);
+}
+
 function renderHome() {
   const list = document.getElementById('termList');
   const empty = document.getElementById('emptyState');
@@ -7402,8 +7411,10 @@ function setConceptFilter(filter, btn) {
 }
 
 function clearSearch() {
+  window.clearTimeout(searchInputDebounceTimer);
   document.getElementById('searchInput').value = '';
   applyFilters();
+  closeAutocomplete();
 }
 
 function setSort(val) {
@@ -9076,7 +9087,7 @@ function openEditModal(e, id) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:480px;margin:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div style="font-family:'Noto Serif KR',serif;font-size:15px;color:var(--text)">✏️ 용어 편집</div>
-        <button onclick="document.getElementById('editModal').remove()" title="닫기" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
+        <button onclick="document.getElementById('editModal').remove()" title="닫기" aria-label="용어 편집창 닫기" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
       </div>
 
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">용어명</div>
@@ -10336,7 +10347,7 @@ async function showSyncDiagnostics() {
     <section class="developer-modal" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div style="font-size:17px;font-weight:800;color:var(--text)">☁️ 동기화 상태 점검</div>
-        <button onclick="document.getElementById('syncDiagnosticModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('syncDiagnosticModal').remove()" aria-label="동기화 상태 점검 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         <div class="data-status-grid" style="margin-bottom:12px">
@@ -10463,7 +10474,7 @@ async function showSavedVersionInfo() {
     <section class="developer-modal" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div style="font-size:17px;font-weight:800;color:var(--text)">🔎 저장본 버전 확인</div>
-        <button onclick="document.getElementById('savedVersionModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('savedVersionModal').remove()" aria-label="저장본 버전 확인 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         <div style="font-size:12px;color:#9cc7ff;font-weight:800;margin-bottom:4px">기기 표시 기준</div>
@@ -10770,7 +10781,7 @@ function showTrashManager() {
     <section class="developer-modal" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div style="font-size:17px;font-weight:800;color:var(--text)">🗑️ 삭제된 용어</div>
-        <button onclick="document.getElementById('trashManagerModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('trashManagerModal').remove()" aria-label="삭제된 용어 목록 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         ${rows.length ? rows.map(term => `
@@ -10819,7 +10830,7 @@ function showDrugTrashManager() {
     <section class="developer-modal" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div style="font-size:17px;font-weight:800;color:var(--text)">💊 삭제된 약물명 및 정보</div>
-        <button onclick="document.getElementById('drugTrashManagerModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('drugTrashManagerModal').remove()" aria-label="삭제된 약물 목록 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         ${rows.length ? rows.map(drug => `
@@ -10869,7 +10880,7 @@ function showFormulaTrashManager() {
     <section class="developer-modal" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div style="font-size:17px;font-weight:800;color:var(--text)">∑ 삭제된 주요 의학계산공식</div>
-        <button onclick="document.getElementById('formulaTrashManagerModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="document.getElementById('formulaTrashManagerModal').remove()" aria-label="삭제된 공식 목록 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
         ${rows.length ? rows.map(formula => `
@@ -11039,16 +11050,24 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.77',
+  version: '3.78',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 21일 13:51',
+  updatedAt: '2026년 6월 21일 14:01',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 데이터 관리 전면 재정리',
+    title: '최신 · 접근성 검색성능 API안내 보강',
+    items: [
+      '동적 카드와 상세 드로어의 아이콘 버튼에 aria-label을 보강해 스크린 리더와 키보드 탐색 사용성을 개선',
+      '검색 입력에 짧은 디바운스를 적용해 빠른 타이핑 중 불필요한 전체 필터·렌더링 반복을 줄임',
+      '외부 의학 API 응답 지연, 서버 오류, rate limit 상황을 조용히 실패시키지 않고 제한적으로 토스트 안내하도록 보강',
+    ]
+  },
+  {
+    title: 'v3.77 · 데이터 관리 전면 재정리',
     items: [
       '데이터 관리 화면을 안전 백업·복원, 자료 내보내기, Supabase 동기화, 복구·정리, 위험 작업 순서로 재구성',
       '일반용어·약물명 및 정보·주요 의학계산공식 영역별 JSON 백업과 부분 JSON 복원을 추가해 필요한 영역만 보관/복원 가능하게 개선',
@@ -12842,7 +12861,7 @@ function showExportViewer(text, filename) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:560px;margin:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="font-size:14px;color:var(--text);font-weight:700">📋 ${filename}</div>
-        <button onclick="document.getElementById('exportViewerModal').remove()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">×</button>
+        <button onclick="document.getElementById('exportViewerModal').remove()" aria-label="내보내기 미리보기 닫기" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">×</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:14px">${lineCount}줄 · TSV 형식</div>
 
@@ -13284,10 +13303,32 @@ function showQuizResult() {
 }
 
 // --- External Medical APIs ---
+let lastExternalApiNoticeAt = 0;
+function shouldNotifyExternalApiStatus(res) {
+  return !!res && (res.status === 429 || res.status >= 500);
+}
+
+function notifyExternalApiIssue(source, detail = '') {
+  console.warn(`${source} external API issue`, detail);
+  const now = Date.now();
+  if (now - lastExternalApiNoticeAt < 30000) return;
+  lastExternalApiNoticeAt = now;
+  if (typeof showToast === 'function') {
+    showToast(`⚠️ ${source} 외부 API 응답이 지연되거나 제한되었습니다. 잠시 후 다시 시도하세요.`);
+  }
+}
+
+function externalApiFailed(res, source) {
+  if (!res || res.ok) return false;
+  if (shouldNotifyExternalApiStatus(res)) notifyExternalApiIssue(source, `HTTP ${res.status}`);
+  return true;
+}
+
 async function fetchMedlinePlus(term) {
   try {
     const url = `https://connect.medlineplus.gov/application?mainSearchCriteria.v.cs=2.16.840.1.113883.6.90&mainSearchCriteria.v.dn=${encodeURIComponent(term)}&knowledgeResponseType=application/json&informationRecipient.languageCode.c=en`;
     const res = await fetch(url);
+    if (externalApiFailed(res, 'MedlinePlus')) return null;
     const data = await res.json();
     const entries = data.feed?.entry || [];
     if (entries.length === 0) return null;
@@ -13297,18 +13338,18 @@ async function fetchMedlinePlus(term) {
       summary: entry.summary?._value?.replace(/<[^>]+>/g, '').slice(0, 400) || '',
       url:     entry.link?.[0]?.href || ''
     };
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('MedlinePlus', e); return null; }
 }
 
 async function fetchRxNorm(term) {
   try {
     const searchRes = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(term)}&search=2`);
-    if (!searchRes.ok) return null;
+    if (externalApiFailed(searchRes, 'RxNorm')) return null;
     const searchData = await searchRes.json();
     const rxcui = searchData.idGroup?.rxnormId?.[0];
     if (!rxcui) return null;
     const propRes = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui/${rxcui}/properties.json`);
-    if (!propRes.ok) return null;
+    if (externalApiFailed(propRes, 'RxNorm')) return null;
     const propData = await propRes.json();
     const props = propData.properties;
     return {
@@ -13318,7 +13359,7 @@ async function fetchRxNorm(term) {
       tty:      props?.tty || '',
       url:      `https://mor.nlm.nih.gov/RxNav/search?searchBy=RXCUI&searchTerm=${rxcui}`
     };
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('RxNorm', e); return null; }
 }
 
 async function fetchPubMed(term, maxResults = 3) {
@@ -13326,6 +13367,7 @@ async function fetchPubMed(term, maxResults = 3) {
     const searchRes = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(term + '[MeSH Terms]')}&retmax=${maxResults}&sort=relevance&retmode=json`
     );
+    if (externalApiFailed(searchRes, 'PubMed')) return [];
     const searchData = await searchRes.json();
     const ids = searchData.esearchresult?.idlist || [];
     if (ids.length === 0) return [];
@@ -13333,6 +13375,7 @@ async function fetchPubMed(term, maxResults = 3) {
     const summaryRes = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json`
     );
+    if (externalApiFailed(summaryRes, 'PubMed')) return [];
     const summaryData = await summaryRes.json();
     const result = summaryData.result || {};
 
@@ -13348,7 +13391,7 @@ async function fetchPubMed(term, maxResults = 3) {
         url:     `https://pubmed.ncbi.nlm.nih.gov/${id}/`
       };
     }).filter(r => r.title);
-  } catch { return []; }
+  } catch (e) { notifyExternalApiIssue('PubMed', e); return []; }
 }
 
 // ── NEW API 1: NLM Clinical Tables — disease autocomplete + ICD-10 ──
@@ -13357,6 +13400,7 @@ async function fetchNLMConditions(query, maxResults = 6) {
     const res = await fetch(
       `https://clinicaltables.nlm.nih.gov/api/conditions/v3/search?terms=${encodeURIComponent(query)}&maxList=${maxResults}&df=primary_name,consumer_name,icd10cm_codes`
     );
+    if (externalApiFailed(res, 'NLM Clinical Tables')) return [];
     const data = await res.json();
     // data = [total, codes_array, extra, display_array]
     const total = data[0] || 0;
@@ -13369,7 +13413,7 @@ async function fetchNLMConditions(query, maxResults = 6) {
       consumer: display[i]?.[1] || '',
       icd10: display[i]?.[2] || ''
     }));
-  } catch { return []; }
+  } catch (e) { notifyExternalApiIssue('NLM Clinical Tables', e); return []; }
 }
 
 // ── NEW API 2: OpenFDA — drug adverse events & warnings ──
@@ -13379,7 +13423,7 @@ async function fetchFDADrug(term) {
     const res = await fetch(
       `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(term)}"&limit=1`
     );
-    if (!res.ok) return null;
+    if (externalApiFailed(res, 'openFDA')) return null;
     const data = await res.json();
     const result = data.results?.[0];
     if (!result) return null;
@@ -13397,7 +13441,7 @@ async function fetchFDADrug(term) {
       adverse:     adverseRaw.replace(/<[^>]+>/g, '').slice(0, 250),
       hasBoxedWarning: !!result.boxed_warning
     };
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('openFDA', e); return null; }
 }
 
 // ── NEW API 3: RxClass — drug class (ATC, MeSH, VA) ──
@@ -13407,7 +13451,7 @@ async function fetchRxClass(rxcui) {
     const res = await fetch(
       `https://rxnav.nlm.nih.gov/REST/rxclass/class/byRxcui.json?rxcui=${rxcui}&relaSource=ATC`
     );
-    if (!res.ok) return null;
+    if (externalApiFailed(res, 'RxClass')) return null;
     const data = await res.json();
     const classes = data.rxclassDrugInfoList?.rxclassDrugInfo || [];
     const atcClasses = classes
@@ -13418,7 +13462,7 @@ async function fetchRxClass(rxcui) {
         id:   c.rxclassMinConceptItem?.classId || ''
       }));
     return atcClasses.length > 0 ? atcClasses : null;
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('RxClass', e); return null; }
 }
 
 const ICD11_RELEASE = '2025-01';
@@ -13445,7 +13489,7 @@ function showICD11Popup(enTerm, koTerm) {
              style="text-decoration:none;background:rgba(139,92,246,0.15);border:1px solid #5b21b6;border-radius:8px;padding:5px 12px;font-size:11px;color:#a78bfa">
             새 탭 ↗
           </a>
-          <button onclick="document.getElementById('icd11Popup').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">✕</button>
+          <button onclick="document.getElementById('icd11Popup').remove()" aria-label="ICD-11 검색창 닫기" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">✕</button>
         </div>
       </div>
       <!-- iframe -->
@@ -13467,7 +13511,7 @@ async function fetchICD11(term) {
       `https://id.who.int/icd/release/11/${ICD11_RELEASE}/mms/search?q=${encodeURIComponent(term)}&subtreesFilter=&includeKeywordResult=true&useFlexisearch=false&flatResults=true&highlightingEnabled=false`,
       { headers: { 'Accept': 'application/json', 'Accept-Language': 'en', 'API-Version': 'v2' } }
     );
-    if (!res.ok) return null;
+    if (externalApiFailed(res, 'ICD-11')) return null;
     const data = await res.json();
     const dest = data.destinationEntities;
     if (!dest || dest.length === 0) return null;
@@ -13477,7 +13521,7 @@ async function fetchICD11(term) {
       title: top.title || '',
       url:   top['@id'] || ''
     };
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('ICD-11', e); return null; }
 }
 
 // ── NEW API 5: ClinicalTrials.gov v2 — active trial count ──
@@ -13486,10 +13530,10 @@ async function fetchClinicalTrials(term) {
     const res = await fetch(
       `https://clinicaltrials.gov/api/v2/studies?query.cond=${encodeURIComponent(term)}&filter.overallStatus=RECRUITING&pageSize=1&countTotal=true`
     );
-    if (!res.ok) return null;
+    if (externalApiFailed(res, 'ClinicalTrials.gov')) return null;
     const data = await res.json();
     return { count: data.totalCount || 0 };
-  } catch { return null; }
+  } catch (e) { notifyExternalApiIssue('ClinicalTrials.gov', e); return null; }
 }
 
 // ── Autocomplete engine (NLM Clinical Tables) ──
@@ -13533,6 +13577,12 @@ function selectAcItem(name) {
   if (input) input.value = name;
   if (list)  list.innerHTML = '';
   applyFilters();
+}
+
+function closeAutocomplete() {
+  clearTimeout(acDebounce);
+  const list = document.getElementById('acList');
+  if (list) list.innerHTML = '';
 }
 
 // Close autocomplete on outside click
@@ -14126,8 +14176,7 @@ if (window.speechSynthesis) {
 
 // ─── Init ───
 document.getElementById('searchInput').addEventListener('input', e => {
-  applyFilters();
-  handleSearchAutocomplete(e.target.value.trim());
+  scheduleSearchInputUpdate(e.target.value);
 });
 
 // 앱 초기화: Supabase가 있으면 클라우드를 기준본으로 사용
@@ -14186,9 +14235,9 @@ initApp();
         <div class="drawer-title-en" id="drawerTitleEn">—</div>
       </div>
       <div class="drawer-header-right">
-        <button class="drawer-action-btn" id="drawerBookmarkBtn" onclick="drawerToggleBookmark()" title="즐겨찾기">☆</button>
-        <button class="drawer-action-btn" onclick="drawerOpenEdit()" title="편집">✏️</button>
-        <button class="drawer-close-btn" onclick="closeDrawer()" title="닫기">×</button>
+        <button class="drawer-action-btn" id="drawerBookmarkBtn" onclick="drawerToggleBookmark()" title="즐겨찾기" aria-label="용어 즐겨찾기 전환">☆</button>
+        <button class="drawer-action-btn" onclick="drawerOpenEdit()" title="편집" aria-label="용어 편집">✏️</button>
+        <button class="drawer-close-btn" onclick="closeDrawer()" title="닫기" aria-label="용어 상세 닫기">×</button>
       </div>
     </div>
     <div class="drawer-nav">
@@ -14210,8 +14259,8 @@ initApp();
         <div class="drawer-title-en" id="drugDrawerSubtitle">약물명 및 정보</div>
       </div>
       <div class="drawer-header-right">
-        <button class="drawer-action-btn" onclick="drugDrawerOpenEdit()" title="편집">✏️</button>
-        <button class="drawer-close-btn" onclick="closeDrugDrawer()" title="닫기">×</button>
+        <button class="drawer-action-btn" onclick="drugDrawerOpenEdit()" title="편집" aria-label="약물 항목 편집">✏️</button>
+        <button class="drawer-close-btn" onclick="closeDrugDrawer()" title="닫기" aria-label="약물 상세 닫기">×</button>
       </div>
     </div>
     <div class="drawer-nav">
