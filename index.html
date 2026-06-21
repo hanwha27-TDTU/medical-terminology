@@ -10716,16 +10716,24 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.74',
+  version: '3.75',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 21일 12:42',
+  updatedAt: '2026년 6월 21일 13:22',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 통계 모달 현행화',
+    title: '최신 · 학습자 중심 통계 재설계',
+    items: [
+      '통계 모달을 데이터 관리용 앱 통계에서 오늘 복습, 미완성, 즐겨찾기, 마스터 현황 중심의 학습 현황으로 재설계',
+      '복습 예정, 미완성, 오답, 완성도를 조합해 다음 학습 후보와 취약 장기계 TOP을 보여주도록 변경',
+      '약물명 및 정보와 주요 의학계산공식은 학습상태가 없는 현재 구조에 맞춰 보강 후보와 평균 완성도 중심으로 표시',
+    ]
+  },
+  {
+    title: 'v3.74 · 통계 모달 현행화',
     items: [
       '기존 일반용어 중심의 분류별 통계를 일반용어, 약물명 및 정보, 주요 의학계산공식 전체를 보여주는 앱 통계로 개편',
       '라이브러리별 활성 항목 수, 완성도, 정리 필요 항목, tombstone 보호 기록을 함께 표시해 현재 앱 구조와 맞춤',
@@ -11844,91 +11852,216 @@ function progressLineHtml(percent) {
   return `<div style="height:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;overflow:hidden"><div style="height:100%;width:${width}%;background:var(--accent);opacity:.72;border-radius:999px"></div></div>`;
 }
 
+function termNeedsCompletion(t) {
+  return termCompletionPercent(t) < 100;
+}
+
+function learningStateForTerm(term, learningMap = getLearningStateMap()) {
+  return learningMap[String(term?.id)] || {};
+}
+
+function termLearningWeight(term, learningMap = getLearningStateMap()) {
+  const state = learningStateForTerm(term, learningMap);
+  const completion = termCompletionPercent(term);
+  const wrong = Number(state.wrongCount) || 0;
+  const correct = Number(state.correctCount) || 0;
+  const due = state.dueAt && Date.parse(state.dueAt) <= Date.now();
+  const incomplete = completion < 100;
+  const newTerm = !state.studyStatus || state.studyStatus === 'new';
+  return (due ? 50 : 0) + (incomplete ? (100 - completion) : 0) + wrong * 8 - correct * 2 + (newTerm ? 8 : 0);
+}
+
+function openLearningStatsScope(scope, value = '') {
+  document.getElementById('categoryStatsModal')?.remove();
+  switchTab('search', document.querySelector('.nav-btn'));
+  if (scope === 'drugs') {
+    setLibraryMode('drugs', true);
+    renderFilterControls();
+    if (value) setDrugSystemFilter(value);
+    else applyFilters();
+    return;
+  }
+  if (scope === 'formulas') {
+    setLibraryMode('formulas', true);
+    renderFilterControls();
+    if (value) setDrugSystemFilter(value);
+    else applyFilters();
+    return;
+  }
+  setLibraryMode('terms', true);
+  renderFilterControls();
+  if (scope === 'concept') setConceptFilter(value || 'all');
+  else if (scope === 'system') setFilter(value || 'all');
+  else if (scope === 'bookmarks') setFilter('즐겨찾기');
+  else applyFilters();
+}
+
+function learnerMetricCardHtml(title, value, note, onclick = '') {
+  const action = onclick ? ` onclick="${onclick}"` : '';
+  const cursor = onclick ? 'cursor:pointer;' : '';
+  return `
+    <button type="button"${action} style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--text);${cursor}">
+      <div style="font-size:12px;color:var(--text3);font-weight:800">${title}</div>
+      <div style="margin-top:8px;font-size:22px;font-weight:850;color:var(--text)">${value}</div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55">${note}</div>
+    </button>`;
+}
+
+function learnerActionCardHtml(title, count, note, actionText, onclick = '', percent = 0) {
+  const action = onclick ? ` onclick="${onclick}"` : '';
+  const cursor = onclick ? 'cursor:pointer;' : '';
+  return `
+    <button type="button"${action} style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--text);${cursor}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-size:13px;font-weight:850;color:var(--text)">${title}</div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.55">${note}</div>
+        </div>
+        <div style="font-size:18px;font-weight:850;color:var(--text)">${count}</div>
+      </div>
+      <div style="margin-top:10px">${progressLineHtml(percent)}</div>
+      <div style="margin-top:9px;font-size:11px;font-weight:800;color:var(--accent)">${actionText}</div>
+    </button>`;
+}
 function showCategoryStats() {
   document.getElementById('categoryStatsModal')?.remove();
   const activeTerms = TERMS.filter(t => !t.deletedAt);
   const activeDrugs = getActiveDrugs();
   const activeFormulas = getActiveFormulas();
-  const total = activeTerms.length;
-  const totalAll = activeTerms.length + activeDrugs.length + activeFormulas.length;
+  const learningMap = getLearningStateMap();
+  const now = Date.now();
+  const dueTerms = activeTerms.filter(t => {
+    const dueAt = learningMap[String(t.id)]?.dueAt;
+    return dueAt && Date.parse(dueAt) <= now;
+  });
+  const learningTerms = activeTerms.filter(t => ['learning', 'review'].includes(learningMap[String(t.id)]?.studyStatus));
+  const masteredTerms = activeTerms.filter(t => learningMap[String(t.id)]?.studyStatus === 'mastered');
+  const incompleteTerms = activeTerms.filter(termNeedsCompletion);
+  const bookmarkedTerms = activeTerms.filter(t => bookmarks.has(Number(t.id)));
+  const highPriorityTerms = activeTerms
+    .map(t => ({ term: t, score: termLearningWeight(t, learningMap), completion: termCompletionPercent(t), state: learningMap[String(t.id)] || {} }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
   const rows = getCategoryStats();
   const conceptRows = getConceptStats();
-  const activeRows = rows.filter(r => r.count > 0);
-  const top = activeRows.slice().sort((a,b) => b.count - a.count)[0];
   const drugSystems = countByValues(activeDrugs, drugSystemValues);
   const formulaSystems = countByValues(activeFormulas, formulaSystemValues);
-  const combinedSystemMap = new Map();
-  rows.forEach(r => { if (r.count) combinedSystemMap.set(r.category, { system: r.category, terms: r.count, drugs: 0, formulas: 0 }); });
-  drugSystems.forEach(r => {
-    const item = combinedSystemMap.get(r.value) || { system: r.value, terms: 0, drugs: 0, formulas: 0 };
-    item.drugs += r.count;
-    combinedSystemMap.set(r.value, item);
-  });
-  formulaSystems.forEach(r => {
-    const item = combinedSystemMap.get(r.value) || { system: r.value, terms: 0, drugs: 0, formulas: 0 };
-    item.formulas += r.count;
-    combinedSystemMap.set(r.value, item);
-  });
-  const systemRows = [...combinedSystemMap.values()]
-    .map(r => ({ ...r, total: r.terms + r.drugs + r.formulas }))
-    .sort((a, b) => b.total - a.total || a.system.localeCompare(b.system));
-  const maxCount = Math.max(...systemRows.map(r => r.total), 1);
-  const avgCompletion = total
-    ? Math.round(activeTerms.reduce((sum, t) => sum + termCompletionPercent(t), 0) / total)
-    : 0;
+  const weakSystemRows = rows
+    .filter(r => r.count > 0)
+    .map(r => {
+      const terms = activeTerms.filter(t => (VALID_CATS.includes(t.category) ? t.category : '기타') === r.category);
+      const due = terms.filter(t => {
+        const dueAt = learningMap[String(t.id)]?.dueAt;
+        return dueAt && Date.parse(dueAt) <= now;
+      }).length;
+      const incomplete = terms.filter(termNeedsCompletion).length;
+      const learning = terms.filter(t => ['learning', 'review'].includes(learningMap[String(t.id)]?.studyStatus)).length;
+      const avg = averagePercent(terms, termCompletionPercent);
+      const score = due * 3 + incomplete * 2 + learning + Math.max(0, 100 - avg) / 10;
+      return { ...r, due, incomplete, learning, avg, score };
+    })
+    .sort((a, b) => b.score - a.score || b.count - a.count)
+    .slice(0, 8);
+  const maxWeakScore = Math.max(...weakSystemRows.map(r => r.score), 1);
+  const avgCompletion = averagePercent(activeTerms, termCompletionPercent);
   const drugCompletion = averagePercent(activeDrugs, drugCompletionPercent);
   const formulaCompletion = averagePercent(activeFormulas, formulaCompletionPercent);
-  const overallCompletion = totalAll
-    ? Math.round(((avgCompletion * activeTerms.length) + (drugCompletion * activeDrugs.length) + (formulaCompletion * activeFormulas.length)) / totalAll)
-    : 0;
-  const uncategorized = rows.find(r => r.category === '기타')?.count || 0;
-  const missingDrugs = activeDrugs.filter(d => drugCompletionPercent(d) < 70).length;
-  const missingFormulas = activeFormulas.filter(f => formulaCompletionPercent(f) < 70).length;
-  const tombstoneCount = loadLocalTombstones().length + loadLocalDrugTombstones().length + loadLocalFormulaTombstones().length;
-  const conceptHtml = conceptRows
-    .filter(r => r.count > 0)
-    .map(r => statPillHtml(
-      escapeHtml(conceptDisplay(r.concept)),
-      `${r.count}`,
-      `applyStatsFilter('terms','concept','${escapeJsString(r.concept)}')`
-    )).join('');
-
-  const systemHtml = systemRows.map(r => {
-    const percent = Math.round(r.total / maxCount * 100);
-    const targetMode = r.terms ? 'terms' : (r.drugs ? 'drugs' : 'formulas');
-    const detail = [
-      r.terms ? `용어 ${r.terms}` : '',
-      r.drugs ? `약물 ${r.drugs}` : '',
-      r.formulas ? `공식 ${r.formulas}` : ''
-    ].filter(Boolean).join(' · ');
+  const missingDrugs = activeDrugs.filter(d => drugCompletionPercent(d) < 80);
+  const missingFormulas = activeFormulas.filter(f => formulaCompletionPercent(f) < 80);
+  const conceptHtml = conceptRows.filter(r => r.count > 0).map(r => {
+    const conceptTerms = activeTerms.filter(t => (t.concept_category || 'Other / Unclassified') === r.concept);
+    const incomplete = conceptTerms.filter(termNeedsCompletion).length;
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-          <button onclick="applyStatsFilter('${targetMode}','system','${escapeJsString(r.system)}')" style="background:none;border:none;color:var(--text);font-size:13px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif;padding:0;text-align:left">${escapeHtml(categoryDisplay(r.system))}</button>
-          <div style="font-size:12px;color:var(--text2);font-weight:850">${r.total}개</div>
-        </div>
-        ${progressLineHtml(percent)}
-        <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.65">
-          ${escapeHtml(detail || '아직 항목 없음')}
-        </div>
-      </div>`;
+      <button type="button" onclick="openLearningStatsScope('concept','${escapeJsString(r.concept)}')" style="background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 12px;color:var(--text2);font-size:12px;font-weight:750;font-family:'Noto Sans KR',sans-serif;cursor:pointer">
+        ${escapeHtml(conceptDisplay(r.concept))} <span style="color:var(--text);font-weight:850">${r.count}</span>${incomplete ? ` <span style="color:var(--text3)">· 보강 ${incomplete}</span>` : ''}
+      </button>`;
   }).join('');
 
-  const libraryHtml = [
-    { icon: '▮', title: '일반용어', count: activeTerms.length, sub: `완성도 ${avgCompletion}% · 즐겨찾기 ${activeTerms.filter(t => bookmarks.has(Number(t.id))).length}개`, mode: 'terms' },
-    { icon: '•', title: '약물명 및 정보', count: activeDrugs.length, sub: `완성도 ${drugCompletion}% · 정리 필요 ${missingDrugs}개`, mode: 'drugs' },
-    { icon: '∑', title: '주요 의학계산공식', count: activeFormulas.length, sub: `완성도 ${formulaCompletion}% · 정리 필요 ${missingFormulas}개`, mode: 'formulas' }
-  ].map(item => `
-    <button onclick="document.getElementById('categoryStatsModal').remove();switchTab('search', document.querySelector('.nav-btn'));setLibraryMode('${item.mode}')"
-      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="font-size:13px;font-weight:850">${item.icon} ${item.title}</div>
-        <div style="font-size:16px;font-weight:850;color:var(--text)">${item.count}개</div>
-      </div>
-      <div style="margin-top:9px">${progressLineHtml(item.mode === 'terms' ? avgCompletion : item.mode === 'drugs' ? drugCompletion : formulaCompletion)}</div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text3)">${item.sub}</div>
-    </button>
-  `).join('');
+  const weakSystemHtml = weakSystemRows.map(r => {
+    const percent = Math.round(r.score / maxWeakScore * 100);
+    const note = [
+      r.due ? `복습 ${r.due}` : '',
+      r.incomplete ? `미완성 ${r.incomplete}` : '',
+      r.learning ? `학습중 ${r.learning}` : '',
+      `완성도 ${r.avg}%`
+    ].filter(Boolean).join(' · ');
+    return `
+      <button type="button" onclick="openLearningStatsScope('system','${escapeJsString(r.category)}')" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:850">${escapeHtml(categoryDisplay(r.category))}</div>
+          <div style="font-size:12px;color:var(--text2);font-weight:850">${r.count}개</div>
+        </div>
+        ${progressLineHtml(percent)}
+        <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.65">${escapeHtml(note)}</div>
+      </button>`;
+  }).join('');
+
+  const priorityHtml = highPriorityTerms.map(item => {
+    const s = item.state;
+    const status = s.studyStatus === 'mastered' ? '마스터' : s.studyStatus === 'review' ? '복습' : s.studyStatus === 'learning' ? '학습중' : '새 용어';
+    const meta = [
+      status,
+      s.dueAt && Date.parse(s.dueAt) <= now ? '오늘 복습' : '',
+      item.completion < 100 ? `완성도 ${item.completion}%` : '',
+      Number(s.wrongCount) ? `오답 ${Number(s.wrongCount)}` : ''
+    ].filter(Boolean).join(' · ');
+    return `
+      <button type="button" onclick="document.getElementById('categoryStatsModal').remove();openTermDrawer(${Number(item.term.id)})" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
+        <div style="font-size:13px;font-weight:850">${escapeHtml(item.term.ko || item.term.en || '이름 없음')}</div>
+        <div style="margin-top:5px;font-size:11px;color:var(--text3);line-height:1.55">${escapeHtml(item.term.en || item.term.uz || '')}</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text2)">${escapeHtml(meta || '학습 후보')}</div>
+      </button>`;
+  }).join('');
+
+  const libraryStudyHtml = [
+    {
+      title: '일반용어',
+      count: `${activeTerms.length}개`,
+      note: `오늘 복습 ${dueTerms.length} · 미완성 ${incompleteTerms.length} · 마스터 ${masteredTerms.length}`,
+      action: dueTerms.length ? '오늘 복습 확인' : '일반용어 보기',
+      onclick: dueTerms.length ? "openLearningStatsScope('terms'); showToast('퀴즈 탭에서 복습 예정 범위를 선택하면 바로 이어서 학습할 수 있습니다')" : "openLearningStatsScope('terms')",
+      percent: avgCompletion
+    },
+    {
+      title: '약물명 및 정보',
+      count: `${activeDrugs.length}개`,
+      note: `보강 후보 ${missingDrugs.length} · 평균 완성도 ${drugCompletion}%`,
+      action: missingDrugs.length ? '약물 보강하기' : '약물 보기',
+      onclick: "openLearningStatsScope('drugs')",
+      percent: drugCompletion
+    },
+    {
+      title: '주요 의학계산공식',
+      count: `${activeFormulas.length}개`,
+      note: `보강 후보 ${missingFormulas.length} · 평균 완성도 ${formulaCompletion}%`,
+      action: missingFormulas.length ? '공식 보강하기' : '공식 보기',
+      onclick: "openLearningStatsScope('formulas')",
+      percent: formulaCompletion
+    }
+  ].map(item => learnerActionCardHtml(item.title, item.count, item.note, item.action, item.onclick, item.percent)).join('');
+
+  const topDrugHtml = drugSystems.slice(0, 8).map(r => statPillHtml(
+    escapeHtml(drugSystemDisplay(r.value)),
+    `${r.count}`,
+    `openLearningStatsScope('drugs','${escapeJsString(r.value)}')`
+  )).join('');
+  const topFormulaHtml = formulaSystems.slice(0, 8).map(r => statPillHtml(
+    escapeHtml(categoryDisplay(r.value)),
+    `${r.count}`,
+    `openLearningStatsScope('formulas','${escapeJsString(r.value)}')`
+  )).join('');
+
+  const learningProgressPercent = activeTerms.length ? Math.round((masteredTerms.length / activeTerms.length) * 100) : 0;
+  const recommendation = dueTerms.length
+    ? `오늘은 복습 예정 용어 ${dueTerms.length}개를 먼저 확인하는 것이 좋습니다.`
+    : incompleteTerms.length
+      ? `오늘은 미완성 용어 ${incompleteTerms.length}개를 보강하면 학습 효율이 좋습니다.`
+      : missingDrugs.length
+        ? `약물명 및 정보에서 보강 후보 ${missingDrugs.length}개를 정리하면 좋습니다.`
+        : missingFormulas.length
+          ? `주요 의학계산공식 ${missingFormulas.length}개를 보강하면 암기 카드가 더 좋아집니다.`
+          : '현재 기준으로는 전반적으로 잘 정리되어 있습니다. 퀴즈로 유지 점검을 이어가면 좋습니다.';
 
   const overlay = document.createElement('div');
   overlay.id = 'categoryStatsModal';
@@ -11937,33 +12070,43 @@ function showCategoryStats() {
     <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="categoryStatsTitle">
       <div class="developer-modal-head">
         <div>
-          <div id="categoryStatsTitle" style="font-size:18px;font-weight:850;color:var(--text)">📊 앱 통계</div>
-          <div style="margin-top:5px;color:var(--text3);font-size:11px">일반용어, 약물명 및 정보, 주요 의학계산공식을 현재 구조 기준으로 봅니다.</div>
+          <div id="categoryStatsTitle" style="font-size:18px;font-weight:850;color:var(--text)">📊 학습 현황</div>
+          <div style="margin-top:5px;color:var(--text3);font-size:11px">오늘 무엇을 복습하고, 어디를 보강할지 빠르게 정합니다.</div>
         </div>
         <button onclick="document.getElementById('categoryStatsModal').remove()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
-      <div class="developer-grid">
-        <div class="developer-field"><div class="developer-field-label">전체 활성 항목</div><div class="developer-field-value">${totalAll}개</div></div>
-        <div class="developer-field"><div class="developer-field-label">라이브러리 구성</div><div class="developer-field-value">용어 ${activeTerms.length} · 약물 ${activeDrugs.length} · 공식 ${activeFormulas.length}</div></div>
-        <div class="developer-field"><div class="developer-field-label">평균 완성도</div><div class="developer-field-value">${overallCompletion}%</div></div>
-        <div class="developer-field"><div class="developer-field-label">정리 필요</div><div class="developer-field-value">기타 ${uncategorized} · 약물 ${missingDrugs} · 공식 ${missingFormulas}</div></div>
-        <div class="developer-field"><div class="developer-field-label">최다 일반용어 장기계</div><div class="developer-field-value">${top ? `${escapeHtml(categoryDisplay(top.category))} · ${top.count}개` : '아직 없음'}</div></div>
-        <div class="developer-field"><div class="developer-field-label">동기화 보호 기록</div><div class="developer-field-value">tombstone ${tombstoneCount}개</div></div>
+      <div style="padding:14px 20px 0">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;color:var(--text);font-size:13px;line-height:1.7">
+          <div style="font-weight:850;margin-bottom:4px">오늘의 추천</div>
+          <div style="color:var(--text2)">${escapeHtml(recommendation)}</div>
+        </div>
       </div>
-      <div style="padding:14px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-        ${libraryHtml}
+      <div style="padding:14px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+        ${learnerMetricCardHtml('오늘 복습', `${dueTerms.length}개`, '복습 시점이 지난 일반용어', "openLearningStatsScope('terms'); showToast('퀴즈 탭에서 복습 예정 범위를 선택하면 바로 이어서 학습할 수 있습니다')")}
+        ${learnerMetricCardHtml('미완성 용어', `${incompleteTerms.length}개`, '정의, USMLE, IPA 등 핵심칸이 비어 있는 항목', "openLearningStatsScope('terms')")}
+        ${learnerMetricCardHtml('즐겨찾기', `${bookmarkedTerms.length}개`, '시험 전 빠르게 다시 볼 개인 중요 항목', "openLearningStatsScope('bookmarks')")}
+        ${learnerMetricCardHtml('마스터', `${masteredTerms.length}개`, `전체 일반용어의 ${learningProgressPercent}%`, "openLearningStatsScope('terms')")}
       </div>
-      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">
-        개념분류
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">다음 학습 후보</div>
+      <div style="padding:10px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">
+        ${priorityHtml || '<div style="color:var(--text3);font-size:12px">현재 우선 복습 후보가 없습니다.</div>'}
       </div>
-      <div style="padding:12px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">라이브러리별 학습 진행</div>
+      <div style="padding:10px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        ${libraryStudyHtml}
+      </div>
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">취약 장기계 TOP</div>
+      <div style="padding:10px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        ${weakSystemHtml || '<div style="color:var(--text3);font-size:12px">아직 취약 장기계 통계가 없습니다.</div>'}
+      </div>
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">개념분류 바로가기</div>
+      <div style="padding:10px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
         ${conceptHtml || '<span style="color:var(--text3);font-size:12px">아직 개념분류 통계가 없습니다.</span>'}
       </div>
-      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">
-        장기계 · 시스템 분포
-      </div>
-      <div style="padding:14px 20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-        ${systemHtml || '<div style="color:var(--text3);font-size:12px">아직 통계를 낼 항목이 없습니다.</div>'}
+      <div style="padding:16px 20px 0;color:var(--text2);font-size:12px;font-weight:850">약물 · 공식 보강 바로가기</div>
+      <div style="padding:10px 20px 22px;display:flex;flex-wrap:wrap;gap:8px">
+        ${topDrugHtml || '<span style="color:var(--text3);font-size:12px">약물 시스템 통계 없음</span>'}
+        ${topFormulaHtml || ''}
       </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
