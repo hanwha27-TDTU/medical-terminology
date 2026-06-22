@@ -2090,7 +2090,8 @@ document.addEventListener('keydown', e => {
   }
 
   .medical-symbol-helper {
-    margin: 10px 0 12px;
+    margin: 8px 0 10px;
+    position: relative;
   }
 
   .medical-symbol-helper summary span {
@@ -2098,7 +2099,7 @@ document.addEventListener('keydown', e => {
   }
 
   .medical-symbol-panel {
-    max-height: 260px;
+    max-height: min(260px, 38vh);
     overflow-y: auto;
   }
 
@@ -2111,6 +2112,25 @@ document.addEventListener('keydown', e => {
     color: var(--text3);
     font-size: 10px;
     line-height: 1.55;
+  }
+
+  @media (min-width: 1024px) {
+    html.windows-env .medical-symbol-helper[open] {
+      z-index: 1200;
+    }
+
+    html.windows-env .medical-symbol-helper[open] .medical-symbol-panel {
+      position: fixed;
+      top: var(--symbol-panel-top, 96px);
+      left: var(--symbol-panel-left, auto);
+      width: clamp(360px, 30vw, 520px);
+      max-height: min(560px, calc(100vh - var(--symbol-panel-top, 96px) - 24px));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      box-shadow: -8px 18px 40px rgba(0,0,0,0.28);
+      padding: 12px;
+    }
   }
 
   .add-modal-card {
@@ -6265,7 +6285,6 @@ function openDrugEditModal(e, id) {
         <button onclick="document.getElementById('drugEditModal').remove()" title="닫기" aria-label="약물 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:16px 20px 22px">
-        ${medicalSymbolInputHelperHtml()}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE 계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" placeholder="예: IL-4Rα antagonist" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(영어)</label><input id="drug_edit_generic" value="${esc(d.generic_name)}" placeholder="예: dupilumab" style="${IS}"></div>
@@ -6288,6 +6307,7 @@ function openDrugEditModal(e, id) {
           <div id="drugApiPreview_edit" class="drug-api-preview"></div>
           <textarea id="drug_edit_api_refs" style="display:none"></textarea>
         </div>
+        ${medicalSymbolInputHelperHtml()}
         ${drugDetailFields().map(([label, key]) => `
           <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">${label}</label>
           <textarea id="drug_edit_${key}" rows="3" style="${TA}">${esc(d[key])}</textarea>
@@ -6380,6 +6400,11 @@ function insertTextIntoTextarea(id, rawText) {
 
 let lastMedicalSymbolTarget = null;
 
+(function markWindowsEnvironment() {
+  const ua = `${navigator.userAgent || ''} ${navigator.platform || ''}`;
+  document.documentElement.classList.toggle('windows-env', /Windows/i.test(ua));
+})();
+
 const MEDICAL_SYMBOL_GROUPS = [
   { title: '로마 숫자 · 뇌신경', chips: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'] },
   { title: 'Greek · 수용체/면역', chips: ['α', 'β', 'γ', 'δ', 'Δ', 'ε', 'θ', 'λ', 'μ', 'κ', 'π', 'ρ', 'σ', 'τ', 'φ', 'χ', 'ψ', 'Ω'] },
@@ -6398,6 +6423,29 @@ function isMedicalSymbolTextTarget(el) {
 document.addEventListener('focusin', event => {
   if (isMedicalSymbolTextTarget(event.target)) lastMedicalSymbolTarget = event.target;
 });
+
+function positionMedicalSymbolPanel(detailsEl) {
+  if (!detailsEl || !document.documentElement.classList.contains('windows-env') || window.innerWidth < 1024) return;
+  const summary = detailsEl.querySelector('summary');
+  if (!summary) return;
+  const rect = summary.getBoundingClientRect();
+  const panelWidth = Math.min(Math.max(360, window.innerWidth * 0.30), 520);
+  const gap = 12;
+  let left = rect.right + gap;
+  if (left + panelWidth + 16 > window.innerWidth) {
+    left = Math.max(16, window.innerWidth - panelWidth - 16);
+  }
+  const top = Math.max(16, Math.min(rect.top, window.innerHeight - 160));
+  detailsEl.style.setProperty('--symbol-panel-left', `${Math.round(left)}px`);
+  detailsEl.style.setProperty('--symbol-panel-top', `${Math.round(top)}px`);
+}
+
+function repositionOpenMedicalSymbolPanels() {
+  document.querySelectorAll('.medical-symbol-helper[open]').forEach(positionMedicalSymbolPanel);
+}
+
+window.addEventListener('resize', repositionOpenMedicalSymbolPanels);
+document.addEventListener('scroll', repositionOpenMedicalSymbolPanels, true);
 
 function insertMedicalSymbol(symbol) {
   const active = isMedicalSymbolTextTarget(document.activeElement)
@@ -6430,7 +6478,7 @@ function medicalSymbolInputHelperHtml() {
       </div>
     </div>`).join('');
   return `
-    <details class="formula-input-helper medical-symbol-helper">
+    <details class="formula-input-helper medical-symbol-helper" ontoggle="if(this.open) positionMedicalSymbolPanel(this)">
       <summary>특수문자 입력기 <span style="font-weight:600;color:var(--text3)">현재 커서 위치에 삽입</span></summary>
       <div class="formula-input-panel medical-symbol-panel">
         <div class="medical-symbol-note">입력할 칸을 먼저 클릭한 뒤 필요한 문자를 누르세요. 용어, 약물명 및 정보, 주요 의학계산공식 입력칸에서 공통으로 사용할 수 있습니다.</div>
@@ -6727,9 +6775,9 @@ function formulaFormFieldsHtml(prefix, f = {}, IS = inputStyle(), TA = inputStyl
       <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">공식 분야</label><input id="${prefix}_category" value="${escVal(f.category || 'Acid-base')}" placeholder="Acid-base" style="${IS}"></div>
       <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">관련 장기계</label><select id="${prefix}_system" style="${IS}">${['General', ...VALID_CATS.filter(c => c !== 'General')].map(c => `<option value="${escapeHtml(c)}" ${(f.system || 'General') === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}</select></div>
     </div>
-    ${includeSymbolHelper ? medicalSymbolInputHelperHtml() : ''}
     <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">계산식</label>
     <textarea id="${prefix}_formula" rows="2" placeholder="예: Na - (Cl + HCO3)" style="${TA}" oninput="updateFormulaPreview('${escapeJsString(prefix)}')">${escVal(f.formula)}</textarea>
+    ${includeSymbolHelper ? medicalSymbolInputHelperHtml() : ''}
     ${formulaInputHelperHtml(prefix, f.formula || '')}
     <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">언제 쓰는가</label>
     <textarea id="${prefix}_use" rows="2" placeholder="예: 대사성 산증 감별" style="${TA}">${escVal(f.use_case)}</textarea>
@@ -8380,7 +8428,6 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <button id="addKind_formula" class="add-kind-btn" onclick="switchAddKind('formula')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">∑ 주요 의학계산공식</button>
           </div>
         </div>
-        ${medicalSymbolInputHelperHtml()}
         <div id="termAddFields">
 
       <!-- Required fields -->
@@ -8452,6 +8499,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
               <button type="button" class="text-insert-btn" onclick="openUsmleTableEditor('add_usmle','dxTx')">진단/조치표</button>
             </div>
             <textarea id="add_usmle" placeholder="비워두면 AI가 생성합니다" rows="6" style="${inputStyle(true)}"></textarea>
+            ${medicalSymbolInputHelperHtml()}
           </div>
         </div>
       </div>
@@ -8550,6 +8598,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:10px">약물명 및 정보 본문</div>
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">① 핵심 공식 / 병태생리 인과사슬</label>
             <textarea id="add_drug_causal_chain" rows="2" placeholder="Dupilumab = IL-4Rα blockade → ↓ IL-4/IL-13 signaling → ..." style="${inputStyle(true)}"></textarea>
+            ${medicalSymbolInputHelperHtml()}
             <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">정의 한국어</label>
             <textarea id="add_drug_def_ko" rows="2" placeholder="한국어 정의" style="${inputStyle(true)}"></textarea>
             <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">Definition English</label>
@@ -8577,7 +8626,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           <div class="add-section-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
             <div class="add-section-title" style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:4px">∑ 주요 의학계산공식</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:12px">공식명, 계산식, 암기 포인트, 예시 계산을 카드로 저장합니다.</div>
-            ${formulaFormFieldsHtml('add_formula', {}, inputStyle(), inputStyle(true), false)}
+            ${formulaFormFieldsHtml('add_formula', {}, inputStyle(), inputStyle(true), true)}
           </div>
         </div><!-- /formulaAddFields -->
 
@@ -9190,7 +9239,6 @@ function openEditModal(e, id) {
   modal.style.cssText = `position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:flex-start;justify-content:center;z-index:500;overflow-y:auto;padding:16px;backdrop-filter:blur(6px);`;
   modal.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:480px;margin:auto">
-      ${medicalSymbolInputHelperHtml()}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div style="font-family:'Noto Serif KR',serif;font-size:15px;color:var(--text)">✏️ 용어 편집</div>
         <button onclick="document.getElementById('editModal').remove()" title="닫기" aria-label="용어 편집창 닫기" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
@@ -9232,6 +9280,7 @@ function openEditModal(e, id) {
         <button type="button" class="text-insert-btn" onclick="openUsmleTableEditor('edit_usmle','dxTx')">진단/조치표</button>
       </div>
       <div style="${ROW}"><textarea id="edit_usmle" rows="6" placeholder="↑X, ↓Y | Tx: Z | Trap: W" style="${TA}">${esc(t.usmle)}</textarea><button style="${RB};margin-top:2px" onclick="regenField(${id},'usmle')" title="AI 재생성">🔄</button></div>
+      ${medicalSymbolInputHelperHtml()}
 
       <div class="edit-modal-actions">
         <button class="edit-action-btn save" onclick="saveEdit(${id})">저장</button>
@@ -11156,16 +11205,32 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.83',
+  version: '3.85',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 08:55',
+  updatedAt: '2026년 6월 22일 09:07',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 특수문자입력기방어보강',
+    title: '최신 · Windows입력기우측펼침',
+    items: [
+      'Windows 환경의 넓은 화면에서는 특수문자 입력기가 아래 입력칸을 밀지 않고 오른쪽 플로팅 패널로 열리도록 조정',
+      '모바일과 좁은 화면은 기존처럼 아래 접힘 방식을 유지해 터치 환경의 사용성을 보존',
+      '창 크기 변경과 모달 스크롤 중에도 열린 입력기 패널 위치를 다시 계산하도록 보강',
+    ]
+  },
+  {
+    title: 'v3.84 · 특수문자입력기배치개선',
+    items: [
+      '용어 추가와 편집 화면의 특수문자 입력기를 상단 고정 배치에서 USMLE High-Yield 입력칸 근처로 옮겨 필수 입력 영역을 가리지 않도록 조정',
+      '약물명 및 정보와 주요 의학계산공식 입력 화면에도 각 긴 입력 섹션 근처에 접힌 특수문자 입력기를 배치해 필요한 순간에만 펼치도록 정리',
+      '입력기 펼침 영역의 최대 높이를 줄여 열어둔 상태에서도 아래 입력 흐름을 덜 밀어내도록 보강',
+    ]
+  },
+  {
+    title: 'v3.83 · 특수문자입력기방어보강',
     items: [
       '특수문자 입력기 대상에서 number input을 제외해 향후 숫자 전용 입력칸에서 비숫자 삽입과 selection 예외가 생기지 않도록 보강',
       '닫힌 모달처럼 문서에서 분리된 입력칸을 마지막 대상이 아닌 것으로 처리하고, 커서 복원은 예외를 흡수하도록 방어',
