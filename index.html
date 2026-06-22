@@ -5885,6 +5885,44 @@ let currentSort = 'default'; // 'default' | 'en_asc' | 'ko_asc' | 'uz_asc'
 let _idCounter = Date.now() * 1000;
 function makeId() { return nextTermId(); }
 let aiStopRequested = false; // AI 중지 플래그
+
+// 기존 inline onclick 호환을 위해 전역 배열은 유지하되, 새 코드와 점검 도구는 AppState를 우선 사용합니다.
+// 대규모 IIFE/모듈 전환은 저장·동기화·복원 경로 회귀 위험이 커서 단계적으로 진행합니다.
+const AppState = Object.freeze({
+  get terms() { return TERMS; },
+  get drugs() { return DRUGS; },
+  get formulas() { return FORMULAS; },
+  get microbes() { return MICROBES; },
+  get bookmarks() { return bookmarks; },
+  get libraryMode() { return currentLibraryMode; },
+  set libraryMode(value) { currentLibraryMode = value; },
+  get filters() {
+    return {
+      category: currentFilter,
+      concept: currentConceptFilter,
+      class: currentDrugClassFilter,
+      system: currentDrugSystemFilter,
+      sort: currentSort,
+    };
+  },
+  get drawer() {
+    return {
+      termId: _drawerTermId,
+      index: _drawerTermList.findIndex(x => x.id === _drawerTermId),
+      total: _drawerTermList.length,
+    };
+  },
+  get counts() {
+    return {
+      terms: TERMS.filter(t => !t.deletedAt).length,
+      microbes: MICROBES.filter(m => !m.deletedAt).length,
+      drugs: DRUGS.filter(d => !d.deletedAt).length,
+      formulas: FORMULAS.filter(f => !f.deletedAt).length,
+    };
+  },
+});
+window.AppState = AppState;
+
 const CONCEPT_CATEGORIES = ['Anatomy','Physiology','Symptoms & Signs','Diseases','Diagnostics',
   'Procedures','Pharmacology','Pathology','Microbiology','Biochemistry & Genetics',
   'Public Health','Other / Unclassified'];
@@ -5928,6 +5966,18 @@ const CONCEPT_META = {
   'Public Health': { icon: '📈', label: 'Public Health' },
   'Other / Unclassified': { icon: '📁', label: 'Other' },
 };
+
+// 필터 UI는 아직 기존 안정 렌더링을 유지합니다. 새 필터/도메인은 이 레지스트리에 먼저 추가한 뒤 렌더링을 연결합니다.
+const FilterRegistry = Object.freeze({
+  concepts: CONCEPT_CATEGORIES.map(value => ({ value, ...(CONCEPT_META[value] || { icon: '📁', label: value }) })),
+  systems: VALID_CATS.map(value => ({ value, ...(CATEGORY_META[value] || { icon: '📁', label: value }) })),
+  formulaCategories: FORMULA_CATEGORIES.map(value => ({ value, label: value })),
+  meta: Object.freeze({
+    category: CATEGORY_META,
+    concept: CONCEPT_META,
+  }),
+});
+window.FilterRegistry = FilterRegistry;
 
 let bookmarks = new Set((safeJsonParse(localStorage.getItem('kma_bookmarks'), []) || []).map(Number).filter(Number.isFinite));
 let expandedId = null;
@@ -12184,14 +12234,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.93',
+  version: '3.94',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 19:05',
+  updatedAt: '2026년 6월 22일 19:13',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 상태관리 기반 보강',
+    items: [
+      '기존 전역 상태를 즉시 숨기지 않고 AppState 읽기/접근 레이어를 추가해 향후 새 기능이 한 경로로 상태를 참조하도록 준비',
+      '카테고리·장기계·개념분류 메타를 FilterRegistry로 묶어 다음 필터 확장 시 하드코딩을 줄일 수 있는 기반 마련',
+      'inline onclick 기반 기존 구조는 유지해 저장, 복원, 동기화 경로의 회귀 위험을 피함',
+    ]
+  },
   {
     title: '최신 · 전체 JSON 복원 최종저장 자동화',
     items: [
