@@ -8979,16 +8979,12 @@ function updateAddKeyHint() {
   const el = document.getElementById('addKeyHint');
   if (!el) return;
   el.style.fontWeight = '400';
-  if (isClaudeAiEnv()) {
-    el.innerHTML = '✨ claude.ai 환경 — API 키 없이 AI 자동완성 사용 가능';
-    el.style.color = 'var(--accent2)';
-    return;
-  }
   const cfg = getAIConfig();
   const hasKey = hasConfiguredAIKey(cfg);
   el.innerHTML = hasKey
     ? '🤖 AI 자동완성 활성화됨 ✅'
     : '⚠️ API 키 없음 — 기본 저장만 됩니다. <a onclick="showAISettings()" style="color:var(--accent);cursor:pointer;text-decoration:underline">설정에서 키 등록</a>';
+  el.style.color = hasKey ? 'var(--accent2)' : 'var(--text3)';
 }
 
 let addFormNoticeTimer = null;
@@ -9096,13 +9092,13 @@ async function submitAddTerm() {
     refs: [], icd11: null, fdaDrug: null, rxclassATC: null, trials: null,
   };
 
-  // claude.ai 환경이거나 API 키 있으면 AI 자동완성
-  const canUseAI = isClaudeAiEnv() || hasKey;
+  // API 키가 실제로 있을 때만 AI 자동완성. 키가 없으면 지연 없이 기본 저장한다.
+  const canUseAI = hasKey;
   if (!canUseAI) {
     TERMS.push(normalizeTermForStorage(newTerm));
     saveTermsToLocalStorage();
     saveTermToCloud(TERMS[TERMS.length - 1]);
-    showToast(`✅ "${ko || en || uz}" 저장됨 (🤖 설정에서 키 등록 시 자동완성 가능)`);
+    showToast(`✅ "${ko || en || uz}" 기본 저장 완료 · API 키 등록 시 AI 자동완성 가능`);
     finishAddFlow(TERMS[TERMS.length - 1].id);
     return;
   }
@@ -9259,7 +9255,7 @@ async function submitAddDrug() {
   const btn = document.getElementById('addSubmitBtn');
   const idleText = '💊 약물명 및 정보로 저장';
   const wantsAI = document.getElementById('add_drug_ai_enrich')?.checked !== false;
-  const canUseAI = wantsAI && (isClaudeAiEnv() || hasConfiguredAIKey());
+  const canUseAI = wantsAI && hasConfiguredAIKey();
   if (canUseAI) {
     if (btn) { btn.disabled = true; btn.textContent = '🤖 약물 카드 생성 중...'; }
     const enriched = await enrichDrugWithAI(drugInput);
@@ -11275,16 +11271,24 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.88',
+  version: '3.89',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 09:29',
+  updatedAt: '2026년 6월 22일 09:42',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 모바일태블릿입력기점검보강',
+    title: '최신 · AI키기준추가속도보강',
+    items: [
+      '용어 추가 화면의 AI 자동완성 상태 문구를 실제 OpenAI/Anthropic/Gemini API 키가 있을 때만 활성화됨으로 표시하도록 정리',
+      'API 키가 없을 때는 claude.ai 환경 추정이나 AI 자동완성 시도를 건너뛰고 사용자가 입력한 값만 즉시 기본 저장하도록 보강',
+      '약물명 및 정보 추가에서도 AI 보강 체크가 켜져 있어도 API 키가 없으면 기다리지 않고 수동 입력값으로 저장되도록 맞춤',
+    ]
+  },
+  {
+    title: 'v3.88 · 모바일태블릿입력기점검보강',
     items: [
       '모바일 390px, 태블릿 768px/1024px, 데스크톱 1366px 폭에서 추가 모달, 특수문자 입력기, 상세 서랍의 수평 스크롤 여부를 재점검',
       '모바일·태블릿에서 특수문자 입력기를 펼쳤을 때 열린 패널이 화면 아래로 걸치면 자동으로 가까운 위치까지 스크롤되도록 보강',
