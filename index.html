@@ -2983,7 +2983,8 @@ document.addEventListener('keydown', e => {
     top: 0;
     right: 0;
     height: 100%;
-    width: min(480px, 92vw);
+    width: clamp(520px, 42vw, 900px);
+    max-width: 94vw;
     background: var(--surface);
     border-left: 1px solid var(--border);
     z-index: 401;
@@ -2993,6 +2994,16 @@ document.addEventListener('keydown', e => {
     transition: transform 0.32s cubic-bezier(0.32,0,0,1);
     box-shadow: -8px 0 40px rgba(0,0,0,0.45);
     overflow: hidden;
+  }
+  @media (min-width: 1600px) {
+    .term-drawer {
+      width: clamp(680px, 43vw, 960px);
+    }
+  }
+  @media (max-width: 900px) {
+    .term-drawer {
+      width: min(560px, 94vw);
+    }
   }
   .term-drawer.open {
     transform: translateX(0);
@@ -11056,16 +11067,23 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.80',
+  version: '3.81',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 08:02',
+  updatedAt: '2026년 6월 22일 08:30',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 약물공식Tombstone시간보정',
+    title: '최신 · 우측상세카드반응형확장',
+    items: [
+      '데스크톱과 넓은 Windows 화면에서 우측 상세 카드가 화면 폭에 비례해 더 넓게 열리도록 조정',
+      '모바일은 기존 하단 시트 방식을 유지하고 태블릿 폭에서는 과도하게 넓어지지 않도록 별도 폭 제한을 적용',
+    ]
+  },
+  {
+    title: 'v3.80 · 약물공식Tombstone시간보정',
     items: [
       '약물명 및 정보와 주요 의학계산공식 tombstone 정규화도 용어와 동일하게 deletedAt 기반 updatedAt 폴백을 적용',
       '외부/구버전 백업 복원 시 updatedAt이 빠진 삭제 기록이 현재 시각으로 승격되어 동기화 판단을 흐리는 위험을 줄임',
