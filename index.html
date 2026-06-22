@@ -3618,6 +3618,7 @@ document.addEventListener('keydown', e => {
     <button id="libraryModeTermsBtn" class="library-mode-btn active" role="tab" aria-selected="true" onclick="setLibraryMode('terms')">📘 일반용어</button>
     <button id="libraryModeDrugsBtn" class="library-mode-btn drug" role="tab" aria-selected="false" onclick="setLibraryMode('drugs')">💊 약물명 및 정보</button>
     <button id="libraryModeFormulasBtn" class="library-mode-btn formula" role="tab" aria-selected="false" onclick="setLibraryMode('formulas')">∑ 주요 의학계산공식</button>
+    <button id="libraryModeMicrobesBtn" class="library-mode-btn microbe" role="tab" aria-selected="false" onclick="setLibraryMode('microbes')">🧫 미생물</button>
   </div>
   <div class="library-mode-hint" id="libraryModeHint">일반 의학용어를 개념분류와 대표 장기계로 봅니다.</div>
 </div>
@@ -3699,6 +3700,7 @@ document.addEventListener('keydown', e => {
   <div id="termList"></div>
   <div id="drugFrame"></div>
   <div id="formulaFrame"></div>
+  <div id="microbeFrame"></div>
   <div id="emptyState" class="empty-state" style="display:none">
     <div class="icon">📂</div>
     <h3>용어 데이터가 없습니다</h3>
@@ -3731,12 +3733,15 @@ document.addEventListener('keydown', e => {
 const TERMS = [];
 const DRUGS = [];
 const FORMULAS = [];
+const MICROBES = [];
 const TERMS_STORAGE_KEY = 'kma_medical_terms_v2_terms';
 const TERMS_STORAGE_META_KEY = 'kma_medical_terms_v2_meta';
 const DRUGS_STORAGE_KEY = 'kma_medical_terms_v2_drugs';
 const DRUGS_STORAGE_META_KEY = 'kma_medical_terms_v2_drugs_meta';
 const FORMULAS_STORAGE_KEY = 'kma_medical_terms_v2_formulas';
 const FORMULAS_STORAGE_META_KEY = 'kma_medical_terms_v2_formulas_meta';
+const MICROBES_STORAGE_KEY = 'kma_medical_terms_v2_microbes';
+const MICROBES_STORAGE_META_KEY = 'kma_medical_terms_v2_microbes_meta';
 const AI_CONFIG_STORAGE_KEY = 'kma_medical_terms_v2_ai_config';
 const SUPABASE_CONFIG_KEY = 'kma_supabase_config';
 const SYNC_META_STORAGE_KEY = 'kma_medical_terms_v2_sync_meta';
@@ -3744,6 +3749,7 @@ const LEARNING_STORAGE_KEY = 'kma_medical_terms_v2_learning';
 const TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_tombstones';
 const DRUG_TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_drug_tombstones';
 const FORMULA_TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_formula_tombstones';
+const MICROBE_TOMBSTONE_STORAGE_KEY = 'kma_medical_terms_v2_microbe_tombstones';
 const DEVICE_ID_STORAGE_KEY = 'kma_medical_terms_v2_device_id';
 const LOCAL_CACHE_DB_NAME = 'kma_medical_terms_v2_indexed_cache';
 const LOCAL_CACHE_STORE = 'kv';
@@ -3752,6 +3758,7 @@ const SYNC_META_TABLE = 'language_sync_meta';
 const LEARNING_TABLE = 'medical_term_learning_state';
 const DRUGS_TABLE = 'medical_drugs';
 const FORMULAS_TABLE = 'medical_formulas';
+const MICROBES_TABLE = 'medical_microbes';
 const CANONICAL_META_KEY = 'medical_terms_canonical_version';
 const DRUG_CANONICAL_META_KEY = 'medical_drugs_canonical_version';
 const CANONICAL_REVISION_META_KEY = 'medical_terms_canonical_revision';
@@ -3770,6 +3777,11 @@ const FORMULA_CANONICAL_ACTIVE_COUNT_META_KEY = 'medical_formulas_canonical_acti
 const FORMULA_CANONICAL_DELETED_COUNT_META_KEY = 'medical_formulas_canonical_deleted_count';
 const FORMULA_CANONICAL_RECORD_IDS_HASH_META_KEY = 'medical_formulas_canonical_record_ids_hash';
 const FORMULA_CANONICAL_SNAPSHOT_HASH_META_KEY = 'medical_formulas_canonical_snapshot_hash';
+const MICROBE_CANONICAL_META_KEY = 'medical_microbes_canonical_version';
+const MICROBE_CANONICAL_ACTIVE_COUNT_META_KEY = 'medical_microbes_canonical_active_count';
+const MICROBE_CANONICAL_DELETED_COUNT_META_KEY = 'medical_microbes_canonical_deleted_count';
+const MICROBE_CANONICAL_RECORD_IDS_HASH_META_KEY = 'medical_microbes_canonical_record_ids_hash';
+const MICROBE_CANONICAL_SNAPSHOT_HASH_META_KEY = 'medical_microbes_canonical_snapshot_hash';
 const TOMBSTONE_PRUNE_DAYS = 90;
 
 function safeSetItem(key, value, options = {}) {
@@ -3790,6 +3802,7 @@ let _localCacheWarned = false;
 let _localTombstonesCache = null;
 let _localDrugTombstonesCache = null;
 let _localFormulaTombstonesCache = null;
+let _localMicrobeTombstonesCache = null;
 let _learningStateCache = null;
 let _localCacheBackend = 'localStorage';
 
@@ -4086,6 +4099,47 @@ function computeFormulaSnapshotHash(formulas) {
   return simpleHashText(JSON.stringify(canonicalFormulaHashPayload(formulas)));
 }
 
+
+function canonicalMicrobeHashPayload(microbes) {
+  return dedupeMicrobesById(microbes)
+    .filter(m => !m.deletedAt)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }))
+    .map(m => stableForHash({
+      id: String(m.id),
+      organism: m.organism || '',
+      ko_name: m.ko_name || '',
+      latin_name: m.latin_name || '',
+      microbe_type: m.microbe_type || '',
+      gram_stain: m.gram_stain || '',
+      shape: m.shape || '',
+      oxygen: m.oxygen || '',
+      genome: m.genome || '',
+      virulence: m.virulence || '',
+      diseases: m.diseases || '',
+      diagnosis: m.diagnosis || '',
+      treatment: m.treatment || '',
+      prevention: m.prevention || '',
+      usmle_clues: m.usmle_clues || '',
+      memory_line: m.memory_line || '',
+      category: m.category || '',
+      system_tags: Array.isArray(m.system_tags) ? m.system_tags : [],
+      createdAt: m.createdAt || '',
+      updatedAt: m.updatedAt || '',
+    }));
+}
+
+function computeMicrobeRecordIdsHash(microbes) {
+  const ids = dedupeMicrobesById(microbes)
+    .filter(m => !m.deletedAt)
+    .map(m => String(m.id))
+    .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  return simpleHashText(ids.join('|'));
+}
+
+function computeMicrobeSnapshotHash(microbes) {
+  return simpleHashText(JSON.stringify(canonicalMicrobeHashPayload(microbes)));
+}
+
 function getLocalSyncMeta() {
   return safeJsonParse(localStorage.getItem(SYNC_META_STORAGE_KEY), {}) || {};
 }
@@ -4295,6 +4349,62 @@ function rowToFormula(r) {
   });
 }
 
+
+function microbeToRow(m) {
+  const now = new Date().toISOString();
+  return {
+    id: Number(m.id),
+    organism: m.organism || '',
+    ko_name: m.ko_name || '',
+    latin_name: m.latin_name || '',
+    microbe_type: m.microbe_type || '',
+    gram_stain: m.gram_stain || '',
+    shape: m.shape || '',
+    oxygen: m.oxygen || '',
+    genome: m.genome || '',
+    virulence: m.virulence || '',
+    diseases: m.diseases || '',
+    diagnosis: m.diagnosis || '',
+    treatment: m.treatment || '',
+    prevention: m.prevention || '',
+    usmle_clues: m.usmle_clues || '',
+    memory_line: m.memory_line || '',
+    category: m.category || 'Infectious Disease',
+    system_tags: Array.isArray(m.system_tags) ? m.system_tags : [],
+    refs: Array.isArray(m.refs) ? m.refs : [],
+    created_at: m.createdAt || m.updatedAt || now,
+    updated_at: m.updatedAt || now,
+    deleted_at: m.deletedAt || null,
+  };
+}
+
+function rowToMicrobe(r) {
+  return normalizeMicrobeForStorage({
+    id: Number(r.id),
+    organism: r.organism || '',
+    ko_name: r.ko_name || '',
+    latin_name: r.latin_name || '',
+    microbe_type: r.microbe_type || '',
+    gram_stain: r.gram_stain || '',
+    shape: r.shape || '',
+    oxygen: r.oxygen || '',
+    genome: r.genome || '',
+    virulence: r.virulence || '',
+    diseases: r.diseases || '',
+    diagnosis: r.diagnosis || '',
+    treatment: r.treatment || '',
+    prevention: r.prevention || '',
+    usmle_clues: r.usmle_clues || '',
+    memory_line: r.memory_line || '',
+    category: r.category || 'Infectious Disease',
+    system_tags: Array.isArray(r.system_tags) ? r.system_tags : [],
+    refs: Array.isArray(r.refs) ? r.refs : [],
+    createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+    updatedAt: r.updated_at || new Date().toISOString(),
+    deletedAt: r.deleted_at || null,
+  });
+}
+
 // Supabase에 용어 upsert (추가/수정)
 async function sbUpsertTerm(t) {
   const cfg = getSupabaseConfig();
@@ -4339,6 +4449,71 @@ async function sbUpsertFormula(f) {
     return true;
   } catch(e) { console.warn('Supabase formula upsert failed:', e); }
   return false;
+}
+
+
+async function sbUpsertMicrobe(m) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${MICROBES_TABLE}`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(microbeToRow(m))
+    });
+    if (!res.ok) throw new Error(`microbe upsert failed: ${res.status} ${await res.text()}`);
+    return true;
+  } catch(e) { console.warn('Supabase microbe upsert failed:', e); }
+  return false;
+}
+
+async function sbDeleteMicrobe(id, deletedAt = new Date().toISOString()) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return false;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${MICROBES_TABLE}?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: sbHeaders(),
+      body: JSON.stringify({ deleted_at: deletedAt, updated_at: deletedAt })
+    });
+    if (!res.ok) throw new Error(`microbe soft delete failed: ${res.status} ${await res.text()}`);
+    return true;
+  } catch(e) { console.warn('Supabase microbe delete failed:', e); }
+  return false;
+}
+
+async function sbLoadAllMicrobes() {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return null;
+  try {
+    const rows = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const res = await fetch(`${cfg.url}/rest/v1/${MICROBES_TABLE}?select=*&order=updated_at.desc&limit=${pageSize}&offset=${offset}`, {
+        headers: sbHeaders()
+      });
+      if (!res.ok) return null;
+      const page = await res.json();
+      if (!Array.isArray(page)) return null;
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return dedupeMicrobesById(rows.map(rowToMicrobe));
+  } catch(e) { console.warn('Supabase microbe load failed:', e); return null; }
+}
+
+async function sbBatchUpsertMicrobeRows(rows) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) throw new Error('Supabase 설정이 없습니다.');
+  if (!rows.length) return;
+  for (let i = 0; i < rows.length; i += 100) {
+    const res = await fetch(`${cfg.url}/rest/v1/${MICROBES_TABLE}`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(rows.slice(i, i + 100))
+    });
+    if (!res.ok) throw new Error(`microbe batch upsert failed: ${res.status} ${await res.text()}`);
+  }
 }
 
 // 삭제도 변경 이력으로 동기화되도록 soft delete 처리
@@ -4566,7 +4741,7 @@ async function sbPushAll(options = {}) {
   const { confirmOverwrite = false } = options;
   if (confirmOverwrite) {
     const ok = window.confirm(
-      `현재 이 기기의 용어 ${TERMS.length}개, 약물 ${DRUGS.length}개, 공식 ${FORMULAS.length}개로 클라우드 최종본을 덮어쓸까요?\n\n` +
+      `현재 이 기기의 용어 ${TERMS.length}개, 약물 ${DRUGS.length}개, 공식 ${FORMULAS.length} · 미생물 ${MICROBES.length} · 미생물 ${MICROBES.length}개로 클라우드 최종본을 덮어쓸까요?\n\n` +
       `현재 이 기기에 없는 항목은 PC·모바일·태블릿 등 다른 기기에 있더라도 최종본에서 제외될 수 있습니다.\n` +
       `먼저 데이터 관리에서 전체 백업 JSON을 저장하는 것을 권장합니다.`
     );
@@ -4576,6 +4751,7 @@ async function sbPushAll(options = {}) {
     const cleanTerms = dedupeTermsById(TERMS).filter(t => !t.deletedAt);
     const cleanDrugs = dedupeDrugsById(DRUGS).filter(d => !d.deletedAt);
     const cleanFormulas = dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt);
+    const cleanMicrobes = dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt);
     showToast('☁️ 새 기준본을 안전하게 저장 중...');
     const cloudTerms = await sbLoadAll();
     if (cloudTerms === null) throw new Error('기존 클라우드 데이터를 읽지 못했습니다.');
@@ -4583,18 +4759,21 @@ async function sbPushAll(options = {}) {
     if (cloudDrugs === null) throw new Error('약물 테이블을 읽지 못했습니다. 통합 SQL을 먼저 실행해주세요.');
     const cloudFormulas = await sbLoadAllFormulas();
     if (cloudFormulas === null) throw new Error('공식 테이블을 읽지 못했습니다. 통합 SQL을 먼저 실행해주세요.');
+    const cloudMicrobes = await sbLoadAllMicrobes();
+    if (cloudMicrobes === null) throw new Error('미생물 테이블을 읽지 못했습니다. 통합 SQL을 먼저 실행해주세요.');
     const metaMap = await sbLoadSyncMetaMap();
     const pendingVersion = `${Date.now()}-${getDeviceId()}`;
     saveLocalSyncMeta({
       pendingCanonicalVersion: pendingVersion,
       pendingCanonicalAt: new Date().toISOString(),
-      pendingCanonicalCount: cleanTerms.length + cleanDrugs.length + cleanFormulas.length,
+      pendingCanonicalCount: cleanTerms.length + cleanDrugs.length + cleanFormulas.length + cleanMicrobes.length,
       pendingCanonicalStatus: 'uploading'
     });
     const rows = cleanTerms.map(termToRow);
     await sbBatchUpsertRows(rows);
     await sbBatchUpsertDrugRows(cleanDrugs.map(drugToRow));
     await sbBatchUpsertFormulaRows(cleanFormulas.map(formulaToRow));
+    await sbBatchUpsertMicrobeRows(cleanMicrobes.map(microbeToRow));
 
     const localIds = new Set(cleanTerms.map(t => String(t.id)));
     const removedCloudTerms = cloudTerms.filter(t => !t.deletedAt && !localIds.has(String(t.id)));
@@ -4620,6 +4799,15 @@ async function sbPushAll(options = {}) {
       if (!ok) throw new Error(`누락 공식 삭제 표시 실패: ${oldFormula.id}`);
       removedCloudFormulaTombstones.push(normalizeFormulaForStorage({ ...oldFormula, updatedAt: deletedAt, deletedAt }));
     }
+    const localMicrobeIds = new Set(cleanMicrobes.map(m => String(m.id)));
+    const removedCloudMicrobes = cloudMicrobes.filter(m => !m.deletedAt && !localMicrobeIds.has(String(m.id)));
+    const removedCloudMicrobeTombstones = [];
+    for (const oldMicrobe of removedCloudMicrobes) {
+      const deletedAt = new Date().toISOString();
+      const ok = await sbDeleteMicrobe(oldMicrobe.id, deletedAt);
+      if (!ok) throw new Error(`원격 미생물 삭제 표시 실패: ${oldMicrobe.id}`);
+      removedCloudMicrobeTombstones.push(normalizeMicrobeForStorage({ ...oldMicrobe, updatedAt: deletedAt, deletedAt }));
+    }
 
     saveLocalSyncMeta({ pendingCanonicalStatus: 'learning-saving' });
     await pushLocalLearningStateToCloud();
@@ -4641,6 +4829,11 @@ async function sbPushAll(options = {}) {
       { key: FORMULA_CANONICAL_DELETED_COUNT_META_KEY, value: String(cloudFormulas.filter(f => f.deletedAt).length + removedCloudFormulas.length), updated_at: canonicalSnapshot.updatedAt },
       { key: FORMULA_CANONICAL_RECORD_IDS_HASH_META_KEY, value: computeFormulaRecordIdsHash(cleanFormulas), updated_at: canonicalSnapshot.updatedAt },
       { key: FORMULA_CANONICAL_SNAPSHOT_HASH_META_KEY, value: computeFormulaSnapshotHash(cleanFormulas), updated_at: canonicalSnapshot.updatedAt },
+      { key: MICROBE_CANONICAL_META_KEY, value: pendingVersion, updated_at: canonicalSnapshot.updatedAt },
+      { key: MICROBE_CANONICAL_ACTIVE_COUNT_META_KEY, value: String(cleanMicrobes.length), updated_at: canonicalSnapshot.updatedAt },
+      { key: MICROBE_CANONICAL_DELETED_COUNT_META_KEY, value: String(cloudMicrobes.filter(m => m.deletedAt).length + removedCloudMicrobes.length), updated_at: canonicalSnapshot.updatedAt },
+      { key: MICROBE_CANONICAL_RECORD_IDS_HASH_META_KEY, value: computeMicrobeRecordIdsHash(cleanMicrobes), updated_at: canonicalSnapshot.updatedAt },
+      { key: MICROBE_CANONICAL_SNAPSHOT_HASH_META_KEY, value: computeMicrobeSnapshotHash(cleanMicrobes), updated_at: canonicalSnapshot.updatedAt },
     ]);
     TERMS.length = 0;
     TERMS.push(...cleanTerms);
@@ -4651,6 +4844,10 @@ async function sbPushAll(options = {}) {
     FORMULAS.length = 0;
     FORMULAS.push(...cleanFormulas);
     saveFormulasToLocalStorage();
+  saveMicrobesToLocalStorage();
+    MICROBES.length = 0;
+    MICROBES.push(...cleanMicrobes);
+    saveMicrobesToLocalStorage();
     saveLocalDrugTombstones([
       ...cloudDrugs.filter(d => d.deletedAt),
       ...removedCloudDrugTombstones
@@ -4658,6 +4855,10 @@ async function sbPushAll(options = {}) {
     saveLocalFormulaTombstones([
       ...cloudFormulas.filter(f => f.deletedAt),
       ...removedCloudFormulaTombstones
+    ]);
+    saveLocalMicrobeTombstones([
+      ...cloudMicrobes.filter(m => m.deletedAt),
+      ...removedCloudMicrobeTombstones
     ]);
     clearPendingCanonicalStatus({
       canonicalVersion: pendingVersion,
@@ -4668,7 +4869,7 @@ async function sbPushAll(options = {}) {
     });
     updateBookmarkCount();
     applyFilters();
-    showToast(`☁️ 이 기기 데이터로 클라우드 최종본을 덮어썼습니다 (용어 ${cleanTerms.length} · 약물 ${cleanDrugs.length} · 공식 ${cleanFormulas.length} · rev ${canonicalSnapshot.revision})`);
+    showToast(`☁️ 이 기기 데이터로 클라우드 최종본을 덮어썼습니다 (용어 ${cleanTerms.length} · 약물 ${cleanDrugs.length} · 공식 ${cleanFormulas.length} · 미생물 ${cleanMicrobes.length} · rev ${canonicalSnapshot.revision})`);
   } catch(e) {
     console.error('Canonical push failed:', e);
     saveLocalSyncMeta({ pendingCanonicalStatus: 'failed', pendingCanonicalError: String(e?.message || e) });
@@ -4681,6 +4882,7 @@ function saveCurrentStateToCloud() {
   const count = dedupeTermsById(TERMS).filter(t => !t.deletedAt).length;
   const drugCount = dedupeDrugsById(DRUGS).filter(d => !d.deletedAt).length;
   const formulaCount = dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt).length;
+  const microbeCount = dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt).length;
   showConfirm(
     `현재 화면의 활성 용어 ${count}개, 약물 ${drugCount}개, 공식 ${formulaCount}개를<br><b style="color:#fbbf24">새 클라우드 최종상태</b>로 저장할까요?<br><br>` +
     `<span style="font-size:11px;color:var(--text3)">다른 기기에만 있던 항목은 최종본에서 제외될 수 있습니다. 저장 전 전체 백업 JSON을 권장합니다.</span>`,
@@ -4966,6 +5168,111 @@ function dedupeFormulasById(formulas) {
     }
   });
   return [...byId.values()];
+}
+
+
+function normalizeMicrobeForStorage(m) {
+  const now = new Date().toISOString();
+  const deletedAt = m.deletedAt || m.deleted_at || null;
+  const updatedAt = m.updatedAt || m.updated_at || deletedAt || now;
+  return {
+    id: Number(m.id) || nextMicrobeId(),
+    organism: cleanTermString(m.organism || m.name || m.en || m.microbe_name),
+    ko_name: cleanTermString(m.ko_name || m.koName || m.ko || m.korean_name),
+    latin_name: cleanTermString(m.latin_name || m.latinName || m.scientific_name),
+    microbe_type: cleanTermString(m.microbe_type || m.microbeType || m.type || 'Bacteria'),
+    gram_stain: cleanTermString(m.gram_stain || m.gramStain || m.gram),
+    shape: cleanTermString(m.shape || m.morphology),
+    oxygen: cleanTermString(m.oxygen || m.oxygen_requirement || m.oxygenRequirement),
+    genome: cleanTermString(m.genome || m.nucleic_acid),
+    virulence: cleanTermString(m.virulence || m.virulence_factors),
+    diseases: cleanTermString(m.diseases || m.clinical_features),
+    diagnosis: cleanTermString(m.diagnosis || m.diagnostics),
+    treatment: cleanTermString(m.treatment || m.therapy),
+    prevention: cleanTermString(m.prevention || m.vaccine),
+    usmle_clues: cleanTermString(m.usmle_clues || m.usmleClues || m.usmle),
+    memory_line: cleanTermString(m.memory_line || m.memoryLine || m.mnemonic),
+    category: normalizeSystemCategory(m.category || m.system || 'Infectious Disease'),
+    system_tags: normalizeSystemTags(m.system_tags || m.systemTags || m.tags),
+    refs: Array.isArray(m.refs) ? m.refs : [],
+    createdAt: m.createdAt || m.created_at || updatedAt || now,
+    updatedAt,
+    deletedAt,
+    hiddenAt: m.hiddenAt || m.hidden_at || null,
+  };
+}
+
+function dedupeMicrobesById(microbes) {
+  const byId = new Map();
+  (Array.isArray(microbes) ? microbes : []).forEach(raw => {
+    const microbe = normalizeMicrobeForStorage(raw);
+    const key = String(microbe.id);
+    const existing = byId.get(key);
+    if (!existing || (Date.parse(microbe.updatedAt) || 0) >= (Date.parse(existing.updatedAt) || 0)) {
+      byId.set(key, microbe);
+    }
+  });
+  return [...byId.values()];
+}
+
+function microbeIdentityKey(m) {
+  const organism = normalizeSyncText(m.organism || m.name || m.en);
+  const ko = normalizeSyncText(m.ko_name || m.ko);
+  const latin = normalizeSyncText(m.latin_name || m.scientific_name);
+  if (organism) return `organism:${organism}`;
+  if (latin) return `latin:${latin}`;
+  if (ko) return `ko:${ko}`;
+  return `id:${Number(m.id) || 'empty'}`;
+}
+
+function getActiveMicrobes() {
+  return dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt);
+}
+
+function saveMicrobesToLocalStorage() {
+  try {
+    const payload = dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt);
+    MICROBES.length = 0;
+    MICROBES.push(...payload);
+    return scheduleLargeCacheWrite(MICROBES_STORAGE_KEY, payload, MICROBES_STORAGE_META_KEY, {
+      count: payload.length,
+      app: 'DrBugeon Medical Microbes',
+    });
+  } catch (err) {
+    console.warn('Microbe cache save failed', err);
+    if (typeof showToast === 'function') showToast('⚠️ 미생물 로컬 캐시 저장에 실패했습니다');
+    return false;
+  }
+}
+
+function loadLocalMicrobeTombstones() {
+  const rows = _localMicrobeTombstonesCache ?? safeJsonParse(localStorage.getItem(MICROBE_TOMBSTONE_STORAGE_KEY), []);
+  return Array.isArray(rows) ? dedupeMicrobesById(rows).filter(m => m.deletedAt) : [];
+}
+
+function saveLocalMicrobeTombstones(rows) {
+  _localMicrobeTombstonesCache = dedupeMicrobesById(rows).filter(m => m.deletedAt);
+  return scheduleLargeCacheWrite(MICROBE_TOMBSTONE_STORAGE_KEY, _localMicrobeTombstonesCache, `${MICROBE_TOMBSTONE_STORAGE_KEY}_meta`, {
+    count: _localMicrobeTombstonesCache.length,
+    app: 'DrBugeon Medical Microbe Tombstones',
+  });
+}
+
+function recordLocalMicrobeTombstone(microbe, deletedAt = new Date().toISOString()) {
+  if (!microbe) return null;
+  const tombstone = normalizeMicrobeForStorage({ ...microbe, updatedAt: deletedAt, deletedAt, hiddenAt: null });
+  const rows = loadLocalMicrobeTombstones().filter(m => String(m.id) !== String(tombstone.id));
+  rows.push(tombstone);
+  saveLocalMicrobeTombstones(rows);
+  return tombstone;
+}
+
+function mergeMicrobesForSync(cloudMicrobes, localMicrobes, localMicrobeTombstones = []) {
+  return dedupeMicrobesById([
+    ...(Array.isArray(cloudMicrobes) ? cloudMicrobes : []),
+    ...(Array.isArray(localMicrobes) ? localMicrobes : []),
+    ...(Array.isArray(localMicrobeTombstones) ? localMicrobeTombstones : []),
+  ]);
 }
 
 function normalizeSyncText(value) {
@@ -5297,6 +5604,11 @@ function saveFormulaToCloud(f) {
   if (getSupabaseConfig()) sbUpsertFormula(f).catch(() => {});
 }
 
+
+function saveMicrobeToCloud(m) {
+  if (getSupabaseConfig()) sbUpsertMicrobe(m).catch(() => {});
+}
+
 function deleteTermFromCloud(id, deletedAt) {
   if (getSupabaseConfig()) sbDeleteTerm(id, deletedAt).catch(() => {});
 }
@@ -5307,6 +5619,11 @@ function deleteDrugFromCloud(id, deletedAt) {
 
 function deleteFormulaFromCloud(id, deletedAt) {
   if (getSupabaseConfig()) sbDeleteFormula(id, deletedAt).catch(() => {});
+}
+
+
+function deleteMicrobeFromCloud(id, deletedAt) {
+  if (getSupabaseConfig()) sbDeleteMicrobe(id, deletedAt).catch(() => {});
 }
 
 function getLearningStateMap() {
@@ -5454,11 +5771,20 @@ async function loadFormulasFromLocalStorage() {
   return FORMULAS.length;
 }
 
+async function loadMicrobesFromLocalStorage() {
+  const saved = await readLargeCacheValue(MICROBES_STORAGE_KEY, []);
+  if (!Array.isArray(saved) || saved.length === 0) return 0;
+  MICROBES.length = 0;
+  MICROBES.push(...dedupeMicrobesById(saved).filter(m => !m.deletedAt));
+  return MICROBES.length;
+}
+
 async function loadAuxiliaryLocalCaches() {
-  const [tombstones, drugTombstones, formulaTombstones, learning] = await Promise.all([
+  const [tombstones, drugTombstones, formulaTombstones, microbeTombstones, learning] = await Promise.all([
     readLargeCacheValue(TOMBSTONE_STORAGE_KEY, []),
     readLargeCacheValue(DRUG_TOMBSTONE_STORAGE_KEY, []),
     readLargeCacheValue(FORMULA_TOMBSTONE_STORAGE_KEY, []),
+    readLargeCacheValue(MICROBE_TOMBSTONE_STORAGE_KEY, []),
     readLargeCacheValue(LEARNING_STORAGE_KEY, {}),
   ]);
   _localTombstonesCache = Array.isArray(tombstones)
@@ -5470,6 +5796,9 @@ async function loadAuxiliaryLocalCaches() {
   _localFormulaTombstonesCache = Array.isArray(formulaTombstones)
     ? dedupeFormulasById(formulaTombstones).filter(f => f.deletedAt)
     : [];
+  _localMicrobeTombstonesCache = Array.isArray(microbeTombstones)
+    ? dedupeMicrobesById(microbeTombstones).filter(m => m.deletedAt)
+    : [];
   _learningStateCache = learning && typeof learning === 'object' && !Array.isArray(learning)
     ? learning
     : {};
@@ -5477,28 +5806,32 @@ async function loadAuxiliaryLocalCaches() {
     tombstones: _localTombstonesCache.length,
     drugTombstones: _localDrugTombstonesCache.length,
     formulaTombstones: _localFormulaTombstonesCache.length,
+    microbeTombstones: _localMicrobeTombstonesCache.length,
     learningStates: Object.keys(_learningStateCache).length,
   };
 }
 
 async function loadLocalCacheForStartup() {
-  const [localCount, drugCount, formulaCount, aux] = await Promise.all([
+  const [localCount, drugCount, formulaCount, microbeCount, aux] = await Promise.all([
     loadTermsFromLocalStorage(),
     loadDrugsFromLocalStorage(),
     loadFormulasFromLocalStorage(),
+    loadMicrobesFromLocalStorage(),
     loadAuxiliaryLocalCaches(),
   ]);
   rememberLocalCacheMeta({
     terms: localCount,
     drugs: drugCount,
     formulas: formulaCount,
+    microbes: microbeCount,
     tombstones: aux.tombstones,
     drugTombstones: aux.drugTombstones,
     formulaTombstones: aux.formulaTombstones,
+    microbeTombstones: aux.microbeTombstones,
     learningStates: aux.learningStates,
     loadedAt: new Date().toISOString(),
   });
-  return { localCount, drugCount, formulaCount, ...aux };
+  return { localCount, drugCount, formulaCount, microbeCount, ...aux };
 }
 
 function getDeviceIdShard() {
@@ -5524,6 +5857,13 @@ function nextDrugId() {
 
 function nextFormulaId() {
   const maxId = FORMULAS.reduce((max, f) => Math.max(max, Number(f.id) || 0), 999);
+  const deviceTimeId = Date.now() * 1000 + getDeviceIdShard();
+  _idCounter = Math.max(_idCounter, deviceTimeId, maxId);
+  return ++_idCounter;
+}
+
+function nextMicrobeId() {
+  const maxId = MICROBES.reduce((max, m) => Math.max(max, Number(m.id) || 0), 999);
   const deviceTimeId = Date.now() * 1000 + getDeviceIdShard();
   _idCounter = Math.max(_idCounter, deviceTimeId, maxId);
   return ++_idCounter;
@@ -5774,45 +6114,333 @@ function countOptionsFromFormulas(valueGetter) {
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'ko', { sensitivity: 'base', numeric: true }));
 }
 
+
+
+function microbeTypeValue(m) {
+  return normalizeDrugFilterValue(m?.microbe_type, '미분류');
+}
+
+function microbeSystemValues(m) {
+  const values = [
+    normalizeDrugFilterValue(m?.category, ''),
+    ...(Array.isArray(m?.system_tags) ? m.system_tags : [])
+  ].map(v => normalizeDrugFilterValue(v, '')).filter(Boolean);
+  return [...new Set(values.length ? values : ['Infectious Disease'])];
+}
+
+function microbeTypeDisplay(value) {
+  return value === '미분류' ? '🧫 미분류' : `🧫 ${value}`;
+}
+
+function countOptionsFromMicrobes(valueGetter) {
+  const map = new Map();
+  getActiveMicrobes().forEach(microbe => {
+    const values = valueGetter(microbe);
+    (Array.isArray(values) ? values : [values]).forEach(value => {
+      const clean = normalizeDrugFilterValue(value);
+      map.set(clean, (map.get(clean) || 0) + 1);
+    });
+  });
+  return [...map.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'ko', { sensitivity: 'base', numeric: true }));
+}
+
+function renderMicrobeFilterControls() {
+  const conceptTitle = document.getElementById('primaryFilterTitle');
+  const systemTitle = document.getElementById('secondaryFilterTitle');
+  const conceptRow = document.getElementById('conceptFilterRow');
+  const systemRow = document.getElementById('filterRow');
+  if (!conceptRow || !systemRow) return;
+  const typeOptions = countOptionsFromMicrobes(microbeTypeValue);
+  const systemOptions = countOptionsFromMicrobes(microbeSystemValues);
+  if (currentDrugClassFilter !== 'all' && !typeOptions.some(o => o.value === currentDrugClassFilter)) currentDrugClassFilter = 'all';
+  if (currentDrugSystemFilter !== 'all' && !systemOptions.some(o => o.value === currentDrugSystemFilter)) currentDrugSystemFilter = 'all';
+  if (conceptTitle) conceptTitle.innerHTML = '🧫 미생물 유형 <span>어떤 병원체인가?</span>';
+  if (systemTitle) systemTitle.innerHTML = '🎯 관련 장기계 <span>어디에 중요한가?</span>';
+  conceptRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentDrugClassFilter === 'all', onclick: 'setDrugClassFilter', extraClass: 'concept microbe-mode' }),
+    ...typeOptions.map(option => filterButtonHtml({
+      value: option.value,
+      label: microbeTypeDisplay(option.value),
+      active: currentDrugClassFilter === option.value,
+      onclick: 'setDrugClassFilter',
+      extraClass: 'concept microbe-mode',
+      count: option.count
+    }))
+  ].join('');
+  systemRow.innerHTML = [
+    filterButtonHtml({ value: 'all', label: '전체', active: currentDrugSystemFilter === 'all', onclick: 'setDrugSystemFilter', extraClass: 'microbe-mode' }),
+    ...systemOptions.map(option => filterButtonHtml({
+      value: option.value,
+      label: drugSystemDisplay(option.value),
+      active: currentDrugSystemFilter === option.value,
+      onclick: 'setDrugSystemFilter',
+      extraClass: 'microbe-mode',
+      count: option.count
+    }))
+  ].join('');
+}
+
+function microbeSearchText(m) {
+  return [
+    m.organism, m.ko_name, m.latin_name, m.microbe_type, m.gram_stain, m.shape, m.oxygen,
+    m.genome, m.virulence, m.diseases, m.diagnosis, m.treatment, m.prevention,
+    m.usmle_clues, m.memory_line, m.category, ...(Array.isArray(m.system_tags) ? m.system_tags : [])
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function filterMicrobesForQuery(query = '') {
+  const q = String(query || '').trim().toLowerCase();
+  let filtered = getActiveMicrobes();
+  if (currentDrugClassFilter !== 'all') filtered = filtered.filter(m => microbeTypeValue(m) === currentDrugClassFilter);
+  if (currentDrugSystemFilter !== 'all') filtered = filtered.filter(m => microbeSystemValues(m).includes(currentDrugSystemFilter));
+  if (q) filtered = filtered.filter(m => microbeSearchText(m).includes(q));
+  return filtered.sort((a, b) =>
+    String(a.organism || a.ko_name || '').localeCompare(String(b.organism || b.ko_name || ''), 'en', { sensitivity: 'base', numeric: true })
+  );
+}
+
+function renderMicrobeFrame(microbes = []) {
+  const frame = document.getElementById('microbeFrame');
+  const empty = document.getElementById('emptyState');
+  if (!frame) return;
+  const active = Array.isArray(microbes) ? microbes.filter(m => !m.deletedAt) : [];
+  if (!active.length) {
+    frame.innerHTML = '';
+    if (empty && currentLibraryMode === 'microbes') {
+      const total = getActiveMicrobes().length;
+      empty.innerHTML = total === 0 ? `
+        <div class="icon">🧫</div>
+        <h3>미생물 데이터가 없습니다</h3>
+        <p>용어 추가에서 저장 항목을 미생물로 선택해<br>병원체 학습 카드를 추가하세요.</p>
+      ` : `
+        <div class="icon">🔎</div>
+        <h3>미생물 검색 결과 없음</h3>
+        <p>다른 검색어나 미생물 유형·장기계 필터를 시도해 보세요.</p>
+      `;
+      empty.style.display = 'block';
+    }
+    updateCounts(0, 0, 'microbes');
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  frame.innerHTML = `
+    <section class="drug-frame">
+      <div class="drug-frame-title">
+        <strong>🧫 미생물 · ${active.length}개</strong>
+        <span style="font-size:10px;color:var(--text3)">USMLE 감염병 단서 중심</span>
+      </div>
+      ${active.map(m => `
+        <article class="drug-card" id="microbe-card-${Number(m.id)}" onclick="openMicrobeEditModal(event, ${Number(m.id)})" title="클릭해서 미생물 편집">
+          <div class="drug-head">
+            <div>
+              <div class="drug-name">${escapeHtml(m.organism || m.ko_name || m.latin_name || '이름 없음')}</div>
+              <div class="drug-sub">${escapeHtml([m.ko_name, m.latin_name].filter(Boolean).join(' · '))}</div>
+            </div>
+            <button class="bookmark-btn" onclick="openMicrobeEditModal(event, ${Number(m.id)})" title="미생물 편집" aria-label="미생물 항목 편집">✎</button>
+          </div>
+          <div class="drug-chip-row">
+            ${[m.microbe_type, m.gram_stain, m.shape, m.oxygen, m.category].filter(Boolean).slice(0, 5).map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
+          </div>
+          ${m.diseases ? `<div class="formula-expression">${escapeHtml(compactDrugText(m.diseases, 160))}</div>` : ''}
+          ${m.memory_line ? `<div class="formula-memory-line">암기: ${escapeHtml(m.memory_line)}</div>` : ''}
+        </article>
+      `).join('')}
+    </section>`;
+  updateCounts(active.length, active.length, 'microbes');
+}
+
+function microbeFormFieldsHtml(prefix, m = {}, IS = inputStyle(), TA = inputStyle(true)) {
+  const escVal = v => escapeHtml(String(v || '').replace(/"/g, '&quot;'));
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">미생물명(영어)</label><input id="${prefix}_organism" value="${escVal(m.organism)}" placeholder="e.g. Streptococcus pneumoniae" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">미생물명(한국어)</label><input id="${prefix}_ko" value="${escVal(m.ko_name)}" placeholder="예: 폐렴사슬알균" style="${IS}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">유형</label><input id="${prefix}_type" value="${escVal(m.microbe_type)}" placeholder="Bacteria / Virus / Fungus / Parasite" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Gram / 염색</label><input id="${prefix}_gram" value="${escVal(m.gram_stain)}" placeholder="Gram-positive" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">형태</label><input id="${prefix}_shape" value="${escVal(m.shape)}" placeholder="cocci in chains" style="${IS}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">산소요구성</label><input id="${prefix}_oxygen" value="${escVal(m.oxygen)}" placeholder="facultative anaerobe" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">유전체/특징</label><input id="${prefix}_genome" value="${escVal(m.genome)}" placeholder="dsDNA, enveloped 등" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">대표 장기계</label><select id="${prefix}_category" style="${IS}"><option value="Infectious Disease">Infectious Disease</option>${VALID_CATS.filter(c => c !== 'Infectious Disease').map(c => `<option value="${c}" ${(m.category || '') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">시스템 태그</label>
+    <input id="${prefix}_tags" value="${escVal(Array.isArray(m.system_tags) ? m.system_tags.join(', ') : m.system_tags)}" placeholder="Pulmonary, CNS, GI 등 쉼표로 구분" style="${IS};margin-bottom:10px">
+    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">병독성 / 핵심 인자</label>
+    <textarea id="${prefix}_virulence" rows="2" placeholder="capsule, toxin, adhesin 등" style="${TA}">${escVal(m.virulence)}</textarea>
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">대표 질환 / 임상 단서</label>
+    <textarea id="${prefix}_diseases" rows="3" placeholder="pneumonia, meningitis, otitis media..." style="${TA}">${escVal(m.diseases)}</textarea>
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">진단</label>
+    <textarea id="${prefix}_diagnosis" rows="2" placeholder="culture, PCR, antigen test..." style="${TA}">${escVal(m.diagnosis)}</textarea>
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">치료</label>
+    <textarea id="${prefix}_treatment" rows="2" placeholder="first-line treatment / important exceptions" style="${TA}">${escVal(m.treatment)}</textarea>
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">예방</label>
+    <textarea id="${prefix}_prevention" rows="2" placeholder="vaccine, prophylaxis, isolation..." style="${TA}">${escVal(m.prevention)}</textarea>
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">USMLE 단서</label>
+    <textarea id="${prefix}_usmle" rows="3" placeholder="시험에서 잡아야 할 buzzword와 함정" style="${TA}">${escVal(m.usmle_clues)}</textarea>
+    ${medicalSymbolInputHelperHtml()}
+    <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">한 줄 암기</label>
+    <textarea id="${prefix}_memory" rows="2" placeholder="한 줄로 기억할 핵심" style="${TA}">${escVal(m.memory_line)}</textarea>
+  `;
+}
+
+function microbeFieldValue(id) {
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+function upsertMicrobeFromForm(id = null) {
+  const isEdit = id !== null && id !== undefined;
+  const prefix = isEdit ? 'microbe_edit' : 'add_microbe';
+  const existing = isEdit ? MICROBES.find(m => Number(m.id) === Number(id)) : null;
+  const next = normalizeMicrobeForStorage({
+    ...(existing || {}),
+    id: existing?.id || nextMicrobeId(),
+    organism: microbeFieldValue(`${prefix}_organism`),
+    ko_name: microbeFieldValue(`${prefix}_ko`),
+    microbe_type: microbeFieldValue(`${prefix}_type`) || 'Bacteria',
+    gram_stain: microbeFieldValue(`${prefix}_gram`),
+    shape: microbeFieldValue(`${prefix}_shape`),
+    oxygen: microbeFieldValue(`${prefix}_oxygen`),
+    genome: microbeFieldValue(`${prefix}_genome`),
+    category: microbeFieldValue(`${prefix}_category`) || 'Infectious Disease',
+    system_tags: microbeFieldValue(`${prefix}_tags`),
+    virulence: microbeFieldValue(`${prefix}_virulence`),
+    diseases: microbeFieldValue(`${prefix}_diseases`),
+    diagnosis: microbeFieldValue(`${prefix}_diagnosis`),
+    treatment: microbeFieldValue(`${prefix}_treatment`),
+    prevention: microbeFieldValue(`${prefix}_prevention`),
+    usmle_clues: microbeFieldValue(`${prefix}_usmle`),
+    memory_line: microbeFieldValue(`${prefix}_memory`),
+    updatedAt: new Date().toISOString(),
+  });
+  if (!next.organism && !next.ko_name) { showToast('⚠️ 미생물명(영어 또는 한국어)을 입력해주세요'); return null; }
+  const duplicateIdx = MICROBES.findIndex((m, idx) => {
+    if (isEdit && Number(m.id) === Number(id)) return false;
+    return microbeIdentityKey(m) === microbeIdentityKey(next);
+  });
+  if (duplicateIdx >= 0) { showToast('⚠️ 중복된 미생물입니다'); return null; }
+  const idx = MICROBES.findIndex(m => Number(m.id) === Number(next.id));
+  if (idx >= 0) MICROBES[idx] = next;
+  else MICROBES.push(next);
+  saveMicrobesToLocalStorage();
+  saveMicrobeToCloud(next);
+  applyFilters();
+  return next;
+}
+
+function submitAddMicrobe() {
+  const saved = upsertMicrobeFromForm(null);
+  if (!saved) return;
+  showToast(`🧫 "${saved.organism || saved.ko_name}" 미생물 저장 완료`);
+  finishAddFlow();
+  setLibraryMode('microbes');
+}
+
+function openMicrobeEditModal(e, id) {
+  if (e) e.stopPropagation();
+  const m = MICROBES.find(x => Number(x.id) === Number(id));
+  if (!m) { showToast('⚠️ 미생물 항목을 찾지 못했습니다'); return; }
+  document.getElementById('microbeEditModal')?.remove();
+  const IS = `width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;box-sizing:border-box;`;
+  const TA = IS + `resize:vertical;`;
+  const overlay = document.createElement('div');
+  overlay.id = 'microbeEditModal';
+  overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div>
+          <div style="font-size:17px;font-weight:900;color:var(--text)">🧫 미생물 항목 편집</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(m.organism || m.ko_name || '')}</div>
+        </div>
+        <button onclick="document.getElementById('microbeEditModal').remove()" title="닫기" aria-label="미생물 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:16px 20px 22px">
+        ${microbeFormFieldsHtml('microbe_edit', m, IS, TA)}
+        <div class="edit-modal-actions">
+          <button class="edit-action-btn save" onclick="saveMicrobeEdit(${Number(m.id)})">저장</button>
+          <button class="edit-action-btn delete" onclick="deleteMicrobe(${Number(m.id)})">삭제</button>
+        </div>
+      </div>
+    </section>`;
+  document.body.appendChild(overlay);
+}
+
+function saveMicrobeEdit(id) {
+  const saved = upsertMicrobeFromForm(id);
+  if (!saved) return;
+  document.getElementById('microbeEditModal')?.remove();
+  showToast('✅ 미생물 수정 완료');
+}
+
+function deleteMicrobe(id) {
+  const m = MICROBES.find(x => Number(x.id) === Number(id));
+  const label = m?.organism || m?.ko_name || '미생물';
+  showConfirm(`"${escapeHtml(label)}" 미생물을 삭제할까요?`, () => {
+    const idx = MICROBES.findIndex(x => Number(x.id) === Number(id));
+    if (idx !== -1) MICROBES.splice(idx, 1);
+    const tombstone = recordLocalMicrobeTombstone(m);
+    saveMicrobesToLocalStorage();
+    deleteMicrobeFromCloud(id, tombstone?.deletedAt || new Date().toISOString());
+    document.getElementById('microbeEditModal')?.remove();
+    showToast('🗑️ 미생물 삭제 완료');
+    applyFilters();
+  });
+}
 function renderFilterControls() {
   if (currentLibraryMode === 'drugs') renderDrugFilterControls();
   else if (currentLibraryMode === 'formulas') renderFormulaFilterControls();
+  else if (currentLibraryMode === 'microbes') renderMicrobeFilterControls();
   else renderTermFilterControls();
 }
 
 function updateLibraryModeControls() {
   const isDrugs = currentLibraryMode === 'drugs';
   const isFormulas = currentLibraryMode === 'formulas';
+  const isMicrobes = currentLibraryMode === 'microbes';
   const termsBtn = document.getElementById('libraryModeTermsBtn');
   const drugsBtn = document.getElementById('libraryModeDrugsBtn');
   const formulasBtn = document.getElementById('libraryModeFormulasBtn');
+  const microbesBtn = document.getElementById('libraryModeMicrobesBtn');
   const hint = document.getElementById('libraryModeHint');
   const search = document.getElementById('searchInput');
-  termsBtn?.classList.toggle('active', !isDrugs && !isFormulas);
+  termsBtn?.classList.toggle('active', !isDrugs && !isFormulas && !isMicrobes);
   drugsBtn?.classList.toggle('active', isDrugs);
   formulasBtn?.classList.toggle('active', isFormulas);
-  termsBtn?.setAttribute('aria-selected', String(!isDrugs && !isFormulas));
+  microbesBtn?.classList.toggle('active', isMicrobes);
+  termsBtn?.setAttribute('aria-selected', String(!isDrugs && !isFormulas && !isMicrobes));
   drugsBtn?.setAttribute('aria-selected', String(isDrugs));
   formulasBtn?.setAttribute('aria-selected', String(isFormulas));
-  if (hint) hint.textContent = isFormulas
-    ? '주요 의학계산공식을 공식 분야와 관련 장기계 기준으로 봅니다.'
-    : (isDrugs
-      ? '약물명 및 정보를 USMLE 계열과 관련 장기계 기준으로 봅니다.'
-      : '일반 의학용어를 개념분류와 대표 장기계로 봅니다.');
-  if (search) search.placeholder = isFormulas
-    ? '공식명, 계산식, 암기 포인트, USMLE 함정으로 검색...'
-    : (isDrugs
-      ? '약물명(영어/한국어), USMLE 계열, Target, MOA로 검색...'
-      : '한국어, 영어, 우즈베크어로 검색...');
+  microbesBtn?.setAttribute('aria-selected', String(isMicrobes));
+  if (hint) hint.textContent = isMicrobes
+    ? '미생물을 병원체 유형과 관련 장기계 기준으로 봅니다.'
+    : (isFormulas
+      ? '주요 의학계산공식을 공식 분야와 관련 장기계 기준으로 봅니다.'
+      : (isDrugs
+        ? '약물명 및 정보를 USMLE 계열과 관련 장기계 기준으로 봅니다.'
+        : '일반 의학용어를 개념분류와 대표 장기계로 봅니다.'));
+  if (search) search.placeholder = isMicrobes
+    ? '미생물명, Gram, 독소, 질환, 치료, USMLE 단서로 검색...'
+    : (isFormulas
+      ? '공식명, 계산식, 외우는 포인트, USMLE 함정으로 검색...'
+      : (isDrugs
+        ? '약물명(영어/한국어), USMLE 계열, Target, MOA로 검색...'
+        : '한국어, 영어, 우즈베크어로 검색...'));
   const stat = document.getElementById('bookmarkCount');
   if (stat) {
     const validCount = TERMS.filter(t => bookmarks.has(t.id)).length;
-    stat.textContent = isFormulas ? `공식 ${getActiveFormulas().length}개` : (isDrugs ? `약물 ${getActiveDrugs().length}개` : `즐겨찾기 ${validCount}`);
+    stat.textContent = isMicrobes ? `미생물 ${getActiveMicrobes().length}개`
+      : (isFormulas ? `공식 ${getActiveFormulas().length}개`
+        : (isDrugs ? `약물 ${getActiveDrugs().length}개` : `즐겨찾기 ${validCount}`));
   }
 }
 
 function setLibraryMode(mode, silent = false) {
-  const nextMode = mode === 'drugs' ? 'drugs' : (mode === 'formulas' ? 'formulas' : 'terms');
+  const nextMode = mode === 'drugs' ? 'drugs' : (mode === 'formulas' ? 'formulas' : (mode === 'microbes' ? 'microbes' : 'terms'));
   if (nextMode !== currentLibraryMode) {
     selectedTermIds.clear();
     visibleTermLimit = LIST_PAGE_SIZE;
@@ -7497,7 +8125,7 @@ function applyFilters() {
   document.getElementById('searchClear').classList.toggle('visible', query.length > 0);
 
   // 데이터 없을 때 홈 화면: 즐겨찾기 or 빈 안내
-  if (TERMS.length === 0 && DRUGS.length === 0 && FORMULAS.length === 0 && !query) {
+  if (TERMS.length === 0 && DRUGS.length === 0 && FORMULAS.length === 0 && MICROBES.length === 0 && !query) {
     renderHome();
     return;
   }
@@ -7507,6 +8135,8 @@ function applyFilters() {
     if (list) list.innerHTML = '';
     const formulaFrame = document.getElementById('formulaFrame');
     if (formulaFrame) formulaFrame.innerHTML = '';
+    const microbeFrame = document.getElementById('microbeFrame');
+    if (microbeFrame) microbeFrame.innerHTML = '';
     const results = filterDrugsForQuery(query);
     const labelParts = [];
     if (currentDrugClassFilter !== 'all') labelParts.push(drugClassDisplay(currentDrugClassFilter));
@@ -7521,8 +8151,10 @@ function applyFilters() {
   if (currentLibraryMode === 'formulas') {
     const list = document.getElementById('termList');
     const drugFrame = document.getElementById('drugFrame');
+    const microbeFrame = document.getElementById('microbeFrame');
     if (list) list.innerHTML = '';
     if (drugFrame) drugFrame.innerHTML = '';
+    if (microbeFrame) microbeFrame.innerHTML = '';
     const results = filterFormulasForQuery(query);
     const labelParts = [];
     if (currentDrugClassFilter !== 'all') labelParts.push(`∑ ${currentDrugClassFilter}`);
@@ -7534,10 +8166,30 @@ function applyFilters() {
     return;
   }
 
+  if (currentLibraryMode === 'microbes') {
+    const list = document.getElementById('termList');
+    const drugFrame = document.getElementById('drugFrame');
+    const formulaFrame = document.getElementById('formulaFrame');
+    if (list) list.innerHTML = '';
+    if (drugFrame) drugFrame.innerHTML = '';
+    if (formulaFrame) formulaFrame.innerHTML = '';
+    const results = filterMicrobesForQuery(query);
+    const labelParts = [];
+    if (currentDrugClassFilter !== 'all') labelParts.push(microbeTypeDisplay(currentDrugClassFilter));
+    if (currentDrugSystemFilter !== 'all') labelParts.push(drugSystemDisplay(currentDrugSystemFilter));
+    const baseLabel = query ? '미생물 검색 결과' : '전체 미생물';
+    const sectionLabel = labelParts.length ? `${baseLabel} · ${labelParts.join(' · ')}` : baseLabel;
+    setSectionLabel(`${sectionLabel} · ${results.length}개`);
+    renderMicrobeFrame(results);
+    return;
+  }
+
   const drugFrame = document.getElementById('drugFrame');
   if (drugFrame) drugFrame.innerHTML = '';
   const formulaFrame = document.getElementById('formulaFrame');
   if (formulaFrame) formulaFrame.innerHTML = '';
+  const microbeFrame = document.getElementById('microbeFrame');
+  if (microbeFrame) microbeFrame.innerHTML = '';
   let results = TERMS;
 
   if (currentFilter === '즐겨찾기') {
@@ -7602,6 +8254,9 @@ function renderHome() {
   } else if (FORMULAS.length > 0) {
     list.innerHTML = '';
     renderFormulaFrame(filterFormulasForQuery(''));
+  } else if (MICROBES.length > 0) {
+    list.innerHTML = '';
+    renderMicrobeFrame(filterMicrobesForQuery(''));
   } else {
     list.innerHTML = `
       <div class="empty-state">
@@ -7657,8 +8312,10 @@ function updateCounts(shown, filtered = shown, mode = currentLibraryMode) {
   if (!el) return;
   const isDrugs = mode === 'drugs';
   const isFormulas = mode === 'formulas';
-  const total = isFormulas ? getActiveFormulas().length : (isDrugs ? getActiveDrugs().length : TERMS.length);
-  const label = isFormulas ? '공식' : (isDrugs ? '약물' : '용어');
+  const isMicrobes = mode === 'microbes';
+  const total = isMicrobes ? getActiveMicrobes().length
+    : (isFormulas ? getActiveFormulas().length : (isDrugs ? getActiveDrugs().length : TERMS.length));
+  const label = isMicrobes ? '미생물' : (isFormulas ? '공식' : (isDrugs ? '약물' : '용어'));
   el.textContent = filtered === total
     ? `${shown}개 표시 / 전체 ${label} ${total}개`
     : `${shown}개 표시 / 결과 ${filtered}개 / 전체 ${label} ${total}개`;
@@ -7666,24 +8323,26 @@ function updateCounts(shown, filtered = shown, mode = currentLibraryMode) {
 
 function updateBookmarkCount() {
   const validCount = TERMS.filter(t => bookmarks.has(t.id)).length;
-  // Prune stale IDs that no longer exist in TERMS
   [...bookmarks].forEach(id => { if (!TERMS.some(t => t.id === id)) bookmarks.delete(id); });
   safeSetItem('kma_bookmarks', JSON.stringify([...bookmarks]));
   const el = document.getElementById('bookmarkCount');
   if (!el) return;
-  el.textContent = currentLibraryMode === 'formulas'
-    ? `공식 ${getActiveFormulas().length}개`
-    : (currentLibraryMode === 'drugs'
-      ? `약물 ${getActiveDrugs().length}개`
-      : `즐겨찾기 ${validCount}`);
+  el.textContent = currentLibraryMode === 'microbes'
+    ? `미생물 ${getActiveMicrobes().length}개`
+    : (currentLibraryMode === 'formulas'
+      ? `공식 ${getActiveFormulas().length}개`
+      : (currentLibraryMode === 'drugs'
+        ? `약물 ${getActiveDrugs().length}개`
+        : `즐겨찾기 ${validCount}`));
 }
 
-// ─── Saved home HTML for tab restoration ───
+// --- Saved home HTML for tab restoration ───
 const HOME_HTML = `
   <div class="section-label" id="sectionLabel"></div>
   <div id="termList"></div>
   <div id="drugFrame"></div>
   <div id="formulaFrame"></div>
+  <div id="microbeFrame"></div>
   <div id="emptyState" class="empty-state" style="display:none">
     <div class="icon">📂</div>
     <h3>용어 데이터가 없습니다</h3>
@@ -8092,7 +8751,7 @@ async function testAndSyncSupabase() {
 async function pullFromCloud() {
   if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정 먼저 저장하세요'); return; }
   showToast('⬇️ 클라우드에서 불러오는 중...');
-  const [cloudTerms, cloudDrugs, cloudFormulas, meta] = await Promise.all([sbLoadAll(), sbLoadAllDrugs(), sbLoadAllFormulas(), sbLoadCanonicalMeta()]);
+  const [cloudTerms, cloudDrugs, cloudFormulas, cloudMicrobes, meta] = await Promise.all([sbLoadAll(), sbLoadAllDrugs(), sbLoadAllFormulas(), sbLoadAllMicrobes(), sbLoadCanonicalMeta()]);
   if (cloudTerms === null) { showToast('⚠️ 클라우드 데이터를 불러오지 못했습니다'); return; }
   if (meta === null) { showToast('⚠️ 최종본 기준값을 확인하지 못했습니다'); return; }
   if (!hasCanonicalVersion(meta)) {
@@ -8122,6 +8781,15 @@ async function pullFromCloud() {
     saveFormulasToLocalStorage();
     saveLocalFormulaTombstones(cloudFormulas.filter(f => f.deletedAt));
   }
+  if (cloudMicrobes === null) {
+    showToast('⚠️ 미생물 테이블을 불러오지 못했습니다 · 통합 SQL을 먼저 실행해주세요');
+  } else {
+    const cleanCloudMicrobes = dedupeMicrobesById(cloudMicrobes).filter(m => !m.deletedAt);
+    MICROBES.length = 0;
+    MICROBES.push(...cleanCloudMicrobes);
+    saveMicrobesToLocalStorage();
+    saveLocalMicrobeTombstones(cloudMicrobes.filter(m => m.deletedAt));
+  }
   saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
   saveLocalSyncMeta({ canonicalVersion: meta.version });
   const learning = await sbLoadLearningStates();
@@ -8134,7 +8802,7 @@ async function pullFromCloud() {
 async function syncWithCloud() {
   if (!getSupabaseConfig()) return false;
   showToast('☁️ 변경사항 동기화 중...');
-  const [cloudTerms, cloudDrugs, cloudFormulas, canonicalMeta] = await Promise.all([sbLoadAll(), sbLoadAllDrugs(), sbLoadAllFormulas(), sbLoadCanonicalMeta()]);
+  const [cloudTerms, cloudDrugs, cloudFormulas, cloudMicrobes, canonicalMeta] = await Promise.all([sbLoadAll(), sbLoadAllDrugs(), sbLoadAllFormulas(), sbLoadAllMicrobes(), sbLoadCanonicalMeta()]);
   if (cloudTerms === null) {
     showToast('⚠️ 클라우드 데이터를 불러오지 못했습니다');
     return false;
@@ -8159,6 +8827,8 @@ async function syncWithCloud() {
   if (!canSyncDrugs) showToast('⚠️ 약물 테이블 동기화는 건너뜁니다 · 통합 SQL을 실행해주세요');
   const canSyncFormulas = Array.isArray(cloudFormulas);
   if (!canSyncFormulas) showToast('⚠️ 공식 테이블 동기화는 건너뜁니다 · 통합 SQL을 실행해주세요');
+  const canSyncMicrobes = Array.isArray(cloudMicrobes);
+  if (!canSyncMicrobes) showToast('⚠️ 미생물 테이블 동기화는 건너뜁니다 · 통합 SQL을 실행해주세요');
 
   const refreshedMeta = getLocalSyncMeta();
   const canonicalChanged = !!canonicalMeta?.version && canonicalMeta.version !== refreshedMeta.canonicalVersion;
@@ -8178,6 +8848,12 @@ async function syncWithCloud() {
       FORMULAS.push(...dedupeFormulasById(cloudFormulas).filter(f => !f.deletedAt));
       saveFormulasToLocalStorage();
       saveLocalFormulaTombstones(cloudFormulas.filter(f => f.deletedAt));
+    }
+    if (canSyncMicrobes) {
+      MICROBES.length = 0;
+      MICROBES.push(...dedupeMicrobesById(cloudMicrobes).filter(m => !m.deletedAt));
+      saveMicrobesToLocalStorage();
+      saveLocalMicrobeTombstones(cloudMicrobes.filter(m => m.deletedAt));
     }
     saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
     const learning = await sbLoadLearningStates();
@@ -8218,6 +8894,17 @@ async function syncWithCloud() {
     saveFormulasToLocalStorage();
     saveLocalFormulaTombstones(mergedFormulas.filter(f => f.deletedAt));
     await sbBatchUpsertFormulaRows(mergedFormulas.map(formulaToRow));
+  }
+  if (canSyncMicrobes) {
+    const localMicrobeActiveFence = filterLocalRowsAfterCanonicalFence(MICROBES, cloudMicrobes, canonicalMeta);
+    const localMicrobeTombstoneFence = filterLocalRowsAfterCanonicalFence(loadLocalMicrobeTombstones(), cloudMicrobes, canonicalMeta);
+    skippedStaleLocalRows += localMicrobeActiveFence.skipped + localMicrobeTombstoneFence.skipped;
+    const mergedMicrobes = mergeMicrobesForSync(cloudMicrobes, localMicrobeActiveFence.rows, localMicrobeTombstoneFence.rows);
+    MICROBES.length = 0;
+    MICROBES.push(...mergedMicrobes.filter(m => !m.deletedAt));
+    saveMicrobesToLocalStorage();
+    saveLocalMicrobeTombstones(mergedMicrobes.filter(m => m.deletedAt));
+    await sbBatchUpsertMicrobeRows(mergedMicrobes.map(microbeToRow));
   }
   await sbBatchUpsertRows(mergedRows.map(termToRow));
   await syncLearningStateToCloud();
@@ -8496,6 +9183,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <button id="addKind_term" class="add-kind-btn active" onclick="switchAddKind('term')" style="background:var(--add-active-bg);border:1px solid var(--add-active-border);border-radius:10px;padding:11px;color:var(--add-active-text);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📘 일반 용어</button>
             <button id="addKind_drug" class="add-kind-btn" onclick="switchAddKind('drug')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💊 약물명 및 정보</button>
             <button id="addKind_formula" class="add-kind-btn" onclick="switchAddKind('formula')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">∑ 주요 의학계산공식</button>
+            <button id="addKind_microbe" class="add-kind-btn" onclick="switchAddKind('microbe')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🧫 미생물</button>
           </div>
         </div>
         <div id="termAddFields">
@@ -8700,6 +9388,14 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           </div>
         </div><!-- /formulaAddFields -->
 
+        <div id="microbeAddFields" style="display:none">
+          <div class="add-section-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
+            <div class="add-section-title" style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:4px">🧫 미생물</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:12px">병원체 유형, 형태, 병독성, 대표 질환, 진단/치료, USMLE 단서를 한 카드로 저장합니다.</div>
+            ${microbeFormFieldsHtml('add_microbe', {}, inputStyle(), inputStyle(true))}
+          </div>
+        </div><!-- /microbeAddFields -->
+
       <!-- Submit -->
       <button id="addSubmitBtn" class="add-submit-btn" onclick="submitAddTerm()" style="width:100%;background:var(--accent);border:none;border-radius:10px;padding:14px;color:#0d1117;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px">
         ➕ 용어 추가
@@ -8735,7 +9431,9 @@ function showAddTermModal() {
   document.body.appendChild(modal);
   showAddTermForm(document.getElementById('addTermModalBody'));
   if (currentLibraryMode === 'drugs') switchAddKind('drug');
-  if (currentLibraryMode === 'formulas') switchAddKind('formula');
+  else if (currentLibraryMode === 'formulas') switchAddKind('formula');
+  else if (currentLibraryMode === 'microbes') switchAddKind('microbe');
+  else switchAddKind('term');
   setTimeout(updateAddKeyHint, 0);
 }
 
@@ -8790,18 +9488,22 @@ function switchAddTab(tab) {
 function switchAddKind(kind) {
   const isDrug = kind === 'drug';
   const isFormula = kind === 'formula';
+  const isMicrobe = kind === 'microbe';
   const kindInput = document.getElementById('add_kind');
   const termFields = document.getElementById('termAddFields');
   const drugFields = document.getElementById('drugAddFields');
   const formulaFields = document.getElementById('formulaAddFields');
+  const microbeFields = document.getElementById('microbeAddFields');
   const termBtn = document.getElementById('addKind_term');
   const drugBtn = document.getElementById('addKind_drug');
   const formulaBtn = document.getElementById('addKind_formula');
+  const microbeBtn = document.getElementById('addKind_microbe');
   const submitBtn = document.getElementById('addSubmitBtn');
-  if (kindInput) kindInput.value = isFormula ? 'formula' : (isDrug ? 'drug' : 'term');
-  if (termFields) termFields.style.display = (!isDrug && !isFormula) ? 'block' : 'none';
+  if (kindInput) kindInput.value = isFormula ? 'formula' : (isMicrobe ? 'microbe' : (isDrug ? 'drug' : 'term'));
+  if (termFields) termFields.style.display = (!isDrug && !isFormula && !isMicrobe) ? 'block' : 'none';
   if (drugFields) drugFields.style.display = isDrug ? 'block' : 'none';
   if (formulaFields) formulaFields.style.display = isFormula ? 'block' : 'none';
+  if (microbeFields) microbeFields.style.display = isMicrobe ? 'block' : 'none';
   const setKindButton = (btn, active) => {
     if (!btn) return;
     btn.classList.toggle('active', active);
@@ -8809,10 +9511,11 @@ function switchAddKind(kind) {
     btn.style.border = active ? '1px solid var(--add-active-border)' : '1px solid var(--border)';
     btn.style.color = active ? 'var(--add-active-text)' : 'var(--text2)';
   };
-  setKindButton(termBtn, !isDrug && !isFormula);
+  setKindButton(termBtn, !isDrug && !isFormula && !isMicrobe);
   setKindButton(drugBtn, isDrug);
   setKindButton(formulaBtn, isFormula);
-  if (submitBtn) submitBtn.textContent = isFormula ? '∑ 공식 저장' : (isDrug ? '💊 약물명 및 정보로 저장' : '➕ 용어 추가');
+  setKindButton(microbeBtn, isMicrobe);
+  if (submitBtn) submitBtn.textContent = isMicrobe ? '🧫 미생물 저장' : (isFormula ? '∑ 공식 저장' : (isDrug ? '💊 약물명 및 정보로 저장' : '➕ 용어 추가'));
   updateAddKeyHint();
 }
 
@@ -9051,6 +9754,10 @@ async function submitAddTerm() {
   const addKind = document.getElementById('add_kind')?.value || 'term';
   if (addKind === 'formula') {
     submitAddFormula();
+    return;
+  }
+  if (addKind === 'microbe') {
+    submitAddMicrobe();
     return;
   }
   if (addKind === 'drug') {
@@ -10152,17 +10859,19 @@ function downloadBlobFile(content, filename, mime = 'application/octet-stream') 
 
 function createCompleteBackupObject() {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     app: APP_INFO.name,
     appVersion: APP_INFO.version,
     exportedAt: new Date().toISOString(),
     terms: dedupeTermsById(TERMS),
     drugs: dedupeDrugsById(DRUGS),
     formulas: dedupeFormulasById(FORMULAS),
+    microbes: dedupeMicrobesById(MICROBES),
     learningStates: getLearningStateMap(),
     tombstones: loadLocalTombstones(),
     drugTombstones: loadLocalDrugTombstones(),
     formulaTombstones: loadLocalFormulaTombstones(),
+    microbeTombstones: loadLocalMicrobeTombstones(),
     syncMeta: getLocalSyncMeta(),
   };
 }
@@ -10175,7 +10884,7 @@ function exportCompleteJsonBackup() {
 
 function createDomainBackupObject(domain) {
   const base = {
-    schemaVersion: 6,
+    schemaVersion: 7,
     app: APP_INFO.name,
     appVersion: APP_INFO.version,
     exportedAt: new Date().toISOString(),
@@ -10194,6 +10903,14 @@ function createDomainBackupObject(domain) {
       ...base,
       formulas: dedupeFormulasById(FORMULAS),
       formulaTombstones: loadLocalFormulaTombstones(),
+      syncMeta: getLocalSyncMeta(),
+    };
+  }
+  if (domain === 'microbes') {
+    return {
+      ...base,
+      microbes: dedupeMicrobesById(MICROBES),
+      microbeTombstones: loadLocalMicrobeTombstones(),
       syncMeta: getLocalSyncMeta(),
     };
   }
@@ -10769,7 +11486,9 @@ async function readDataImportFile(file, kind) {
     const hasDrugTombstonePayload = !!parsed && Object.prototype.hasOwnProperty.call(parsed, 'drugTombstones') && Array.isArray(parsed.drugTombstones);
     const hasFormulaPayload = !!parsed && Object.prototype.hasOwnProperty.call(parsed, 'formulas') && Array.isArray(parsed.formulas);
     const hasFormulaTombstonePayload = !!parsed && Object.prototype.hasOwnProperty.call(parsed, 'formulaTombstones') && Array.isArray(parsed.formulaTombstones);
-    if (!hasTermPayload && !hasDrugPayload && !hasFormulaPayload && !hasDrugTombstonePayload && !hasFormulaTombstonePayload) {
+    const hasMicrobePayload = !!parsed && Object.prototype.hasOwnProperty.call(parsed, 'microbes') && Array.isArray(parsed.microbes);
+    const hasMicrobeTombstonePayload = !!parsed && Object.prototype.hasOwnProperty.call(parsed, 'microbeTombstones') && Array.isArray(parsed.microbeTombstones);
+    if (!hasTermPayload && !hasDrugPayload && !hasFormulaPayload && !hasMicrobePayload && !hasDrugTombstonePayload && !hasFormulaTombstonePayload && !hasMicrobeTombstonePayload) {
       throw new Error('지원되는 백업 JSON이 아닙니다.');
     }
     return {
@@ -10778,16 +11497,20 @@ async function readDataImportFile(file, kind) {
       terms: hasTermPayload ? dedupeTermsById(parsed.terms) : [],
       drugs: hasDrugPayload ? dedupeDrugsById(parsed.drugs) : [],
       formulas: hasFormulaPayload ? dedupeFormulasById(parsed.formulas) : [],
+      microbes: hasMicrobePayload ? dedupeMicrobesById(parsed.microbes) : [],
       learningStates: parsed.learningStates || {},
       tombstones: hasTermPayload && Array.isArray(parsed.tombstones) ? parsed.tombstones : [],
       drugTombstones: hasDrugTombstonePayload ? parsed.drugTombstones : [],
       formulaTombstones: hasFormulaTombstonePayload ? parsed.formulaTombstones : [],
+      microbeTombstones: hasMicrobeTombstonePayload ? parsed.microbeTombstones : [],
       syncMeta: parsed.syncMeta || {},
       hasTermPayload,
       hasDrugPayload,
       hasDrugTombstonePayload,
       hasFormulaPayload,
       hasFormulaTombstonePayload,
+      hasMicrobePayload,
+      hasMicrobeTombstonePayload,
     };
   }
 
@@ -10800,7 +11523,7 @@ async function readDataImportFile(file, kind) {
     const workbook = XLSX.read(text, { type: 'string' });
     rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
   }
-  return { kind, fileName: file.name, terms: normalizeImportedTableRows(rows), drugs: [], formulas: [], learningStates: {}, tombstones: [], drugTombstones: [], formulaTombstones: [], hasTermPayload: true, hasDrugPayload: false, hasDrugTombstonePayload: false, hasFormulaPayload: false, hasFormulaTombstonePayload: false };
+  return { kind, fileName: file.name, terms: normalizeImportedTableRows(rows), drugs: [], formulas: [], microbes: [], learningStates: {}, tombstones: [], drugTombstones: [], formulaTombstones: [], microbeTombstones: [], hasTermPayload: true, hasDrugPayload: false, hasDrugTombstonePayload: false, hasFormulaPayload: false, hasFormulaTombstonePayload: false, hasMicrobePayload: false, hasMicrobeTombstonePayload: false };
 }
 
 function calculateImportPreview(importData) {
@@ -10827,7 +11550,13 @@ function calculateImportPreview(importData) {
   const formulaAdded = importData.hasFormulaPayload ? incomingFormulas.filter(f => !existingFormulaIds.has(String(f.id))).length : 0;
   const formulaUpdated = importData.hasFormulaPayload ? incomingFormulas.length - formulaAdded : 0;
   const formulaReplaced = importData.kind === 'json' && importData.hasFormulaPayload ? FORMULAS.filter(f => !incomingFormulaIds.has(String(f.id))).length : 0;
-  return { added, updated, replaced, drugAdded, drugUpdated, drugReplaced, formulaAdded, formulaUpdated, formulaReplaced, hasTermPayload: !!importData.hasTermPayload, hasDrugPayload: !!importData.hasDrugPayload, hasFormulaPayload: !!importData.hasFormulaPayload };
+  const existingMicrobeIds = new Set(MICROBES.map(m => String(m.id)));
+  const incomingMicrobes = Array.isArray(importData.microbes) ? importData.microbes : [];
+  const incomingMicrobeIds = new Set(incomingMicrobes.map(m => String(m.id)));
+  const microbeAdded = importData.hasMicrobePayload ? incomingMicrobes.filter(m => !existingMicrobeIds.has(String(m.id))).length : 0;
+  const microbeUpdated = importData.hasMicrobePayload ? incomingMicrobes.length - microbeAdded : 0;
+  const microbeReplaced = importData.kind === 'json' && importData.hasMicrobePayload ? MICROBES.filter(m => !incomingMicrobeIds.has(String(m.id))).length : 0;
+  return { added, updated, replaced, drugAdded, drugUpdated, drugReplaced, formulaAdded, formulaUpdated, formulaReplaced, microbeAdded, microbeUpdated, microbeReplaced, hasTermPayload: !!importData.hasTermPayload, hasDrugPayload: !!importData.hasDrugPayload, hasFormulaPayload: !!importData.hasFormulaPayload, hasMicrobePayload: !!importData.hasMicrobePayload };
 }
 
 async function previewDataImport(event, kind) {
@@ -10875,9 +11604,11 @@ async function applyPendingDataImport() {
   const incoming = dedupeTermsById(pendingDataImport.terms);
   const incomingDrugs = dedupeDrugsById(pendingDataImport.drugs || []);
   const incomingFormulas = dedupeFormulasById(pendingDataImport.formulas || []);
+  const incomingMicrobes = dedupeMicrobesById(pendingDataImport.microbes || []);
   const hasTermPayload = !!pendingDataImport.hasTermPayload;
   const hasDrugPayload = !!pendingDataImport.hasDrugPayload;
   const hasFormulaPayload = !!pendingDataImport.hasFormulaPayload;
+  const hasMicrobePayload = !!pendingDataImport.hasMicrobePayload;
 
   if (mode === 'replace') {
     exportCompleteJsonBackup();
@@ -10891,6 +11622,7 @@ async function applyPendingDataImport() {
     if (pendingDataImport.kind === 'json') {
       let removedDrugs = [];
       let removedFormulas = [];
+      let removedMicrobes = [];
       if (hasDrugPayload) {
         const incomingDrugIds = new Set(incomingDrugs.map(d => String(d.id)));
         removedDrugs = DRUGS.filter(d => !incomingDrugIds.has(String(d.id))).map(recordLocalDrugTombstone).filter(Boolean);
@@ -10903,6 +11635,12 @@ async function applyPendingDataImport() {
         FORMULAS.length = 0;
         FORMULAS.push(...incomingFormulas.filter(f => !f.deletedAt));
       }
+      if (hasMicrobePayload) {
+        const incomingMicrobeIds = new Set(incomingMicrobes.map(m => String(m.id)));
+        removedMicrobes = MICROBES.filter(m => !incomingMicrobeIds.has(String(m.id))).map(recordLocalMicrobeTombstone).filter(Boolean);
+        MICROBES.length = 0;
+        MICROBES.push(...incomingMicrobes.filter(m => !m.deletedAt));
+      }
       if (hasTermPayload) {
         saveLearningStateMap(pendingDataImport.learningStates);
         saveLocalTombstones([...(pendingDataImport.tombstones || []), ...removed.filter(Boolean)]);
@@ -10913,7 +11651,10 @@ async function applyPendingDataImport() {
       if (hasFormulaPayload || pendingDataImport.hasFormulaTombstonePayload) {
         saveLocalFormulaTombstones([...(pendingDataImport.formulaTombstones || []), ...removedFormulas]);
       }
-      if (hasTermPayload && hasDrugPayload && hasFormulaPayload && pendingDataImport.syncMeta?.canonicalVersion) saveLocalSyncMeta(pendingDataImport.syncMeta);
+      if (hasMicrobePayload || pendingDataImport.hasMicrobeTombstonePayload) {
+        saveLocalMicrobeTombstones([...(pendingDataImport.microbeTombstones || []), ...removedMicrobes]);
+      }
+      if (hasTermPayload && hasDrugPayload && hasFormulaPayload && hasMicrobePayload && pendingDataImport.syncMeta?.canonicalVersion) saveLocalSyncMeta(pendingDataImport.syncMeta);
     } else {
       if (hasTermPayload) saveLocalTombstones([...loadLocalTombstones(), ...removed]);
     }
@@ -10954,6 +11695,15 @@ async function applyPendingDataImport() {
         FORMULAS.push(...mergedFormulas.filter(f => !f.deletedAt));
         saveLocalFormulaTombstones(mergedFormulas.filter(f => f.deletedAt));
       }
+      if (hasMicrobePayload || pendingDataImport.hasMicrobeTombstonePayload) {
+        const mergedMicrobes = mergeMicrobesForSync(hasMicrobePayload ? incomingMicrobes : [], MICROBES, [
+          ...loadLocalMicrobeTombstones(),
+          ...(pendingDataImport.microbeTombstones || [])
+        ]);
+        MICROBES.length = 0;
+        MICROBES.push(...mergedMicrobes.filter(m => !m.deletedAt));
+        saveLocalMicrobeTombstones(mergedMicrobes.filter(m => m.deletedAt));
+      }
     } else if (pendingDataImport.kind === 'json' && mode === 'append') {
       if (hasDrugPayload) {
         const drugIds = new Set(DRUGS.map(d => String(d.id)));
@@ -10970,6 +11720,15 @@ async function applyPendingDataImport() {
           if (!formulaIds.has(String(formula.id)) && !formula.deletedAt) {
             FORMULAS.push(formula);
             formulaIds.add(String(formula.id));
+          }
+        });
+      }
+      if (hasMicrobePayload) {
+        const microbeIds = new Set(MICROBES.map(m => String(m.id)));
+        incomingMicrobes.forEach(microbe => {
+          if (!microbeIds.has(String(microbe.id)) && !microbe.deletedAt) {
+            MICROBES.push(microbe);
+            microbeIds.add(String(microbe.id));
           }
         });
       }
@@ -11271,14 +12030,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.89',
+  version: '3.90',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 09:42',
+  updatedAt: '2026년 6월 22일 17:57',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 미생물 파트 추가',
+    items: [
+      '일반용어, 약물명 및 정보, 주요 의학계산공식과 나란히 미생물 라이브러리 전환 버튼을 추가',
+      '미생물명, 유형, Gram/형태/산소요구성, 병독성, 질환, 진단, 치료, 예방, USMLE 단서, 암기포인트를 별도 카드로 저장·편집·삭제 가능하게 구성',
+      '미생물 데이터도 IndexedDB 캐시, tombstone, Supabase medical_microbes 테이블, 최종본 메타, JSON 백업 대상에 포함',
+    ]
+  },
   {
     title: '최신 · AI키기준추가속도보강',
     items: [
@@ -12023,7 +12790,7 @@ const UPDATE_HISTORY = [
 ];
 
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon 의학용어 앱 Supabase 통합 스키마
--- 핵심: medical_terms, medical_drugs, medical_formulas, deleted_at, updated_at, language_sync_meta가 반드시 필요합니다.
+-- 핵심: medical_terms, medical_drugs, medical_formulas, medical_microbes, deleted_at, updated_at, language_sync_meta가 반드시 필요합니다.
 
 create table if not exists public.medical_terms (
   id bigint primary key,
@@ -12289,8 +13056,97 @@ values
     'medical_formulas_canonical_version',
     'schema-init-' || floor(extract(epoch from now()) * 1000)::bigint::text,
     now()
+  ),
+  (
+    'medical_microbes_canonical_version',
+    'schema-init-' || floor(extract(epoch from now()) * 1000)::bigint::text,
+    now()
   )
 on conflict (key) do nothing;
+
+
+
+create table if not exists public.medical_microbes (
+  id bigint primary key,
+  organism text default '',
+  ko_name text default '',
+  latin_name text default '',
+  microbe_type text default '',
+  gram_stain text default '',
+  shape text default '',
+  oxygen text default '',
+  genome text default '',
+  virulence text default '',
+  diseases text default '',
+  diagnosis text default '',
+  treatment text default '',
+  prevention text default '',
+  usmle_clues text default '',
+  memory_line text default '',
+  category text default 'Infectious Disease',
+  system_tags jsonb default '[]'::jsonb,
+  refs jsonb default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  deleted_at timestamptz
+);
+
+alter table public.medical_microbes
+  add column if not exists organism text default '',
+  add column if not exists ko_name text default '',
+  add column if not exists latin_name text default '',
+  add column if not exists microbe_type text default '',
+  add column if not exists gram_stain text default '',
+  add column if not exists shape text default '',
+  add column if not exists oxygen text default '',
+  add column if not exists genome text default '',
+  add column if not exists virulence text default '',
+  add column if not exists diseases text default '',
+  add column if not exists diagnosis text default '',
+  add column if not exists treatment text default '',
+  add column if not exists prevention text default '',
+  add column if not exists usmle_clues text default '',
+  add column if not exists memory_line text default '',
+  add column if not exists category text default 'Infectious Disease',
+  add column if not exists system_tags jsonb default '[]'::jsonb,
+  add column if not exists refs jsonb default '[]'::jsonb,
+  add column if not exists created_at timestamptz default now(),
+  add column if not exists updated_at timestamptz default now(),
+  add column if not exists deleted_at timestamptz;
+
+alter table public.medical_microbes
+  alter column id type bigint using id::bigint,
+  alter column id set not null;
+
+do $$
+begin
+  if exists (
+    select id from public.medical_microbes group by id having count(*) > 1
+  ) then
+    raise exception 'medical_microbes.id 중복이 있어 primary key를 만들 수 없습니다. 중복 id를 먼저 정리하세요.';
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.medical_microbes'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.medical_microbes
+      add constraint medical_microbes_pkey primary key (id);
+  end if;
+end $$;
+
+create index if not exists medical_microbes_updated_at_idx
+  on public.medical_microbes (updated_at desc);
+
+create index if not exists medical_microbes_deleted_at_idx
+  on public.medical_microbes (deleted_at);
+
+create index if not exists medical_microbes_type_idx
+  on public.medical_microbes (microbe_type);
+
+create index if not exists medical_microbes_category_idx
+  on public.medical_microbes (category);
 
 create table if not exists public.medical_term_learning_state (
   term_id bigint primary key,
@@ -12332,6 +13188,11 @@ select
       and contype = 'p'
   ) as medical_formulas_has_primary_key,
   exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.medical_microbes'::regclass
+      and contype = 'p'
+  ) as medical_microbes_has_primary_key,
+  exists (
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_terms' and column_name='deleted_at'
   ) as deleted_at_ready,
@@ -12343,6 +13204,10 @@ select
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_formulas' and column_name='deleted_at'
   ) as formula_deleted_at_ready,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='medical_microbes' and column_name='deleted_at'
+  ) as microbe_deleted_at_ready,
   exists (
     select 1 from information_schema.columns
     where table_schema='public' and table_name='medical_drugs' and column_name='same_class_drugs'
@@ -12373,16 +13238,25 @@ select
       and coalesce(value, '') <> ''
       and updated_at is not null
   ) as formula_canonical_meta_ready,
+  exists (
+    select 1 from public.language_sync_meta
+    where key = 'medical_microbes_canonical_version'
+      and coalesce(value, '') <> ''
+      and updated_at is not null
+  ) as microbe_canonical_meta_ready,
   (select value from public.language_sync_meta where key = 'medical_terms_canonical_version') as canonical_version,
   (select updated_at from public.language_sync_meta where key = 'medical_terms_canonical_version') as canonical_updated_at,
   (select value from public.language_sync_meta where key = 'medical_drugs_canonical_version') as drug_canonical_version,
   (select value from public.language_sync_meta where key = 'medical_formulas_canonical_version') as formula_canonical_version,
+  (select value from public.language_sync_meta where key = 'medical_microbes_canonical_version') as microbe_canonical_version,
   (select count(*) from public.medical_terms where deleted_at is null) as active_terms,
   (select count(*) from public.medical_terms where deleted_at is not null) as deleted_tombstones,
   (select count(*) from public.medical_drugs where deleted_at is null) as active_drugs,
   (select count(*) from public.medical_drugs where deleted_at is not null) as deleted_drug_tombstones,
   (select count(*) from public.medical_formulas where deleted_at is null) as active_formulas,
-  (select count(*) from public.medical_formulas where deleted_at is not null) as deleted_formula_tombstones;`;
+  (select count(*) from public.medical_formulas where deleted_at is not null) as deleted_formula_tombstones,
+  (select count(*) from public.medical_microbes where deleted_at is null) as active_microbes,
+  (select count(*) from public.medical_microbes where deleted_at is not null) as deleted_microbe_tombstones;`;
 
 function currentFileName() {
   const fallback = `${APP_INFO.name}_${(UPDATE_HISTORY[0]?.title || '저장본').replace(/^최신\s*·\s*/, '')}.html`;
