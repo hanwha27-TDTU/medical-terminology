@@ -6392,7 +6392,7 @@ const MEDICAL_SYMBOL_GROUPS = [
 function isMedicalSymbolTextTarget(el) {
   if (!el || el.disabled || el.readOnly) return false;
   if (el.tagName === 'TEXTAREA') return true;
-  return el.tagName === 'INPUT' && ['text', 'search', 'url', 'email', 'tel', 'number', ''].includes((el.type || 'text').toLowerCase());
+  return el.tagName === 'INPUT' && ['text', 'search', 'url', 'email', 'tel', ''].includes((el.type || 'text').toLowerCase());
 }
 
 document.addEventListener('focusin', event => {
@@ -6400,8 +6400,11 @@ document.addEventListener('focusin', event => {
 });
 
 function insertMedicalSymbol(symbol) {
-  const active = isMedicalSymbolTextTarget(document.activeElement) ? document.activeElement : lastMedicalSymbolTarget;
+  const active = isMedicalSymbolTextTarget(document.activeElement)
+    ? document.activeElement
+    : (lastMedicalSymbolTarget && document.contains(lastMedicalSymbolTarget) ? lastMedicalSymbolTarget : null);
   if (!active) {
+    lastMedicalSymbolTarget = null;
     showToast('먼저 입력칸을 선택해주세요.');
     return;
   }
@@ -6411,7 +6414,9 @@ function insertMedicalSymbol(symbol) {
   active.value = `${active.value.slice(0, start)}${text}${active.value.slice(end)}`;
   const cursor = start + text.length;
   active.focus();
-  if (typeof active.setSelectionRange === 'function') active.setSelectionRange(cursor, cursor);
+  if (typeof active.setSelectionRange === 'function') {
+    try { active.setSelectionRange(cursor, cursor); } catch (_) {}
+  }
   active.dispatchEvent(new Event('input', { bubbles: true }));
   lastMedicalSymbolTarget = active;
 }
@@ -11151,16 +11156,23 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.82',
+  version: '3.83',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 08:47',
+  updatedAt: '2026년 6월 22일 08:55',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 의학특수문자입력기추가',
+    title: '최신 · 특수문자입력기방어보강',
+    items: [
+      '특수문자 입력기 대상에서 number input을 제외해 향후 숫자 전용 입력칸에서 비숫자 삽입과 selection 예외가 생기지 않도록 보강',
+      '닫힌 모달처럼 문서에서 분리된 입력칸을 마지막 대상이 아닌 것으로 처리하고, 커서 복원은 예외를 흡수하도록 방어',
+    ]
+  },
+  {
+    title: 'v3.82 · 의학특수문자입력기추가',
     items: [
       '용어, 약물명 및 정보, 주요 의학계산공식 입력·편집 화면에 현재 커서 위치로 삽입되는 공용 특수문자 입력기를 추가',
       '뇌신경 표기에 쓰는 로마 숫자 I-XII와 Greek, 화살표, 비교기호, 위첨자·아래첨자, 전해질·분자·의학 단위를 칩으로 제공',
