@@ -4804,6 +4804,8 @@ function normalizeDrugForStorage(d) {
   const koName = cleanTermString(d.ko_name || d.koName || d.ko);
   const brand = cleanTermString(d.brand_name || d.brandName || d.brand);
   const category = normalizeSystemCategory(d.category || d.system || 'General');
+  const deletedAt = d.deletedAt || d.deleted_at || null;
+  const updatedAt = d.updatedAt || d.updated_at || deletedAt || now;
   return {
     id: Number(d.id) || nextDrugId(),
     generic_name: capitalizeTermInitial(generic),
@@ -4832,15 +4834,17 @@ function normalizeDrugForStorage(d) {
     usmle_strategy: cleanTermString(d.usmle_strategy),
     memory_line: cleanTermString(d.memory_line),
     refs: Array.isArray(d.refs) ? d.refs : [],
-    createdAt: d.createdAt || d.created_at || d.updatedAt || now,
-    updatedAt: d.updatedAt || d.updated_at || now,
-    deletedAt: d.deletedAt || d.deleted_at || null,
+    createdAt: d.createdAt || d.created_at || updatedAt || now,
+    updatedAt,
+    deletedAt,
     hiddenAt: d.hiddenAt || d.hidden_at || null,
   };
 }
 
 function normalizeFormulaForStorage(f) {
   const now = new Date().toISOString();
+  const deletedAt = f.deletedAt || f.deleted_at || null;
+  const updatedAt = f.updatedAt || f.updated_at || deletedAt || now;
   return {
     id: Number(f.id) || nextFormulaId(),
     name: cleanTermString(f.name || f.formula_name || f.title),
@@ -4856,9 +4860,9 @@ function normalizeFormulaForStorage(f) {
     usmle_trap: cleanTermString(f.usmle_trap || f.usmleTrap || f.trap),
     variables: cleanTermString(f.variables || f.variable_notes),
     tags: normalizeSystemTags(f.tags || f.system_tags || f.systemTags),
-    createdAt: f.createdAt || f.created_at || f.updatedAt || now,
-    updatedAt: f.updatedAt || f.updated_at || now,
-    deletedAt: f.deletedAt || f.deleted_at || null,
+    createdAt: f.createdAt || f.created_at || updatedAt || now,
+    updatedAt,
+    deletedAt,
     hiddenAt: f.hiddenAt || f.hidden_at || null,
   };
 }
@@ -11052,16 +11056,23 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.79',
+  version: '3.80',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 22일 07:44',
+  updatedAt: '2026년 6월 22일 08:02',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 퀴즈셔플 통계삭제필터 보강',
+    title: '최신 · 약물공식Tombstone시간보정',
+    items: [
+      '약물명 및 정보와 주요 의학계산공식 tombstone 정규화도 용어와 동일하게 deletedAt 기반 updatedAt 폴백을 적용',
+      '외부/구버전 백업 복원 시 updatedAt이 빠진 삭제 기록이 현재 시각으로 승격되어 동기화 판단을 흐리는 위험을 줄임',
+    ]
+  },
+  {
+    title: 'v3.79 · 퀴즈셔플 통계삭제필터 보강',
     items: [
       '퀴즈 무작위 출제의 편향을 만들 수 있는 Math.random 정렬 셔플을 Fisher-Yates 셔플로 교체',
       '구버전 백업 tombstone에 updatedAt이 없을 때 deletedAt 기준으로 보정해 복원 후 동기화 오판 위험을 줄임',
