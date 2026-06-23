@@ -13249,14 +13249,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.07',
+  version: '4.08',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 23일 15:05',
+  updatedAt: '2026년 6월 23일 15:32',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 단권화 노트 백업복원 점검',
+    items: [
+      '단권화 노트 백업 복원 후 탭 전환 과정에서 noteFrame이 사라지면 화면이 비어 보일 수 있던 재생성 경로를 보강',
+      'noteFrame을 microbeFrame뿐 아니라 mainContent 기준으로도 안전하게 복구해 복원 직후 단권화 노트 카드가 다시 표시되도록 개선',
+      '점검 결과 단권화 노트는 현재 전체 JSON 백업/복원 대상이며, Supabase 클라우드 저장은 아직 별도 보강이 필요한 상태로 확인',
+    ]
+  },
   {
     title: '최신 · 단권화 노트 표 편집(워드형)',
     items: [
@@ -17259,9 +17267,17 @@ initApp();
     if (switcher && !document.getElementById('libraryModeNotesBtn')) {
       switcher.insertAdjacentHTML('beforeend', `<button id="libraryModeNotesBtn" class="library-mode-btn note" role="tab" aria-selected="false" onclick="setLibraryMode('notes')">🧠 단권화 노트</button>`);
     }
-    const microbeFrame = document.getElementById('microbeFrame');
-    if (microbeFrame && !document.getElementById('noteFrame')) {
-      microbeFrame.insertAdjacentHTML('afterend', `<div id="noteFrame"></div>`);
+    if (!document.getElementById('noteFrame')) {
+      const anchor = document.getElementById('microbeFrame')
+        || document.getElementById('formulaFrame')
+        || document.getElementById('drugFrame')
+        || document.getElementById('termList');
+      if (anchor) {
+        anchor.insertAdjacentHTML('afterend', `<div id="noteFrame"></div>`);
+      } else {
+        const main = document.getElementById('mainContent');
+        if (main) main.insertAdjacentHTML('beforeend', `<div id="noteFrame"></div>`);
+      }
     }
   }
   function syncIntegratedNoteModeUi() {
