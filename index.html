@@ -1737,6 +1737,19 @@ document.addEventListener('keydown', e => {
 
   .section-label:first-child { margin-top: 0; }
 
+  .section-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .section-label-spacer {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
   .inline-add-btn {
     background: var(--add-active-bg);
     border: 1px solid var(--add-active-border);
@@ -3599,6 +3612,15 @@ document.addEventListener('keydown', e => {
 
     .section-label {
       margin-top: 14px;
+    }
+
+    .section-label-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .section-label-spacer {
+      display: none;
     }
 
     .inline-add-btn {
@@ -8300,8 +8322,10 @@ function setSectionLabel(text = '') {
     ? '+ 공식 추가'
     : (currentLibraryMode === 'drugs' ? '+ 약물명 및 정보 추가' : '+ 용어 추가');
   label.innerHTML = `
-    ${labelText}
-    <button class="inline-add-btn" onclick="showAddTermModal()">${addLabel}</button>
+    <div class="section-label-row">
+      <span class="section-label-spacer">${labelText}</span>
+      <button class="inline-add-btn" onclick="showAddTermModal()">${addLabel}</button>
+    </div>
   `;
 }
 
@@ -12525,14 +12549,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.96',
+  version: '3.97',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 23일 07:05',
+  updatedAt: '2026년 6월 23일 07:12',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 추가 버튼 우측 정렬',
+    items: [
+      '일반용어 목록의 추가 버튼도 미생물, 약물명 및 정보, 주요 의학계산공식과 같은 우측 배치로 통일',
+      '섹션 라벨이 없을 때도 추가 버튼 위치가 흔들리지 않도록 공용 행 레이아웃을 적용',
+      '모바일에서는 기존처럼 버튼이 전체 폭을 사용해 터치하기 쉽도록 반응형 배치를 유지',
+    ]
+  },
   {
     title: '최신 · 문자 복사 기능 복원',
     items: [
