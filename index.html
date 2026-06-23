@@ -4108,6 +4108,71 @@ document.addEventListener('keydown', e => {
     gap: 24px;
   }
 
+  .utility-modal-shell {
+    width: min(1180px, calc(100vw - 56px));
+    max-height: none;
+  }
+
+  .utility-modal-shell .note-modal-head {
+    padding: 22px 30px 18px;
+  }
+
+  .utility-modal-shell .note-modal-head h2 {
+    font-size: clamp(22px, 1.75vw, 30px);
+  }
+
+  .utility-modal-shell .note-modal-head p {
+    margin-top: 5px;
+    font-size: 0.88rem;
+  }
+
+  .utility-modal-content {
+    max-height: none;
+    overflow: visible;
+    padding: 22px 30px 26px;
+    gap: 16px;
+  }
+
+  .utility-modal-content .external-search-grid {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+  }
+
+  .utility-modal-content .external-search-card {
+    min-height: 92px;
+    padding: 14px 15px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .utility-modal-content .external-search-card strong {
+    font-size: 13px;
+  }
+
+  .utility-modal-content .external-search-card span {
+    margin-top: 5px;
+    font-size: 10.5px;
+    line-height: 1.38;
+  }
+
+  .utility-modal-content .external-search-card > div:last-child {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .utility-modal-content .useful-site-section {
+    gap: 10px;
+  }
+
+  .utility-modal-content .useful-site-section + .useful-site-section {
+    margin-top: 16px;
+  }
+
+  .utility-modal-content .useful-site-section-title {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
   @media (max-width: 720px) {
     .utility-modal-shell {
       width: min(100vw - 20px, 680px);
@@ -4120,6 +4185,10 @@ document.addEventListener('keydown', e => {
     }
     .external-search-grid {
       grid-template-columns: 1fr;
+    }
+    .utility-modal-content {
+      max-height: calc(88vh - 112px);
+      overflow: auto;
     }
   }
 
@@ -9879,6 +9948,24 @@ function showUtilityModal(title, html) {
   document.body.appendChild(overlay);
 }
 
+function openExternalSiteWindow(event, url, name = 'medicalReferenceSite') {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  const safeUrl = String(url || '').trim();
+  if (!safeUrl) return;
+  const width = Math.min(1180, Math.max(860, Math.floor(window.screen?.availWidth * 0.72 || 1040)));
+  const height = Math.min(860, Math.max(640, Math.floor(window.screen?.availHeight * 0.82 || 760)));
+  const left = Math.max(0, Math.floor(((window.screen?.availWidth || width) - width) / 2));
+  const top = Math.max(0, Math.floor(((window.screen?.availHeight || height) - height) / 2));
+  const features = `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,noopener,noreferrer`;
+  const win = window.open(safeUrl, name, features);
+  if (win) {
+    try { win.focus(); } catch {}
+  } else {
+    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+  }
+}
+
 function openUtilityWindow(tab, btn = null) {
   const main = document.getElementById('mainContent');
   if (!main) return switchTab(tab, btn);
@@ -9914,7 +10001,7 @@ function showExternalMedicalSearchModal(event = null) {
   showUtilityModal('외부 의학용어 검색', `
     <div class="external-search-grid">
       ${links.map(link => `
-        <a class="external-search-card" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
+        <a class="external-search-card" href="${escapeHtml(link.url)}" onclick="openExternalSiteWindow(event, ${escapeHtml(JSON.stringify(link.url))}, 'externalMedicalSearch')">
           <div><strong>${escapeHtml(link.title)}</strong><span>${escapeHtml(link.desc)}</span></div>
           <div style="font-weight:900;color:var(--accent)">열기</div>
         </a>`).join('')}
@@ -9947,7 +10034,7 @@ function showUsefulSitesModal(event = null) {
       <div class="useful-site-section-title">${escapeHtml(group.title)}</div>
       <div class="external-search-grid">
         ${group.links.map(link => `
-          <a class="external-search-card" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
+          <a class="external-search-card" href="${escapeHtml(link.url)}" onclick="openExternalSiteWindow(event, ${escapeHtml(JSON.stringify(link.url))}, 'usefulMedicalSite')">
             <div><strong>${escapeHtml(link.title)}</strong><span>${escapeHtml(link.desc)}</span></div>
             <div style="font-weight:900;color:var(--accent)">열기</div>
           </a>`).join('')}
@@ -13774,14 +13861,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.18',
+  version: '4.19',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 23일 19:03',
+  updatedAt: '2026년 6월 23일 19:10',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 사이트창압축팝업열기',
+    items: [
+      '유용한 사이트와 외부 의학용어 검색 모달을 한 화면에 들어오도록 카드, 제목, 설명 글자 크기와 여백을 압축',
+      '데스크톱에서는 모달 내부 스크롤 없이 7개 사이트가 보이도록 전용 레이아웃을 보정',
+      '사이트 카드를 누르면 새 탭 대신 별도 팝업 창으로 열고, 팝업 차단 시 새 탭 fallback을 사용',
+    ]
+  },
   {
     title: '최신 · 객관식복수정답디자인정리',
     items: [
