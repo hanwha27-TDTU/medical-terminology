@@ -1989,6 +1989,22 @@ document.addEventListener('keydown', e => {
     gap: 14px;
   }
 
+  .microbe-overview-top > div:first-child {
+    min-width: 0;
+  }
+
+  .microbe-overview-top .speak-btn {
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: max-content;
+    white-space: nowrap;
+    line-height: 1.1;
+  }
+
+  .microbe-overview-top .speak-btn .wave {
+    flex: 0 0 auto;
+  }
+
   .microbe-title {
     color: var(--text);
     font-size: 22px;
@@ -2036,8 +2052,8 @@ document.addEventListener('keydown', e => {
   .microbe-info-value {
     color: var(--text);
     font-size: 14px;
-    font-weight: 650;
-    line-height: 1.42;
+    font-weight: 520;
+    line-height: 1.48;
     white-space: pre-wrap;
     word-break: keep-all;
     overflow-wrap: anywhere;
@@ -2070,6 +2086,10 @@ document.addEventListener('keydown', e => {
   @media (max-width: 640px) {
     .microbe-overview-top {
       flex-direction: column;
+    }
+
+    .microbe-overview-top .speak-btn {
+      align-self: flex-start;
     }
 
     .microbe-title {
@@ -12668,14 +12688,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '3.98',
+  version: '3.99',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 23일 07:22',
+  updatedAt: '2026년 6월 23일 07:58',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 미생물 카드 가독성 정돈',
+    items: [
+      '미생물 상세 카드의 발음 듣기 버튼이 좁은 폭에서 두 줄로 갈라지지 않도록 한 줄 배치를 고정',
+      '미생물 정보 카드의 값 텍스트 굵기를 낮춰 라벨, 값, 섹션 제목의 위계를 자연스럽게 조정',
+      '모바일 상세 드로어에서도 발음 버튼이 카드 상단에서 안정적으로 정렬되도록 보강',
+    ]
+  },
   {
     title: '최신 · 미생물 상세 카드 정돈',
     items: [
