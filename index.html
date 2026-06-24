@@ -107,6 +107,8 @@
     font-size: 13px;
     line-height: 1.7;
     overflow-wrap: anywhere;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .note-body-render h3,
   .note-body-render h4 {
@@ -209,6 +211,8 @@
     line-height: 1.7;
     outline: none;
     overflow-wrap: anywhere;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .note-editor:empty::before {
     content: attr(data-placeholder);
@@ -1285,22 +1289,27 @@ async function fillMicrobeIpa(event, prefix) {
   if (event) event.stopPropagation();
   const name = microbeFieldValue(`${prefix}_organism`) || microbeFieldValue(`${prefix}_ko`);
   const input = document.getElementById(`${prefix}_ipa`);
+  if (input?.disabled) return;
   if (!name || !input) {
     if (typeof showToast === 'function') showToast('미생물명을 먼저 입력해주세요.');
     return;
   }
   if (typeof showToast === 'function') showToast('IPA 생성 중...');
+  input.disabled = true;
   try {
     const generated = await generateBestIPA(name);
     if (generated?.ipa) {
       input.value = generated.ipa;
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.disabled = false;
       if (typeof showToast === 'function') showToast(`IPA 추가 완료 · ${generated.source || '자동 생성'}`);
     } else if (typeof showToast === 'function') {
       showToast('IPA를 자동 생성하지 못했습니다. 직접 입력해주세요.');
     }
+    input.disabled = false;
   } catch (err) {
     console.warn('Microbe IPA generation failed', err);
+    input.disabled = false;
     if (typeof showToast === 'function') showToast('IPA 생성 중 오류가 발생했습니다.');
   }
 }
@@ -14249,14 +14258,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.37',
+  version: '4.38',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 17:54',
+  updatedAt: '2026년 6월 24일 18:04',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 보수적 안정성 보강',
+    items: [
+      '미생물 IPA 자동 생성 중 입력칸을 잠시 잠가 중복 호출을 막고 성공·실패 경로에서 다시 해제되도록 보강',
+      '단권화 노트 본문 보기와 편집 영역에 가로 overflow 처리를 추가해 모바일 표가 화면을 밀지 않도록 보정',
+      'TTS 중첩 방지는 기존 speakText의 speechSynthesis.cancel 처리로 이미 반영되어 있어 추가 변경 없이 유지',
+    ]
+  },
   {
     title: '최신 · 노트 모달 통합검색과 모바일 링크 레이어 보강',
     items: [
