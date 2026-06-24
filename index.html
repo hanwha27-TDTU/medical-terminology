@@ -10157,7 +10157,7 @@ function getAIConfig() {
     modelOpenAI:    cfg.modelOpenAI    || 'gpt-4o-mini',
     modelAnthropic: cfg.modelAnthropic || 'claude-sonnet-4-6',
     modelGemini:    cfg.modelGemini    || 'gemini-2.0-flash',
-    localUrl:        cfg.localUrl       || 'http://localhost:11434',
+    localUrl:        cfg.localUrl       || 'http://127.0.0.1:11434',
     localModel:      LOCAL_LLM_MODEL_FIXED,
     localApiType:    'ollama',
   };
@@ -10180,7 +10180,7 @@ function saveAIConfigFromForm(silent = false) {
   const modelOpenAI = document.getElementById('ai_model_openai')?.value.trim() || 'gpt-4o-mini';
   const modelAnthropic = document.getElementById('ai_model_anthropic')?.value.trim() || 'claude-sonnet-4-6';
   const modelGemini = document.getElementById('ai_model_gemini')?.value.trim() || 'gemini-2.0-flash';
-  const localUrl = document.getElementById('ai_local_url')?.value.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+  const localUrl = document.getElementById('ai_local_url')?.value.trim().replace(/\/+$/, '') || 'http://127.0.0.1:11434';
   const localModel = LOCAL_LLM_MODEL_FIXED;
   const localApiType = 'ollama';
 
@@ -10316,11 +10316,11 @@ function showAISettings() {
           미설치 시 터미널에서 <code style="color:var(--accent)">ollama pull ${LOCAL_LLM_MODEL_FIXED}</code> 실행
         </div>
         <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.3);border-radius:10px;padding:10px 12px;margin-bottom:10px;color:var(--text2);font-size:12px;line-height:1.7">
-          설치와 실행이 어렵다면 같은 폴더의 <strong style="color:#74b0ff">Qwen3_로컬LLM_자동실행.cmd</strong>를 먼저 더블클릭하세요.<br>
+          설치와 실행이 어렵다면 같은 폴더의 <strong style="color:#74b0ff">run_qwen3_local_llm.cmd</strong>를 먼저 더블클릭하세요.<br>
           브라우저 보안상 HTML 앱이 직접 프로그램을 설치·실행할 수 없어 Windows 런처가 Ollama 실행과 모델 준비를 대신합니다.
         </div>
         <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">로컬 서버 URL</label>
-        <input id="ai_local_url" type="text" value="${esc(cfg.localUrl)}" placeholder="http://localhost:11434" style="${inputStyle()}">
+        <input id="ai_local_url" type="text" value="${esc(cfg.localUrl)}" placeholder="http://127.0.0.1:11434" style="${inputStyle()}">
         <button onclick="testSingleAIProvider('local')" style="width:100%;background:var(--surface2);border:1px solid rgba(34,197,94,0.65);border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:10px">로컬 LLM 테스트</button>
       </div>
 
@@ -10695,7 +10695,7 @@ async function testLocalLLMProvider() {
       showToast('⚠️ 로컬 LLM은 데스크톱/노트북 화면에서만 테스트합니다');
       return;
     }
-    const tagsRes = await fetch(localLLMEndpoint('/api/tags'), { method: 'GET' });
+    const { res: tagsRes } = await fetchLocalLLM('/api/tags', { method: 'GET' });
     if (!tagsRes.ok) throw new Error(`Ollama tags error: ${tagsRes.status}`);
     const tags = await tagsRes.json();
     const models = (tags.models || []).map(m => String(m.name || m.model || ''));
@@ -10719,15 +10719,39 @@ function isDesktopLocalLLMContext() {
 
 function localLLMEndpoint(path = '') {
   const cfg = getAIConfig();
-  const base = String(cfg.localUrl || 'http://localhost:11434').replace(/\/+$/, '');
+  const base = String(cfg.localUrl || 'http://127.0.0.1:11434').replace(/\/+$/, '');
   return `${base}${path}`;
+}
+
+function localLLMBaseCandidates() {
+  const cfg = getAIConfig();
+  const bases = [
+    cfg.localUrl,
+    'http://127.0.0.1:11434',
+    'http://localhost:11434',
+  ].map(v => String(v || '').replace(/\/+$/, '')).filter(Boolean);
+  return [...new Set(bases)];
+}
+
+async function fetchLocalLLM(path = '', options = {}) {
+  const errors = [];
+  for (const base of localLLMBaseCandidates()) {
+    try {
+      const res = await fetch(`${base}${path}`, options);
+      if (res.ok || res.status === 404) return { res, base };
+      errors.push(`${base} HTTP ${res.status}`);
+    } catch (err) {
+      errors.push(`${base} ${err?.name || 'Error'}: ${err?.message || String(err)}`);
+    }
+  }
+  throw new Error(errors.join(' | '));
 }
 
 async function callLocalLLMText(prompt, maxTokens = 800) {
   const cfg = getAIConfig();
   if (!cfg.localUrl) throw new Error('Local LLM is not configured.');
   if (!isDesktopLocalLLMContext()) throw new Error('Local LLM is desktop-only in this app.');
-  const res = await fetch(localLLMEndpoint('/api/generate'), {
+  const { res } = await fetchLocalLLM('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -13970,14 +13994,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.28',
+  version: '4.29',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 06:08',
+  updatedAt: '2026년 6월 24일 07:05',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: 'v3.94 · 로컬LLM연결진단보강',
+    items: [
+      '로컬 LLM 기본 URL을 127.0.0.1 기준으로 정리하고 localhost fallback을 함께 시도',
+      'Ollama tags/generate 호출이 같은 연결 헬퍼를 사용하도록 보강',
+      'Windows 런처 파일명을 run_qwen3_local_llm.cmd 기준으로 안내',
+    ]
+  },
   {
     title: 'v3.93 · 로컬LLM자동실행안내',
     items: [
