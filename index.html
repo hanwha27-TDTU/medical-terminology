@@ -10107,6 +10107,7 @@ const AI_ROUTE_LABELS = {
 
 const LOCAL_LLM_MODEL_FIXED = 'qwen3:14b';
 const LOCAL_LLM_MODEL_LABEL = 'Qwen3 14B';
+const LOCAL_RAG_URL = 'http://127.0.0.1:8766';
 
 function renderModelPresetOptions(presets, currentValue) {
   const presetValues = presets.map(p => p.value);
@@ -10323,6 +10324,15 @@ function showAISettings() {
         <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">로컬 서버 URL</label>
         <input id="ai_local_url" type="text" value="${esc(cfg.localUrl)}" placeholder="http://127.0.0.1:11434" style="${inputStyle()}">
         <button onclick="testSingleAIProvider('local')" style="width:100%;background:var(--surface2);border:1px solid rgba(34,197,94,0.65);border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:10px">로컬 LLM 테스트</button>
+        <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.28);border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--text2);font-size:12px;line-height:1.7">
+          <div style="font-weight:800;color:#74b0ff;margin-bottom:4px">PDF RAG · Medical Library</div>
+          <div>같은 폴더의 <strong style="color:#74b0ff">run_medical_rag_server.cmd</strong>를 실행한 뒤 PDF 색인을 시작하세요.</div>
+          <div style="color:var(--text3)">서버: ${LOCAL_RAG_URL} · PDF 원문은 Supabase에 저장하지 않고 이 PC에서만 검색합니다.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button onclick="testLocalRagProvider()" style="background:var(--surface2);border:1px solid rgba(88,166,255,0.65);border-radius:8px;padding:9px;color:#74b0ff;font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">PDF RAG 테스트</button>
+            <button onclick="reindexLocalRagProvider()" style="background:var(--surface2);border:1px solid rgba(251,191,36,0.65);border-radius:8px;padding:9px;color:#fbbf24;font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">PDF 색인 시작</button>
+          </div>
+        </div>
       </div>
 
       <div id="openaiConfigBox" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;display:${cfg.route === 'openai' || cfg.route === 'auto' ? 'block' : 'none'}">
@@ -10746,6 +10756,63 @@ async function fetchLocalLLM(path = '', options = {}) {
     }
   }
   throw new Error(errors.join(' | '));
+}
+
+async function fetchLocalRag(path = '', options = {}) {
+  const res = await fetch(`${LOCAL_RAG_URL}${path}`, options);
+  if (!res.ok) throw new Error(`Medical RAG error: ${res.status}`);
+  return res.json();
+}
+
+async function testLocalRagProvider() {
+  try {
+    const data = await fetchLocalRag('/health', { method: 'GET' });
+    const reader = data.pdf_reader || 'PDF 라이브러리 없음';
+    showToast(`✅ PDF RAG 연결됨 · ${data.indexed_files || 0}개 PDF · ${data.chunks || 0}개 문단 · ${reader}`);
+  } catch (err) {
+    console.warn('Local RAG test failed', err);
+    showToast('⚠️ PDF RAG 연결 실패 · run_medical_rag_server.cmd 실행 확인');
+  }
+}
+
+async function reindexLocalRagProvider() {
+  try {
+    const data = await fetchLocalRag('/reindex', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    showToast(data.started ? '📚 PDF RAG 색인을 시작했습니다' : '📚 PDF RAG 색인이 이미 진행 중입니다');
+  } catch (err) {
+    console.warn('Local RAG reindex failed', err);
+    showToast('⚠️ PDF RAG 색인 시작 실패 · 서버 실행 확인');
+  }
+}
+
+function formatLocalRagContext(results = []) {
+  if (!Array.isArray(results) || !results.length) return '';
+  return results.map((row, idx) => [
+    `[PDF ${idx + 1}] ${row.file || 'unknown'} p.${row.page || '?'}`,
+    String(row.text || '').trim(),
+  ].join('\n')).join('\n\n');
+}
+
+async function noteTextWithLocalRagContext(text) {
+  const query = String(text || '').trim();
+  if (query.length < 20) return query;
+  try {
+    const data = await fetchLocalRag('/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit: 5 }),
+    });
+    const context = formatLocalRagContext(data.results || []);
+    if (!context) return query;
+    return `${query}\n\nLOCAL PDF RAG CONTEXT:\n${context}\n\nInstruction: Treat the PDF context as supporting reference only. If it conflicts with the user note, preserve the user note and mention uncertainty.`;
+  } catch (err) {
+    console.warn('Local RAG search skipped', err);
+    return query;
+  }
 }
 
 async function callLocalLLMText(prompt, maxTokens = 800) {
@@ -13995,14 +14062,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.31',
+  version: '4.32',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 11:55',
+  updatedAt: '2026년 6월 24일 12:25',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: 'v3.97 · 로컬PDF_RAG연동',
+    items: [
+      'Medical Library (RAG) 폴더의 PDF를 로컬 서버에서 색인하고 검색하는 경로 추가',
+      '단권화 노트 로컬 LLM 요약/분석/비교표/한 줄 핵심 생성 시 관련 PDF 문단을 보조 근거로 첨부',
+      '설정 화면에 PDF RAG 테스트와 PDF 색인 시작 버튼을 추가하고 원문은 로컬 PC에만 유지되도록 분리',
+    ]
+  },
   {
     title: 'v3.96 · 노트요약핵심LLM버튼',
     items: [
@@ -17859,7 +17934,8 @@ initApp();
     showToast('로컬 LLM으로 노트 정리 중...');
     try {
       const maxTokens = mode === 'compare' ? 1000 : 800;
-      const result = await callAIText(noteLocalAssistantPrompt(mode, text), maxTokens, 'note_local', 'local');
+      const groundedText = await noteTextWithLocalRagContext(text);
+      const result = await callAIText(noteLocalAssistantPrompt(mode, groundedText), maxTokens, 'note_local', 'local');
       const html = noteLocalAssistantResultHtml(mode, result);
       if (!html) throw new Error('Empty local LLM response');
       insertNoteEditorHtml(html);
@@ -17892,7 +17968,8 @@ initApp();
     showToast(`로컬 LLM으로 ${label} 생성 중...`);
     try {
       const maxTokens = target === 'keyPoint' ? 180 : 500;
-      const result = await callAIText(noteLocalFieldPrompt(target, text), maxTokens, 'note_local_field', 'local');
+      const groundedText = await noteTextWithLocalRagContext(text);
+      const result = await callAIText(noteLocalFieldPrompt(target, groundedText), maxTokens, 'note_local_field', 'local');
       const cleaned = String(result || '').replace(/^["'`]+|["'`]+$/g, '').trim();
       if (!cleaned) throw new Error('Empty local LLM field response');
       field.value = cleaned;
