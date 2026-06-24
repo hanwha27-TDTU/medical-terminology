@@ -12502,6 +12502,7 @@ function showExportMenu() {
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('microbes')">미생물 JSON</button>
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('drugs')">약물 JSON</button>
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('formulas')">공식 JSON</button>
+              <button class="data-action-btn outline" data-note-backup-btn onclick="exportDomainJsonBackup('notes')">단권화 노트 JSON</button>
             </div>
             <input id="dataJsonImport" type="file" accept=".json,application/json" hidden onchange="previewDataImport(event,'json')">
             <div class="data-section-label">표 파일 가져오기</div>
@@ -12522,6 +12523,7 @@ function showExportMenu() {
               <option value="microbes">미생물</option>
               <option value="drugs">약물명 및 정보</option>
               <option value="formulas">주요 의학계산공식</option>
+              <option value="notes">단권화 노트</option>
             </select>
             <div class="data-section-label">범위</div>
             <select id="dataExportScope" class="data-select" onchange="updateDataExportPanel(true)"></select>
@@ -13964,14 +13966,23 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.26',
+  version: '4.27',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 05:32',
+  updatedAt: '2026년 6월 24일 05:54',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: 'v3.92 · 단권화노트내보내기추가',
+    items: [
+      '데이터 관리의 영역별 JSON 백업에 단권화 노트 JSON 버튼을 추가',
+      '자료 내보내기 영역 선택에 단권화 노트를 추가하고 Excel/CSV 내보내기 경로를 연결',
+      '단권화 노트 내보내기 범위를 전체, 현재 검색, 즐겨찾기, 개념노트, 오답노트, 장기계별로 선택 가능하게 보강',
+      '노트 본문은 재가공용 Body_text와 원문 보존용 Body_html을 함께 내보내도록 정리',
+    ]
+  },
   {
     title: 'v3.91 · Qwen3로컬LLM고정',
     items: [
@@ -19061,6 +19072,104 @@ initApp();
     showToast(`📦 단권화 노트 JSON 백업 완료 · ${(backup.notes || []).length}개`);
   };
 
+  function getIntegratedNotesByExportScope(scope) {
+    const rows = activeNotes();
+    if (scope === 'visible') return filterIntegratedNotes(document.getElementById('searchInput')?.value || '');
+    if (scope === 'favorites') return rows.filter(n => n.favorite);
+    if (scope === 'concept') return rows.filter(n => n.noteType !== 'wrong');
+    if (scope === 'wrong') return rows.filter(n => n.noteType === 'wrong');
+    if (scope && scope.startsWith('system:')) {
+      const system = scope.slice(7);
+      return rows.filter(n => (n.system || 'General') === system);
+    }
+    return rows;
+  }
+
+  function integratedNoteExportRows(notes) {
+    return notes.map(raw => {
+      const n = normalizeIntegratedNote(raw);
+      const mcq = normalizeNoteMcq(n.originalMcq || {});
+      return {
+        id: n.id,
+        Note_type: n.noteType === 'wrong' ? '오답노트' : '개념노트',
+        Title: n.title || '',
+        Summary: n.summary || '',
+        Key_point: n.keyPoint || '',
+        System: n.system || 'General',
+        Tags: noteCsv(n.tags || []),
+        USMLE_source: n.usmleSource || '',
+        KMLE_source: n.kmleSource || '',
+        Body_text: noteHtmlToText(n.bodyHtml || ''),
+        Body_html: n.bodyHtml || '',
+        Linked_terms: noteCsv(n.linkedTerms || []),
+        Linked_microbes: noteCsv(n.linkedMicrobes || []),
+        Linked_drugs: noteCsv(n.linkedDrugs || []),
+        Linked_formulas: noteCsv(n.linkedFormulas || []),
+        Favorite: n.favorite ? 'Y' : '',
+        MCQ_enabled: mcq.enabled ? 'Y' : '',
+        MCQ_stem: mcq.stemFull || '',
+        MCQ_options_json: stringifyExportJson(mcq.options || []),
+        MCQ_answer_indexes: Array.isArray(mcq.answerIndexes) ? mcq.answerIndexes.join(',') : '',
+        Created_at: n.createdAt || '',
+        Updated_at: n.updatedAt || '',
+      };
+    });
+  }
+
+  function exportIntegratedNoteCollection(format, selectedNotes = null, label = '단권화노트') {
+    const notes = (selectedNotes || activeNotes()).map(normalizeIntegratedNote).filter(n => !n.deletedAt);
+    if (!notes.length) { showToast('⚠️ 내보낼 단권화 노트가 없습니다'); return; }
+    if (format === 'anki') { showToast('⚠️ 단권화 노트 Anki 변환은 노트 카드 구조 확정 후 제공 예정입니다'); return; }
+    const prefix = dataFilePrefix(label || '단권화노트');
+    const rows = integratedNoteExportRows(notes);
+    if (format === 'xlsx') {
+      if (!window.XLSX) { showToast('⚠️ Excel 모듈을 불러오지 못했습니다'); return; }
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet['!cols'] = [10,14,28,34,34,18,28,28,28,60,60,28,28,28,28,10,12,48,48,20,24,24].map(wch => ({ wch }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Integrated Notes');
+      XLSX.writeFile(workbook, `${prefix}.xlsx`);
+    } else {
+      const headers = Object.keys(rows[0]);
+      const csv = [headers.join(','), ...rows.map(row => headers.map(key => csvCell(row[key])).join(','))].join('\r\n');
+      downloadBlobFile('\uFEFF' + csv, `${prefix}.csv`, 'text/csv;charset=utf-8');
+    }
+    showToast(`✅ 단권화 노트 ${notes.length}개 내보내기 완료`);
+  }
+
+  const originalUpdateDataExportPanelForNotes = updateDataExportPanel;
+  updateDataExportPanel = function patchedUpdateDataExportPanel(keepScope = false) {
+    const domainSelect = document.getElementById('dataExportDomain');
+    const scopeSelect = document.getElementById('dataExportScope');
+    const output = document.getElementById('dataExportCount');
+    if (!domainSelect || !scopeSelect || !output || domainSelect.value !== 'notes') {
+      return originalUpdateDataExportPanelForNotes(keepScope);
+    }
+    const previous = keepScope ? scopeSelect.value : '';
+    const rows = activeNotes();
+    const systems = [...new Set(rows.map(n => n.system || 'General'))].sort((a, b) => a.localeCompare(b, 'ko'));
+    const options = [
+      ['all', `전체 단권화 노트 (${getIntegratedNotesByExportScope('all').length}개)`],
+      ['visible', `현재 검색 결과 (${getIntegratedNotesByExportScope('visible').length}개)`],
+      ['favorites', `즐겨찾기 (${getIntegratedNotesByExportScope('favorites').length}개)`],
+      ['concept', `개념노트 (${getIntegratedNotesByExportScope('concept').length}개)`],
+      ['wrong', `오답노트 (${getIntegratedNotesByExportScope('wrong').length}개)`],
+      ...systems.map(system => [`system:${system}`, `대표 장기계 · ${categoryDisplay(system)} (${rows.filter(n => (n.system || 'General') === system).length}개)`]),
+    ];
+    scopeSelect.innerHTML = options.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+    if (previous && options.some(([value]) => value === previous)) scopeSelect.value = previous;
+    output.textContent = `내보낼 항목 ${getIntegratedNotesByExportScope(scopeSelect.value).length}개`;
+  };
+
+  const originalExportManagedDataForNotes = exportManagedData;
+  exportManagedData = function patchedExportManagedData(format) {
+    const domain = document.getElementById('dataExportDomain')?.value || 'terms';
+    if (domain !== 'notes') return originalExportManagedDataForNotes(format);
+    const scope = document.getElementById('dataExportScope')?.value || 'all';
+    const label = document.getElementById('dataExportScope')?.selectedOptions?.[0]?.textContent || '단권화 노트';
+    exportIntegratedNoteCollection(format, getIntegratedNotesByExportScope(scope), label);
+  };
+
   window.showIntegratedNoteTrashManager = function showIntegratedNoteTrashManager() {
     const rows = loadIntegratedNoteTombstones().filter(n => !n.hiddenAt);
     document.getElementById('integratedNoteTrashModal')?.remove();
@@ -19148,7 +19257,7 @@ initApp();
     if (hero && !hero.querySelector('[data-note-cloud-note]')) {
       hero.insertAdjacentHTML('beforeend', `
         <div data-note-cloud-note style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text3);font-size:11px;line-height:1.65">
-          단권화 노트는 현재 전체 JSON 백업/복원 및 로컬 캐시에 포함됩니다. Supabase 최종본 저장은 아직 별도 SQL/동기화 보강이 필요한 항목입니다.
+          단권화 노트는 전체 JSON 백업/복원, 영역별 JSON, Supabase 동기화, Excel/CSV 내보내기에 포함됩니다.
         </div>`);
     }
   };
