@@ -13995,14 +13995,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.30',
+  version: '4.31',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 07:40',
+  updatedAt: '2026년 6월 24일 11:55',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: 'v3.96 · 노트요약핵심LLM버튼',
+    items: [
+      '단권화 노트의 요약 입력칸 옆에 본문 내용을 요약하는 로컬 LLM 버튼 추가',
+      '한 줄 핵심 입력칸 옆에 본문을 시험 암기용 한 문장으로 압축하는 버튼 추가',
+      '기존 본문 편집기 LLM 초안 삽입 기능과 별도로 입력칸을 직접 채우는 경로를 분리',
+    ]
+  },
   {
     title: 'v3.95 · GitHub로컬LLM연결정리',
     items: [
@@ -17805,6 +17813,21 @@ initApp();
     }
     return `${base}\n\nTASK: Summarize the note into 5-8 high-yield bullets. Start with one line labeled 한 줄 핵심.`;
   }
+  function noteLocalFieldPrompt(target, text) {
+    const base = [
+      'You are a medical study-note assistant.',
+      'Use only the note body provided by the user. Do not add unsupported facts.',
+      'Write in Korean unless the original phrase is a medical English term.',
+      'Do not include markdown fences, headings, labels, or explanations.',
+      '',
+      'NOTE BODY:',
+      text
+    ].join('\n');
+    if (target === 'keyPoint') {
+      return `${base}\n\nTASK: Compress the note into exactly one high-yield sentence for exam recall. Keep it under 70 Korean characters if possible.`;
+    }
+    return `${base}\n\nTASK: Summarize the note body into 3-5 concise Korean bullet-like lines. Focus on definition, mechanism, clinical/test clue, and common trap if present.`;
+  }
   function noteLocalAssistantResultHtml(mode, result = '') {
     const title = mode === 'compare' ? '로컬 LLM 비교표 초안' : mode === 'analysis' ? '로컬 LLM 분석 초안' : '로컬 LLM 요약 초안';
     const clean = String(result || '').trim();
@@ -17844,6 +17867,40 @@ initApp();
     } catch (err) {
       console.warn('Local note assistant failed', err);
       showToast('⚠️ 로컬 LLM 호출 실패 · Ollama/LM Studio 실행과 CORS를 확인해주세요');
+    }
+  };
+  window.runLocalNoteFieldAssistant = async function runLocalNoteFieldAssistant(target = 'summary') {
+    const editor = document.getElementById('noteBodyEditor');
+    const fieldId = target === 'keyPoint' ? 'noteKeyPoint' : 'noteSummary';
+    const field = document.getElementById(fieldId);
+    if (!editor || !field) return;
+    const cfg = getAIConfig();
+    if (cfg.route !== 'local') {
+      showToast('⚠️ 설정에서 AI Route를 로컬 LLM으로 선택해주세요');
+      return;
+    }
+    if (!isDesktopLocalLLMContext()) {
+      showToast('⚠️ 로컬 LLM 보조는 데스크톱/노트북 화면에서만 실행합니다');
+      return;
+    }
+    const text = noteHtmlToText(editor.innerHTML).trim();
+    if (text.length < 20) {
+      showToast('⚠️ 먼저 본문 내용을 입력해주세요');
+      return;
+    }
+    const label = target === 'keyPoint' ? '한 줄 핵심' : '요약';
+    showToast(`로컬 LLM으로 ${label} 생성 중...`);
+    try {
+      const maxTokens = target === 'keyPoint' ? 180 : 500;
+      const result = await callAIText(noteLocalFieldPrompt(target, text), maxTokens, 'note_local_field', 'local');
+      const cleaned = String(result || '').replace(/^["'`]+|["'`]+$/g, '').trim();
+      if (!cleaned) throw new Error('Empty local LLM field response');
+      field.value = cleaned;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      showToast(`✅ ${label} 생성 완료`);
+    } catch (err) {
+      console.warn('Local note field assistant failed', err);
+      showToast('⚠️ 로컬 LLM 호출 실패 · Ollama 실행/CORS/URL을 확인해주세요');
     }
   };
   function noteAutoLinkCandidateAllowed(label = '') {
@@ -18328,12 +18385,18 @@ initApp();
     const search = document.getElementById('searchInput');
     if (search && isNotes) search.placeholder = '노트 제목, 오답 이유, 연결 자료로 검색...';
   }
-  function modalField(id, label, value = '', rows = 1, placeholder = '') {
+  function noteFieldActionButton(target, label) {
+    return `<button type="button" class="note-source-search-btn" onclick="runLocalNoteFieldAssistant('${target}')">${escapeHtml(label)}</button>`;
+  }
+  function modalField(id, label, value = '', rows = 1, placeholder = '', actionHtml = '') {
     const safe = escapeHtml(String(value || ''));
     const tag = rows > 1
       ? `<textarea id="${id}" rows="${rows}" placeholder="${escapeHtml(placeholder)}" style="${noteInputStyle};resize:vertical">${safe}</textarea>`
       : `<input id="${id}" value="${safe.replace(/"/g, '&quot;')}" placeholder="${escapeHtml(placeholder)}" style="${noteInputStyle}">`;
-    return `<div class="note-modal-field"><label>${escapeHtml(label)}</label>${tag}</div>`;
+    const labelHtml = actionHtml
+      ? `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${escapeHtml(label)}</span>${actionHtml}</label>`
+      : `<label>${escapeHtml(label)}</label>`;
+    return `<div class="note-modal-field">${labelHtml}${tag}</div>`;
   }
   function noteSourceField(id, label, value = '', placeholder = '', kind = 'usmle') {
     const safe = escapeHtml(String(value || '')).replace(/"/g, '&quot;');
@@ -18850,8 +18913,8 @@ initApp();
               ${noteSourceField('noteKmleSource', 'KMLE 출처', n.kmleSource, '예: 의사국가고시 기출, KMLE 단서 등', 'kmle')}
             </div>
             ${noteOriginalMcqEditorHtml(n)}
-            ${modalField('noteSummary', '요약', n.summary, 3, '이 노트가 다루는 핵심 개념')}
-            ${modalField('noteKeyPoint', '한 줄 핵심', n.keyPoint, 2, '시험장에서 떠올릴 한 문장')}
+            ${modalField('noteSummary', '요약', n.summary, 3, '이 노트가 다루는 핵심 개념', noteFieldActionButton('summary', '본문 요약'))}
+            ${modalField('noteKeyPoint', '한 줄 핵심', n.keyPoint, 2, '시험장에서 떠올릴 한 문장', noteFieldActionButton('keyPoint', '한 줄 생성'))}
             ${noteEditorHtml(n.bodyHtml, n.noteType, !existing)}
             ${modalField('noteComparison', '비교/표/정리', n.comparison, 4, '약물 비교, 병원체 비교, 공식 비교 등')}
             <div class="note-modal-section-title">연결 자료</div>
