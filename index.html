@@ -509,6 +509,11 @@
   .note-table-menu button:hover { background: var(--surface2); }
   .note-table-menu button.danger { color: #f85149; }
   .note-table-menu .note-table-menu-sep { height: 1px; background: var(--border); margin: 4px 3px; }
+  .note-table-menu .note-table-menu-head {
+    font-size: 11px; color: var(--text3); padding: 6px 11px 7px; margin-bottom: 3px;
+    border-bottom: 1px solid var(--border);
+    max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .note-wrong-box {
     display: grid;
     gap: 5px;
@@ -14062,14 +14067,23 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 의학용어',
-  version: '4.32',
+  version: '4.33',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 12:25',
+  updatedAt: '2026년 6월 24일 13:10',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 본문 드래그 선택 → 자료 추가',
+    items: [
+      '노트 본문에서 텍스트를 드래그한 뒤 우클릭(PC) 또는 길게 누르기(모바일)하면 용어·약물·미생물·공식으로 바로 추가하는 메뉴 표시',
+      '선택한 텍스트의 문자 종류를 감지해(한글→한국어칸, 라틴→영어칸) 통합 추가 화면의 알맞은 칸에 자동 입력',
+      '기존 추가 화면(검증·중복검사·로컬+클라우드 저장)을 그대로 재사용하므로 저장하면 라이브러리에 들어가고 본문에서는 자동 링크로 전환',
+      '본문에 선택이 있으면 추가 메뉴, 없으면 기존 표 셀 메뉴로 동작(우선순위 분리)',
+    ]
+  },
   {
     title: 'v3.97 · 로컬PDF_RAG연동',
     items: [
@@ -18719,7 +18733,83 @@ initApp();
     }
   };
   // 전역 리스너 (1회 등록) — #noteBodyEditor 안의 표에서만 동작
+  // ───────── 본문 드래그 선택 → 우클릭 → 용어/약물/미생물/공식으로 추가 ─────────
+  function noteEditorSelectionText() {
+    const editor = document.getElementById('noteBodyEditor');
+    if (!editor) return '';
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return '';
+    const anchor = sel.anchorNode;
+    const node = anchor && (anchor.nodeType === 1 ? anchor : anchor.parentElement);
+    if (!node || !editor.contains(node)) return '';
+    return String(sel.toString() || '').replace(/\s+/g, ' ').trim();
+  }
+  function noteAddSelectionToDomain(domain, rawText) {
+    const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    if (typeof showAddTermModal !== 'function') { showToast('⚠️ 추가 화면을 열 수 없습니다'); return; }
+    const isKo = /[가-힣]/.test(text);          // 자동감지: 한글→한국어칸, 그 외 라틴→영어칸
+    showAddTermModal({ forceLibraryAdd: true });
+    if (typeof switchAddKind === 'function') switchAddKind(domain);
+    const fieldMap = {
+      term:    isKo ? 'add_ko' : 'add_en',
+      drug:    isKo ? 'add_drug_ko' : 'add_drug_generic',
+      microbe: isKo ? 'add_microbe_ko' : 'add_microbe_organism',
+      formula: 'add_formula_name',
+    };
+    const labelMap = { term: '용어', drug: '약물', microbe: '미생물', formula: '공식' };
+    setTimeout(() => {
+      const el = document.getElementById(fieldMap[domain]);
+      if (el) {
+        el.value = text;
+        try { el.focus(); el.setSelectionRange(text.length, text.length); } catch (_) {}
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      const shown = text.length > 18 ? text.slice(0, 18) + '…' : text;
+      showToast(`📝 "${shown}" → ${labelMap[domain] || '자료'} 추가 (저장하면 본문에서 자동 링크)`);
+    }, 30);
+  }
+  function showNoteSelectionMenu(x, y, text) {
+    closeNoteTableMenu();
+    const menu = document.createElement('div');
+    menu.className = 'note-table-menu';
+    const short = text.length > 22 ? text.slice(0, 22) + '…' : text;
+    const head = document.createElement('div');
+    head.className = 'note-table-menu-head';
+    head.textContent = `"${short}" 추가`;
+    menu.appendChild(head);
+    [
+      ['📘 용어로 추가', 'term'],
+      ['💊 약물로 추가', 'drug'],
+      ['🧫 미생물로 추가', 'microbe'],
+      ['∑ 공식으로 추가', 'formula'],
+    ].forEach(([label, domain]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.addEventListener('click', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeNoteTableMenu();
+        noteAddSelectionToDomain(domain, text);
+      });
+      menu.appendChild(btn);
+    });
+    document.body.appendChild(menu);
+    const r = menu.getBoundingClientRect();
+    let nx = x, ny = y;
+    if (nx + r.width > window.innerWidth - 8) nx = window.innerWidth - r.width - 8;
+    if (ny + r.height > window.innerHeight - 8) ny = window.innerHeight - r.height - 8;
+    menu.style.left = Math.max(8, nx) + 'px';
+    menu.style.top = Math.max(8, ny) + 'px';
+    _noteTableMenu = menu;
+    setTimeout(() => document.addEventListener('scroll', closeNoteTableMenu, true), 0);
+  }
+
   document.addEventListener('contextmenu', e => {
+    // 우선순위: 본문에 텍스트 선택이 있으면 "자료 추가" 메뉴
+    const selText = noteEditorSelectionText();
+    if (selText) { e.preventDefault(); showNoteSelectionMenu(e.clientX, e.clientY, selText); return; }
     const cell = e.target && e.target.closest ? noteCellFromNode(e.target) : null;
     if (!cell) return;
     e.preventDefault();
@@ -18730,6 +18820,14 @@ initApp();
   });
   let _noteLpTimer = null, _noteLpCell = null;
   document.addEventListener('touchstart', e => {
+    const selText = noteEditorSelectionText();
+    if (selText) {
+      const t0 = e.touches[0];
+      const sx = t0.clientX, sy = t0.clientY;
+      clearTimeout(_noteLpTimer);
+      _noteLpTimer = setTimeout(() => { if (noteEditorSelectionText()) showNoteSelectionMenu(sx, sy, selText); }, 500);
+      return;
+    }
     const cell = e.target && e.target.closest ? noteCellFromNode(e.target) : null;
     if (!cell) return;
     _noteLpCell = cell;
@@ -19163,8 +19261,8 @@ initApp();
   };
 
   const originalShowAddTermModal = showAddTermModal;
-  showAddTermModal = function patchedShowAddTermModal() {
-    if (currentLibraryMode === 'notes') {
+  showAddTermModal = function patchedShowAddTermModal(options = {}) {
+    if (currentLibraryMode === 'notes' && !options?.forceLibraryAdd) {
       openIntegratedNoteModal();
       return;
     }
