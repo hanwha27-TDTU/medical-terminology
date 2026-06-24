@@ -698,13 +698,13 @@
     color: var(--text3);
   }
   body.note-linked-resource-front .term-drawer-overlay.open {
-    z-index: 1600;
+    z-index: 1800;
   }
   body.note-linked-resource-front .term-drawer.open {
-    z-index: 1601;
+    z-index: 1801;
   }
   body.note-linked-resource-front .developer-modal-overlay {
-    z-index: 1602;
+    z-index: 1600;
   }
   .note-modal-body {
     padding: 16px 18px;
@@ -809,11 +809,15 @@ function toggleThemeMode() {
 applyThemeMode(getSavedThemeMode());
 
 function openDrawer(id) {
-  const t = TERMS.find(x => x.id === id);
-  if (!t) return;
+  const t = TERMS.find(x => String(x.id) === String(id));
+  if (!t) {
+    if (typeof showToast === 'function') showToast('⚠️ 용어 항목을 찾지 못했습니다');
+    return;
+  }
+  const termId = t.id;
 
-  _drawerTermId   = id;
-  expandedId      = id;  // 카드 강조 유지
+  _drawerTermId   = termId;
+  expandedId      = termId;  // 카드 강조 유지
 
   // 현재 필터된 목록 스냅샷 (네비게이션용)
   _drawerTermList = _lastFilteredTerms || TERMS;
@@ -14438,14 +14442,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.42',
+  version: '4.43',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 18:34',
+  updatedAt: '2026년 6월 24일 19:15',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 노트 검색 용어 카드 열림 보정',
+    items: [
+      '단권화 노트 보기/편집 통합검색에서 용어 결과를 눌렀을 때 id가 문자열/숫자로 섞여도 용어 상세 drawer가 열리도록 보정',
+      '노트 모달 위에서 열린 용어·약물·미생물 drawer가 모달 뒤에 깔리지 않도록 전면 표시 레이어 순서를 재정리',
+      '사용자 수정본을 기준으로 최소 수정만 적용해 기존 버그 수정 내용을 보존',
+    ]
+  },
   {
     title: '최신 · 위험 작업과 휴지통 정리 일관화',
     items: [
@@ -16319,7 +16331,7 @@ function showCategoryStats() {
       Number(s.wrongCount) ? `오답 ${Number(s.wrongCount)}` : ''
     ].filter(Boolean).join(' · ');
     return `
-      <button type="button" onclick="document.getElementById('categoryStatsModal').remove();openTermDrawer(${Number(item.term.id)})" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
+      <button type="button" onclick="document.getElementById('categoryStatsModal').remove();openDrawer(${Number(item.term.id)})" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text)">
         <div style="font-size:13px;font-weight:850">${escapeHtml(item.term.ko || item.term.en || '이름 없음')}</div>
         <div style="margin-top:5px;font-size:11px;color:var(--text3);line-height:1.55">${escapeHtml(item.term.en || item.term.uz || '')}</div>
         <div style="margin-top:8px;font-size:11px;color:var(--text2)">${escapeHtml(meta || '학습 후보')}</div>
@@ -17141,7 +17153,7 @@ function renderQuizStep() {
   if (!main || !quizTerm) return;
   const t = quizTerm;
   const step = QUIZ_STEPS[quizStep];
-  if (quizAutoSpeak) setTimeout(() => speakEnglish(t.en), 250);
+  if (quizAutoSpeak) setTimeout(() => speakText(null, t.en, 'en', t.id), 250);
   const totalCards = quizPool.length * QUIZ_STEPS.length;
   const doneCards = quizIdx * QUIZ_STEPS.length + quizStep;
   const pct = Math.round(doneCards / totalCards * 100);
@@ -17178,7 +17190,7 @@ function renderQuizStep() {
         </div>
         <div style="font-size:30px;font-family:'Playfair Display',serif;color:var(--text);margin:8px 0 4px">${escapeHtml(t.en || t.ko || '이름 없음')}</div>
         ${t.ipa ? `<div style="font-size:13px;color:var(--text3);margin-bottom:6px">${escapeHtml(t.ipa)}</div>` : ''}
-        <button onclick="speakEnglishForTerm(event,${Number(t.id) || 0})" style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;color:var(--text2);font-size:12px;cursor:pointer;margin:6px 0;font-family:'Noto Sans KR',sans-serif">발음 듣기</button>
+        <button onclick="speakTermField(event,${Number(t.id) || 0},'en','en')" style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;color:var(--text2);font-size:12px;cursor:pointer;margin:6px 0;font-family:'Noto Sans KR',sans-serif">발음 듣기</button>
         <div style="font-size:13px;color:var(--text2);margin-top:12px;font-weight:750">${escapeHtml(step.question)}</div>
       </section>
       <button id="revealBtn" onclick="revealQuizStep()" style="width:100%;background:var(--accent);border:1px solid var(--accent);border-radius:12px;padding:14px;color:#fff;font-size:14px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">정답 보기</button>
@@ -18863,7 +18875,7 @@ initApp();
       return;
     }
     box.innerHTML = rows.map(row => `
-      <button type="button" class="note-inline-result" onpointerdown="openNoteSearchResource(event,${JSON.stringify(row.kind)},${JSON.stringify(row.id)},${JSON.stringify(input.id)})" onclick="openNoteSearchResource(event,${JSON.stringify(row.kind)},${JSON.stringify(row.id)},${JSON.stringify(input.id)})">
+      <button type="button" class="note-inline-result" onpointerdown="openNoteSearchResource(event,${escapeHtml(JSON.stringify(row.kind))},${escapeHtml(JSON.stringify(row.id))},${escapeHtml(JSON.stringify(input.id))})" onclick="openNoteSearchResource(event,${escapeHtml(JSON.stringify(row.kind))},${escapeHtml(JSON.stringify(row.id))},${escapeHtml(JSON.stringify(input.id))})">
         <strong>${escapeHtml(noteSearchKindLabel(row.kind))} · ${escapeHtml(row.title)}</strong>
         <span>${escapeHtml(row.subtitle || '상세 열기')}</span>
       </button>`).join('');
@@ -19821,7 +19833,7 @@ initApp();
     }
     document.body.classList.add('note-linked-resource-front');
     if (kind === 'terms') {
-      openDrawer(Number(target.id));
+      openDrawer(target.id);
       return;
     }
     if (kind === 'drugs') {
