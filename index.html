@@ -12533,6 +12533,104 @@ function showGuide() {
     </div>`;
 }
 
+function showGuide() {
+  const main = document.getElementById('mainContent');
+  if (!main) return;
+
+  const sections = [
+    {
+      title: '앱의 현재 역할',
+      accent: '#58a6ff',
+      items: [
+        '이 앱은 의학용어장만이 아니라 단권화 노트, 약물, 미생물, 공식, 퀴즈, 백업, Supabase 동기화, 로컬 PDF RAG를 함께 다루는 Medical Note입니다.',
+        '검색 화면의 모드 전환으로 용어, 약물, 미생물, 공식, 단권화 노트를 오가며 같은 학습 흐름 안에서 관리합니다.',
+        '단권화 노트는 본문, 요약, 암기 포인트, 비교 포인트, 오답 블록, 관련 자료 링크를 한 카드 안에서 정리하는 중심 기능입니다.'
+      ]
+    },
+    {
+      title: '일상 사용 흐름',
+      accent: '#3fb950',
+      items: [
+        '먼저 검색 화면에서 필요한 자료 도메인을 고르고, 카드나 상세 드로어에서 정의, 발음, USMLE 포인트, 관련 정보를 확인합니다.',
+        '중요한 항목은 즐겨찾기와 학습상태를 남기고, 반복 확인이 필요한 내용은 퀴즈와 복습 흐름으로 돌립니다.',
+        '새 개념을 정리할 때는 단권화 노트에 본문을 작성하고, 관련 용어·약물·미생물·공식은 자동 링크 또는 연결 칩으로 묶습니다.'
+      ]
+    },
+    {
+      title: '단권화 노트와 자동 링크',
+      accent: '#a78bfa',
+      items: [
+        '본문 안의 용어, 약물, 미생물, 공식 이름은 저장 후 카드 보기에서 자동 링크로 바뀌며, 누르면 해당 자료로 이동합니다.',
+        '한글 공백 차이, 괄호 안팎 이름, 슬래시·쉼표 별칭, 영어 약어까지 일부 인식하므로 풀네임을 매번 완전히 쓰지 않아도 연결될 수 있습니다.',
+        '오탐을 줄이기 위해 너무 짧은 일반 단어는 제한하고, 링크된 저장 목록은 가능한 대표명 기준으로 유지합니다.'
+      ]
+    },
+    {
+      title: 'AI, 로컬 LLM, PDF RAG',
+      accent: '#fbbf24',
+      items: [
+        'AI 설정이 있을 때만 자동 보강을 사용하고, 설정이 없으면 직접 입력과 기본 저장 흐름으로 안전하게 돌아갑니다.',
+        '로컬 LLM은 PC에서 Ollama와 Qwen3를 실행한 상태에서 단권화 노트 요약, 분석, 비교, 암기 포인트 작성 보조에 사용합니다.',
+        'PDF RAG 서버는 Medical Library (RAG) 폴더의 PDF를 색인해 로컬 LLM 답변에 참고 문단을 붙이는 보조 장치입니다.'
+      ]
+    },
+    {
+      title: '데이터 관리와 백업',
+      accent: '#f87171',
+      items: [
+        '전체 JSON 백업은 용어, 약물, 미생물, 공식, 단권화 노트, 학습상태, tombstone, 동기화 메타를 함께 보존하는 기본 안전장치입니다.',
+        '영역별 Excel/CSV/JSON 내보내기와 가져오기는 도메인별 정리용이며, 가져오기 후에는 로컬 반영을 확인한 다음 동기화 방식을 선택합니다.',
+        '삭제된 항목은 바로 사라지는 것처럼 보여도 tombstone으로 남아 다른 기기에서 되살아나는 일을 막습니다.'
+      ]
+    },
+    {
+      title: 'Supabase 동기화 원칙',
+      accent: '#38bdf8',
+      items: [
+        '일반 동기화는 로컬과 클라우드를 updated_at 기준으로 병합하고, 로컬 전용 항목도 클라우드에 전파합니다.',
+        '최종본 저장은 현재 기기를 기준본으로 지정하는 별도 모드이며, canonical_version을 갱신해 다른 기기가 클라우드 기준으로 맞추게 합니다.',
+        '덮어쓰기 전에는 저장본 버전 확인에서 항목 수, 마지막 저장 기기, revision, hash, 삭제 기록을 확인하는 것이 좋습니다.'
+      ]
+    },
+    {
+      title: '권장 운영 방식',
+      accent: '#4ade80',
+      items: [
+        '큰 수정 전에는 전체 JSON 백업을 먼저 만들고, 수정 후에는 저장본 버전 확인으로 로컬과 클라우드 상태를 비교합니다.',
+        '여러 기기를 쓸 때는 평소 일반 동기화를 사용하고, 특정 기기를 기준본으로 삼아야 할 때만 최종본 저장을 사용합니다.',
+        '앱 이름은 Medical Note로 통일되었지만, 기존 의학용어 데이터와 백업 구조는 그대로 이어집니다.'
+      ]
+    }
+  ];
+
+  const chips = ['용어', '약물', '미생물', '공식', '단권화 노트', '퀴즈', '백업', 'Supabase', '로컬 RAG'];
+  const sectionHtml = sections.map(section => `
+    <section style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px">
+      <div style="font-size:15px;font-weight:850;color:${section.accent};margin-bottom:10px">${escapeHtml(section.title)}</div>
+      <ul style="margin:0;padding:0;list-style:none">
+        ${section.items.map(item => `
+          <li style="font-size:12px;color:var(--text2);line-height:1.75;padding:6px 0 6px 10px;border-left:2px solid ${section.accent}33">
+            ${escapeHtml(item)}
+          </li>`).join('')}
+      </ul>
+    </section>`).join('');
+
+  main.innerHTML = `
+    <div style="padding:16px 0 80px">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-size:20px;font-weight:900;color:var(--text)">Dr. Bugeon의 Medical Note Guide</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">v${escapeHtml(APP_INFO.version)} · 개편된 앱 전체 구조 기준</div>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:12px">
+          ${chips.map(chip => `<span style="background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:10px;color:var(--text2);font-weight:750">${escapeHtml(chip)}</span>`).join('')}
+        </div>
+      </div>
+      ${sectionHtml}
+      <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:4px">
+        검색 화면으로 돌아가기
+      </button>
+    </div>`;
+}
+
 function showExportMenu() {
   const main = document.getElementById('mainContent');
   const learning = getLearningStateMap();
@@ -14074,14 +14172,22 @@ async function confirmDangerousFormulaDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.35',
+  version: '4.36',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 24일 13:48',
+  updatedAt: '2026년 6월 24일 13:58',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · Medical Note 가이드 전면 개편',
+    items: [
+      '가이드를 의학용어장 중심 설명에서 Medical Note 전체 구조 기준으로 재정리',
+      '단권화 노트 자동 링크, 로컬 LLM, PDF RAG, 백업, Supabase 일반 동기화와 최종본 저장 원칙을 한 흐름으로 설명',
+      '앱 이름 변경 이후에도 기존 의학용어 데이터와 백업 구조가 이어진다는 점을 명확히 표시',
+    ]
+  },
   {
     title: '최신 · 앱 이름 Medical Note 통일',
     items: [
