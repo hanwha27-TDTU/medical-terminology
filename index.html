@@ -10820,6 +10820,12 @@ async function noteTextWithLocalRagContext(text) {
   }
 }
 
+function localLLMNoThinkPrompt(prompt) {
+  const text = String(prompt || '').trim();
+  if (!text) return '/no_think';
+  return text.startsWith('/no_think') ? text : `/no_think\n${text}`;
+}
+
 async function callLocalLLMText(prompt, maxTokens = 800) {
   const cfg = getAIConfig();
   if (!cfg.localUrl) throw new Error('Local LLM is not configured.');
@@ -10829,9 +10835,10 @@ async function callLocalLLMText(prompt, maxTokens = 800) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: LOCAL_LLM_MODEL_FIXED,
-      prompt,
+      prompt: localLLMNoThinkPrompt(prompt),
       stream: false,
-      options: { temperature: 0.2, num_predict: maxTokens },
+      think: false,
+      options: { temperature: 0.2, num_predict: Math.max(32, maxTokens) },
     })
   });
   if (!res.ok) {
@@ -10839,7 +10846,7 @@ async function callLocalLLMText(prompt, maxTokens = 800) {
     throw new Error(`Ollama error: ${res.status}`);
   }
   const data = await res.json();
-  return data.response || '';
+  return data.response || data.message?.content || '';
 }
 
 // ─── 커스텀 Confirm (claude.ai에서 confirm() 차단 대응) ───
