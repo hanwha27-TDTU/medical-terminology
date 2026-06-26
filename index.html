@@ -14878,16 +14878,47 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.51',
+  version: '4.52',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 12:50',
+  updatedAt: '2026년 6월 26일',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · 중복 출처 검색 결과 선택창',
+    title: '최신 · v4.52 개발자 정보 창 재설계 & 스크롤 최소화',
+    items: [
+      '개발자 정보 창을 좌우로 넓히고 높이를 화면에 맞춰 고정(내부 스크롤)해 작은 윈도우에서도 스크롤을 최소화',
+      '메타 정보를 얇은 구분선 그리드로 조밀하게 정리하고 타이포·여백을 다듬어 세련되게 개편',
+      '업데이트 이력을 최신 1건만 펼치고 나머지는 한 줄 접기 + 넓은 화면 2열 배치로 길이를 대폭 축소',
+    ]
+  },
+  {
+    title: 'v4.52 기기 동기화 상태 패널 정리 + 내 기기들',
+    items: [
+      '저장본 버전 확인 창을 해시 나열 대신 종합 일치 배지 + 도메인별 일치표 중심으로 재구성',
+      'PC·모바일·태블릿이 클라우드 기준본과 일치하는지 "내 기기들" 목록으로 한눈에 표시(language_sync_meta 재사용, SQL 변경 없음)',
+      '해시·revision·기기 ID 등 상세 정보는 "고급 정보(개발자용)" 접기로 이동',
+    ]
+  },
+  {
+    title: 'v4.52 노트 동기화 오탐 수정(스냅샷 해시 타임스탬프 제외)',
+    items: [
+      '용어·약물·공식·미생물·노트 스냅샷 해시에서 createdAt/updatedAt를 제외해 내용 기준으로만 일치 판정',
+      'Supabase 타임스탬프 왕복(형식 변환)으로 내용이 같아도 "다름"으로 뜨던 문제 해결 — 최종상태 저장 후 정상 일치 표시',
+    ]
+  },
+  {
+    title: 'v4.52 단권화 노트 이미지 첨부·갤러리·완전삭제(Cloudinary)',
+    items: [
+      '노트 편집창에서 이미지를 Cloudinary에 업로드해 본문 삽입·갤러리 표시, URL만 Supabase 노트에 동기화',
+      '이미지 제거 후 저장 시 Cloudinary 원본을 완전 삭제(Edge Function delete-cloudinary-image), 편집 취소 시 미저장 업로드 자동 정리',
+      '본문 이미지는 Cloudinary URL만 허용하도록 새니타이저를 보강해 안전하게 처리',
+    ]
+  },
+  {
+    title: '중복 출처 검색 결과 선택창',
     items: [
       '메인 출처 검색칸에서 Enter를 눌렀을 때 일치 노트가 1개면 기존처럼 바로 열고, 2개 이상이면 선택창을 띄우도록 보강',
       '선택창 항목에 제목, 유형, 분류, USMLE/KMLE 출처, 요약 단서를 함께 보여 같은 QID의 여러 노트를 구분하기 쉽게 정리',
@@ -16943,46 +16974,54 @@ function showDeveloperInfo() {
   const overlay = document.createElement('div');
   overlay.id = 'developerInfoModal';
   overlay.className = 'developer-modal-overlay';
-  const recentHistory = UPDATE_HISTORY.slice(0, 2);
-  const olderHistory = UPDATE_HISTORY.slice(2);
-  const historyHtml = recentHistory.map((entry, index) => `
-    <div class="update-history-card ${index === 0 ? 'latest' : ''}">
-          <div style="font-size:13px;font-weight:800;color:${index === 0 ? '#7ee787' : 'var(--text)'};margin-bottom:7px">${escapeHtml(entry.title)}</div>
-      ${entry.items.map(item => `<div style="font-size:11px;color:var(--text3);line-height:1.75">• ${escapeHtml(item)}</div>`).join('')}
-    </div>`).join('');
-  const olderSummaryHtml = olderHistory.length ? `
-    <details class="update-history-card">
-      <summary style="cursor:pointer;color:#74b0ff;font-size:12px;font-weight:800">이전 주요 개선 요약 (${olderHistory.length}개 버전)</summary>
-      <div style="margin-top:10px">
-        ${olderHistory.map(entry => `
-          <div style="font-size:11px;color:var(--text3);line-height:1.75;margin-bottom:8px">
-            <span style="color:var(--text);font-weight:700">${escapeHtml(entry.title)}</span><br>
-            ${escapeHtml(entry.items.slice(0, 2).join(' · '))}
-          </div>`).join('')}
+  const latestEntry = UPDATE_HISTORY[0];
+  const nextEntries = UPDATE_HISTORY.slice(1, 5);
+  const olderEntries = UPDATE_HISTORY.slice(5);
+  const devMetaCell = (label, value) => `<div style="background:var(--surface);padding:11px 13px"><div style="font-size:11px;color:var(--text3);margin-bottom:3px">${escapeHtml(label)}</div><div style="font-size:13px;color:var(--text);line-height:1.4;overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
+  const latestHtml = latestEntry ? `
+    <div style="border:1px solid rgba(126,231,135,0.4);background:rgba(126,231,135,0.08);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:800;color:#7ee787;margin-bottom:7px">${escapeHtml(latestEntry.title)}</div>
+      ${latestEntry.items.map(item => `<div style="font-size:11px;color:var(--text3);line-height:1.75">• ${escapeHtml(item)}</div>`).join('')}
+    </div>` : '';
+  const nextHtml = nextEntries.length ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;margin-bottom:10px">
+      ${nextEntries.map(entry => `
+        <details style="border:1px solid var(--border);border-radius:10px;background:var(--surface)">
+          <summary style="cursor:pointer;list-style:none;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text)">▸ ${escapeHtml(entry.title)}</summary>
+          <div style="padding:0 12px 10px">${entry.items.map(i => `<div style="font-size:11px;color:var(--text3);line-height:1.7">• ${escapeHtml(i)}</div>`).join('')}</div>
+        </details>`).join('')}
+    </div>` : '';
+  const olderHtml = olderEntries.length ? `
+    <details style="border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:10px">
+      <summary style="cursor:pointer;list-style:none;padding:10px 12px;color:#74b0ff;font-size:12px;font-weight:800">이전 업데이트 ${olderEntries.length}건 펼치기</summary>
+      <div style="padding:0 12px 10px">
+        ${olderEntries.map(entry => `<div style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:8px"><span style="color:var(--text);font-weight:700">${escapeHtml(entry.title)}</span><br>${escapeHtml(entry.items.slice(0, 2).join(' · '))}</div>`).join('')}
       </div>
     </details>` : '';
   overlay.innerHTML = `
-    <section class="developer-modal" role="dialog" aria-modal="true" aria-labelledby="developerInfoTitle">
+    <section class="developer-modal" style="width:min(940px,100%);max-width:calc(100vw - 32px)" role="dialog" aria-modal="true" aria-labelledby="developerInfoTitle">
+      <style>#developerInfoModal summary::-webkit-details-marker{display:none}</style>
       <div class="developer-modal-head">
-        <div id="developerInfoTitle" style="font-size:18px;font-weight:800;color:var(--text)">👨‍💻 개발자 정보</div>
+        <div id="developerInfoTitle" style="display:flex;align-items:center;gap:9px;font-size:17px;font-weight:800;color:var(--text)">👨‍💻 개발자 정보 <span style="font-size:11px;font-weight:700;color:var(--text3);border:1px solid var(--border);border-radius:999px;padding:2px 9px">v${escapeHtml(APP_INFO.version)}</span></div>
         <button onclick="document.getElementById('developerInfoModal').remove()" aria-label="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
       </div>
-      <div class="developer-grid">
-        <div class="developer-field"><div class="developer-field-label">개발자</div><div class="developer-field-value">${APP_INFO.developer}</div></div>
-        <div class="developer-field"><div class="developer-field-label">소속</div><div class="developer-field-value">${APP_INFO.organization}</div></div>
-        <div class="developer-field"><div class="developer-field-label">최초 개발일</div><div class="developer-field-value">${APP_INFO.firstDeveloped}</div></div>
-        <div class="developer-field"><div class="developer-field-label">앱 이름 · 버전</div><div class="developer-field-value">${APP_INFO.name} v${APP_INFO.version}</div></div>
-        <div class="developer-field"><div class="developer-field-label">코드 최종 수정</div><div class="developer-field-value">${APP_INFO.updatedAt}</div></div>
-        <div class="developer-field"><div class="developer-field-label">현재 파일명 · 저장본</div><div class="developer-field-value">${escapeHtml(currentFileName())}</div></div>
-      </div>
-      <div style="padding:8px 20px 0;color:var(--text3);font-size:11px;line-height:1.7">
-        의학용어, 단권화 노트, 약물, 미생물, 공식, 로컬 RAG를 함께 관리하는 개인 의학 학습 노트입니다.
-        의료 판단에는 원문 출처와 최신 임상지침을 별도로 확인해야 합니다.
-      </div>
-      <div class="update-history">
-        <div style="font-size:13px;font-weight:800;color:var(--text);margin-top:10px">업데이트 이력</div>
-        ${historyHtml}
-        ${olderSummaryHtml}
+      <div style="padding:16px 20px 20px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+          ${devMetaCell('개발자', APP_INFO.developer)}
+          ${devMetaCell('소속', APP_INFO.organization)}
+          ${devMetaCell('최초 개발', APP_INFO.firstDeveloped)}
+          ${devMetaCell('코드 최종 수정', APP_INFO.updatedAt)}
+          ${devMetaCell('앱 이름', APP_INFO.name)}
+          ${devMetaCell('현재 파일명', currentFileName())}
+        </div>
+        <div style="color:var(--text3);font-size:11px;line-height:1.7;margin-bottom:16px">
+          의학용어·단권화 노트·약물·미생물·공식·로컬 RAG를 함께 관리하는 개인 의학 학습 노트입니다. 의료 판단에는 원문 출처와 최신 임상지침을 별도로 확인해야 합니다.
+        </div>
+        <div class="update-history">
+        <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">업데이트 이력 <span style="font-size:11px;font-weight:600;color:var(--text3)">전체 ${UPDATE_HISTORY.length}건</span></div>
+        ${latestHtml}
+        ${nextHtml}
+        ${olderHtml}
         <details class="update-history-card">
           <summary style="cursor:pointer;color:#74b0ff;font-size:12px;font-weight:700">Supabase 동기화 스키마 설정 SQL</summary>
           <div style="margin:9px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
@@ -16993,6 +17032,7 @@ function showDeveloperInfo() {
           <pre style="white-space:pre-wrap;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:10px;line-height:1.55">${escapeHtml(SUPABASE_SCHEMA_SQL)}</pre>
           <button onclick="copySupabaseSchema()" style="width:100%;background:#1f6feb;border:none;border-radius:8px;padding:9px;color:white;font-size:11px;font-weight:700;cursor:pointer">📋 설정 SQL 복사</button>
         </details>
+      </div>
       </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
