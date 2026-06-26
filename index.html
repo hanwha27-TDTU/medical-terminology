@@ -2251,6 +2251,20 @@ document.addEventListener('keydown', e => {
     position: relative;
   }
 
+  .main-search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+    gap: 10px;
+  }
+
+  .source-search-wrap {
+    display: none;
+  }
+
+  body.note-source-search-visible .source-search-wrap {
+    display: block;
+  }
+
   .search-input {
     width: 100%;
     background: var(--surface2);
@@ -4863,6 +4877,10 @@ document.addEventListener('keydown', e => {
       font-size: 14px;
     }
 
+    .main-search-row {
+      grid-template-columns: 1fr;
+    }
+
     header + div {
       padding: 6px 12px 0 !important;
     }
@@ -5100,11 +5118,18 @@ document.addEventListener('keydown', e => {
     <button class="settings-header-btn txt-converter-header-btn" onclick="openAssystTxtConverter()" title="객관식 문제를 Assyst TXT 양식으로 변환">TXT 변환</button>
     <button class="developer-header-btn" onclick="showDeveloperInfo()" title="개발자 정보와 업데이트 내역 보기">👨‍💻 개발자</button>
   </div>
+  <div class="main-search-row">
   <div class="search-wrap autocomplete-wrap">
     <span class="search-icon">🔍</span>
     <input class="search-input" id="searchInput" type="text" placeholder="한국어, 영어, 우즈베크어로 검색..." autocomplete="off" aria-label="의학용어 검색">
     <button class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="검색어 지우기">✕</button>
     <div class="autocomplete-list" id="acList"></div>
+  </div>
+  <div class="search-wrap source-search-wrap" id="sourceSearchWrap">
+    <span class="search-icon">🔎</span>
+    <input class="search-input source-search-input" id="sourceSearchInput" type="text" placeholder="UWorld QID, First Aid, KMLE 기출 출처 검색..." autocomplete="off" aria-label="단권화 노트 출처 검색">
+    <button class="search-clear" id="sourceSearchClear" onclick="clearSourceSearch()" aria-label="출처 검색어 지우기">✕</button>
+  </div>
   </div>
 </header>
 
@@ -14690,14 +14715,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.48',
+  version: '4.49',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 12:18',
+  updatedAt: '2026년 6월 26일 12:26',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 메인 출처 검색칸 추가',
+    items: [
+      '단권화 노트 모드의 메인 검색줄 오른쪽에 UWorld QID, First Aid, KMLE 출처 문구를 바로 찾는 출처 검색칸을 추가',
+      '출처 검색어 입력 즉시 노트 목록을 필터링하고 Enter를 누르면 첫 번째 일치 노트를 바로 열도록 보강',
+      'QID, UWorld, 공백, 하이픈 표기 차이를 정규화해 유월드 문제번호만 입력해도 관련 노트를 찾기 쉽게 조정',
+    ]
+  },
   {
     title: '최신 · 다크모드 노트 모달 배경 보정',
     items: [
@@ -18441,6 +18474,16 @@ if (window.speechSynthesis) {
 document.getElementById('searchInput').addEventListener('input', e => {
   scheduleSearchInputUpdate(e.target.value);
 });
+document.getElementById('sourceSearchInput')?.addEventListener('input', () => {
+  if (typeof updateSourceSearchUi === 'function') updateSourceSearchUi();
+  applyFilters();
+});
+document.getElementById('sourceSearchInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (typeof openFirstSourceMatchedNote === 'function') openFirstSourceMatchedNote();
+  }
+});
 
 // 앱 초기화: Supabase가 있으면 클라우드를 기준본으로 사용
 async function initApp() {
@@ -19086,10 +19129,60 @@ initApp();
       ...n.linkedTerms, ...n.linkedDrugs, ...n.linkedMicrobes, ...n.linkedFormulas, ...n.tags
     ].filter(Boolean).join(' ').toLowerCase();
   }
-  function filterIntegratedNotes(query = '') {
+  function getNoteSourceSearchQuery() {
+    return document.getElementById('sourceSearchInput')?.value || '';
+  }
+  function normalizeNoteSourceQuery(text = '') {
+    return String(text || '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/\buw\b/g, 'uworld')
+      .replace(/\bu-world\b/g, 'uworld')
+      .replace(/\bq[\s._-]*id\b/g, 'qid')
+      .replace(/[^a-z0-9가-힣]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function noteSourceSearchText(n) {
+    const mcq = normalizeNoteMcq(n.originalMcq || {});
+    return [
+      n.usmleSource, n.kmleSource,
+      mcq.quickText, mcq.stemFull, ...mcq.options,
+      n.title, n.summary, n.keyPoint, n.wrongStem, n.wrongReason, n.trap, n.nextCue,
+      noteHtmlToText(n.bodyHtml), ...n.tags
+    ].filter(Boolean).join(' ');
+  }
+  function noteMatchesSourceSearch(n, sourceQuery = '') {
+    const q = normalizeNoteSourceQuery(sourceQuery);
+    if (!q) return true;
+    const hay = normalizeNoteSourceQuery(noteSourceSearchText(n));
+    const compactQ = q.replace(/\s+/g, '');
+    const compactHay = hay.replace(/\s+/g, '');
+    return hay.includes(q) || (compactQ.length >= 2 && compactHay.includes(compactQ));
+  }
+  window.updateSourceSearchUi = function updateSourceSearchUi() {
+    const input = document.getElementById('sourceSearchInput');
+    const clear = document.getElementById('sourceSearchClear');
+    if (clear) clear.classList.toggle('visible', Boolean(input?.value?.trim()));
+  };
+  window.clearSourceSearch = function clearSourceSearch() {
+    const input = document.getElementById('sourceSearchInput');
+    if (input) input.value = '';
+    updateSourceSearchUi();
+    applyFilters();
+  };
+  window.openFirstSourceMatchedNote = function openFirstSourceMatchedNote() {
+    const rows = filterIntegratedNotes(document.getElementById('searchInput')?.value || '', getNoteSourceSearchQuery());
+    if (rows[0]) openIntegratedNoteView(rows[0].id);
+  };
+  function filterIntegratedNotes(query = '', sourceQuery = getNoteSourceSearchQuery()) {
     const q = String(query || '').trim().toLowerCase();
+    const sq = String(sourceQuery || '').trim();
     const rows = activeNotes();
-    return q ? rows.filter(n => noteSearchText(n).includes(q)) : rows;
+    return rows.filter(n =>
+      (!q || noteSearchText(n).includes(q)) &&
+      noteMatchesSourceSearch(n, sq)
+    );
   }
   function noteLinkButton(kind, label) {
     const clean = String(label || '').trim();
@@ -19291,7 +19384,7 @@ initApp();
     const openView = document.getElementById('integratedNoteViewModal');
     if (openView) openIntegratedNoteView(id);
   };
-  function renderIntegratedNoteFrame(notes = filterIntegratedNotes(document.getElementById('searchInput')?.value || '')) {
+  function renderIntegratedNoteFrame(notes = filterIntegratedNotes(document.getElementById('searchInput')?.value || '', getNoteSourceSearchQuery())) {
     ensureIntegratedNoteShell();
     invalidateNoteLinkContext();
     ['termList', 'drugFrame', 'formulaFrame', 'microbeFrame'].forEach(id => {
@@ -19405,6 +19498,10 @@ initApp();
     if (hint && isNotes) hint.textContent = '개념노트와 오답노트를 용어, 약물, 미생물, 공식에 연결해 단권화합니다.';
     const search = document.getElementById('searchInput');
     if (search && isNotes) search.placeholder = '노트 제목, 오답 이유, 연결 자료로 검색...';
+    document.body.classList.toggle('note-source-search-visible', isNotes);
+    const sourceSearch = document.getElementById('sourceSearchInput');
+    if (sourceSearch) sourceSearch.placeholder = 'UWorld QID, First Aid, KMLE 기출 출처 검색...';
+    if (typeof updateSourceSearchUi === 'function') updateSourceSearchUi();
   }
   function noteFieldActionButton(target, label) {
     return `<button type="button" class="note-source-search-btn" onclick="runLocalNoteFieldAssistant('${target}')">${escapeHtml(label)}</button>`;
@@ -20409,7 +20506,10 @@ initApp();
     if (currentLibraryMode === 'notes') {
       syncIntegratedNoteModeUi();
       renderIntegratedNoteFilters();
-      renderIntegratedNoteFrame(filterIntegratedNotes(document.getElementById('searchInput')?.value || ''));
+      const mainQuery = document.getElementById('searchInput')?.value || '';
+      document.getElementById('searchClear')?.classList.toggle('visible', mainQuery.trim().length > 0);
+      if (typeof updateSourceSearchUi === 'function') updateSourceSearchUi();
+      renderIntegratedNoteFrame(filterIntegratedNotes(mainQuery, getNoteSourceSearchQuery()));
       return;
     }
     return originalApplyFilters();
@@ -20494,7 +20594,7 @@ initApp();
 
   function getIntegratedNotesByExportScope(scope) {
     const rows = activeNotes();
-    if (scope === 'visible') return filterIntegratedNotes(document.getElementById('searchInput')?.value || '');
+    if (scope === 'visible') return filterIntegratedNotes(document.getElementById('searchInput')?.value || '', getNoteSourceSearchQuery());
     if (scope === 'favorites') return rows.filter(n => n.favorite);
     if (scope === 'concept') return rows.filter(n => n.noteType !== 'wrong');
     if (scope === 'wrong') return rows.filter(n => n.noteType === 'wrong');
