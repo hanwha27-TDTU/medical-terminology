@@ -616,6 +616,29 @@
     border-radius: 16px;
     box-shadow: 0 24px 70px rgba(0,0,0,0.38);
   }
+  html:not([data-theme="light"]) .note-modal {
+    background: #0f1218;
+    color: var(--text);
+  }
+  html:not([data-theme="light"]) .note-modal-head,
+  html:not([data-theme="light"]) .note-modal-body,
+  html:not([data-theme="light"]) .note-modal-foot {
+    background: #0f1218;
+  }
+  html:not([data-theme="light"]) .note-modal::-webkit-scrollbar,
+  html:not([data-theme="light"]) .note-modal-body::-webkit-scrollbar {
+    width: 10px;
+  }
+  html:not([data-theme="light"]) .note-modal::-webkit-scrollbar-track,
+  html:not([data-theme="light"]) .note-modal-body::-webkit-scrollbar-track {
+    background: #121720;
+  }
+  html:not([data-theme="light"]) .note-modal::-webkit-scrollbar-thumb,
+  html:not([data-theme="light"]) .note-modal-body::-webkit-scrollbar-thumb {
+    background: #364152;
+    border-radius: 999px;
+    border: 2px solid #121720;
+  }
   .note-modal-head,
   .note-modal-foot {
     display: flex;
@@ -14667,14 +14690,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.47',
+  version: '4.48',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 12:11',
+  updatedAt: '2026년 6월 26일 12:18',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 다크모드 노트 모달 배경 보정',
+    items: [
+      '다크모드에서 단권화 노트 추가/편집 모달 뒤 화면이 비쳐 보이는 문제를 보정',
+      '노트 모달 헤더, 본문, 푸터 배경을 다크모드에서 불투명한 패널 색으로 고정',
+      '다크모드 모달 스크롤바가 밝게 튀지 않도록 트랙과 thumb 색상을 조정',
+    ]
+  },
   {
     title: '최신 · 앱 내 설정·배포 가이드 추가',
     items: [
