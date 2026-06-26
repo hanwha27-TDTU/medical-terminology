@@ -5,7 +5,7 @@ const corsHeaders = {
 };
 
 function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify(body, null, 2), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
@@ -36,7 +36,22 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get('CLOUDINARY_API_KEY') || '';
     const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET') || '';
     if (!cloudName || !apiKey || !apiSecret) {
-      return jsonResponse({ ok: false, error: 'Cloudinary environment variables are missing' }, 500);
+      console.error('Cloudinary env missing', {
+        hasCloudName: Boolean(cloudName),
+        hasApiKey: Boolean(apiKey),
+        hasApiSecret: Boolean(apiSecret),
+      });
+
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'Cloudinary environment variables are missing',
+          hasCloudName: Boolean(cloudName),
+          hasApiKey: Boolean(apiKey),
+          hasApiSecret: Boolean(apiSecret),
+        },
+        500
+      );
     }
 
     const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -56,8 +71,27 @@ Deno.serve(async (req) => {
     });
     const result = await cloudinaryRes.json().catch(() => ({}));
     const cloudinaryOk = cloudinaryRes.ok && (result.result === 'ok' || result.result === 'not found');
-    return jsonResponse({ ok: cloudinaryOk, result }, cloudinaryOk ? 200 : 502);
+    if (!cloudinaryOk) {
+      console.error('Cloudinary destroy failed', {
+        publicId: normalizedPublicId,
+        status: cloudinaryRes.status,
+        statusText: cloudinaryRes.statusText,
+        result,
+      });
+    }
+
+    return jsonResponse(
+      {
+        ok: cloudinaryOk,
+        publicId: normalizedPublicId,
+        cloudinaryStatus: cloudinaryRes.status,
+        cloudinaryStatusText: cloudinaryRes.statusText,
+        result,
+      },
+      cloudinaryOk ? 200 : 502
+    );
   } catch (error) {
+    console.error('delete-cloudinary-image failed', error);
     return jsonResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });
