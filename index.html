@@ -214,6 +214,21 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+  .note-body-image-figure {
+    margin: 12px 0;
+    max-width: 100%;
+  }
+  .note-body-image {
+    display: block;
+    max-width: min(100%, 760px);
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .note-editor .note-body-image {
+    cursor: default;
+  }
   .note-editor:empty::before {
     content: attr(data-placeholder);
     color: var(--text3);
@@ -14543,14 +14558,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.45',
+  version: '4.46',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 11:10',
+  updatedAt: '2026년 6월 26일 12:04',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 단권화 노트 본문 이미지 삽입',
+    items: [
+      '단권화 노트 본문 편집기 커서 위치에 Cloudinary 이미지를 바로 삽입하도록 보강',
+      '본문에 삽입된 이미지는 저장 sanitizer에서 보존하고 상세 보기에서도 본문 안에 바로 표시되도록 정리',
+      '첨부 썸네일 삭제 시 본문에 삽입된 같은 이미지도 함께 제거하고, 본문 이미지와 별도 갤러리 중복 표시를 방지',
+    ]
+  },
   {
     title: '최신 · Cloudinary 이미지 수명주기 보강',
     items: [
@@ -18427,7 +18450,7 @@ initApp();
     if (typeof document === 'undefined') return raw.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
     const template = document.createElement('template');
     template.innerHTML = raw.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
-    const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'DIV', 'H3', 'H4', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'SPAN']);
+    const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'DIV', 'H3', 'H4', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'SPAN', 'FIGURE', 'FIGCAPTION', 'IMG']);
     const walk = node => {
       [...node.children].forEach(child => {
         walk(child);
@@ -18437,10 +18460,23 @@ initApp();
         }
         [...child.attributes].forEach(attr => {
           const name = attr.name.toLowerCase();
-          if (!['class', 'colspan', 'rowspan'].includes(name)) child.removeAttribute(attr.name);
+          const allowedAttrs = child.tagName === 'IMG'
+            ? ['src', 'alt', 'width', 'height', 'loading', 'class', 'data-public-id']
+            : child.tagName === 'FIGURE'
+              ? ['class', 'data-public-id']
+              : ['class', 'colspan', 'rowspan'];
+          if (!allowedAttrs.includes(name)) child.removeAttribute(attr.name);
         });
+        if (child.tagName === 'IMG') {
+          const src = String(child.getAttribute('src') || '').trim();
+          if (!/^https:\/\/res\.cloudinary\.com\//i.test(src)) {
+            child.remove();
+            return;
+          }
+          child.setAttribute('loading', 'lazy');
+        }
         if (child.className) {
-          const ALLOWED_NOTE_CLASSES = new Set(['note-callout', 'note-warning', 'note-sec-def', 'note-sec-path', 'note-sec-usmle', 'note-sec-link']);
+          const ALLOWED_NOTE_CLASSES = new Set(['note-callout', 'note-warning', 'note-sec-def', 'note-sec-path', 'note-sec-usmle', 'note-sec-link', 'note-body-image-figure', 'note-body-image']);
           const kept = String(child.className).split(/\s+/).filter(c => ALLOWED_NOTE_CLASSES.has(c));
           if (kept.length) child.setAttribute('class', kept.join(' '));
           else child.removeAttribute('class');
@@ -19025,7 +19061,22 @@ initApp();
     if (box) { box.classList.remove('open'); box.innerHTML = ''; }
     window.openNoteLinkedResource(event, kind, '', id);
   };
+  function noteBodyImagePublicIds(html = '') {
+    const ids = new Set();
+    if (!html || typeof document === 'undefined') return ids;
+    const root = document.createElement('div');
+    root.innerHTML = sanitizeNoteHtml(html);
+    root.querySelectorAll('img[data-public-id], figure[data-public-id]').forEach(node => {
+      const id = String(node.dataset.publicId || '').trim();
+      if (id) ids.add(id);
+    });
+    return ids;
+  }
   function integratedNoteDetailHtml(n) {
+    const bodyImageIds = noteBodyImagePublicIds(n.bodyHtml || '');
+    const galleryImages = Array.isArray(n.images)
+      ? n.images.filter(im => !bodyImageIds.has(String(im?.publicId || im?.public_id || '').trim()))
+      : [];
     return `
       <div class="note-view-stack">
         ${n.summary ? `<section class="note-summary">${escapeHtml(n.summary)}</section>` : ''}
@@ -19033,9 +19084,9 @@ initApp();
         ${noteSourceBadges(n) ? `<section class="note-links">${noteSourceBadges(n)}</section>` : ''}
         ${noteOriginalMcqViewHtml(n)}
         ${n.bodyHtml ? `<section class="note-body-render">${linkifyNoteBodyHtml(n.bodyHtml)}</section>` : ''}
-        ${Array.isArray(n.images) && n.images.length ? `
+        ${galleryImages.length ? `
           <section class="note-gallery">
-            ${n.images.map(im => `<a href="${escapeHtml(im.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(cloudinaryThumb(im.url, 360))}" alt="" loading="lazy"></a>`).join('')}
+            ${galleryImages.map(im => `<a href="${escapeHtml(im.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(cloudinaryThumb(im.url, 360))}" alt="" loading="lazy"></a>`).join('')}
           </section>` : ''}
         ${n.comparison ? `<section class="note-comparison">${escapeHtml(n.comparison)}</section>` : ''}
         ${n.wrongStem || n.wrongReason || n.trap || n.nextCue ? `
@@ -19281,6 +19332,84 @@ initApp();
     if (!editor) return;
     document.execCommand('insertHTML', false, html);
   };
+  window.rememberNoteEditorSelection = function rememberNoteEditorSelection() {
+    const editor = document.getElementById('noteBodyEditor');
+    const sel = window.getSelection?.();
+    if (!editor || !sel || !sel.rangeCount) return;
+    const node = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
+    if (!node || !editor.contains(node)) return;
+    window._noteEditorLastRange = sel.getRangeAt(0).cloneRange();
+  };
+  function restoreNoteEditorSelection() {
+    const editor = document.getElementById('noteBodyEditor');
+    if (!editor) return null;
+    editor.focus();
+    const range = window._noteEditorLastRange;
+    const sel = window.getSelection?.();
+    if (range && sel && editor.contains(range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement)) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return range;
+    }
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(editor);
+    nextRange.collapse(false);
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+    }
+    return nextRange;
+  }
+  function insertNoteBodyImage(img = {}) {
+    const editor = document.getElementById('noteBodyEditor');
+    if (!editor || !img.url) return;
+    const figure = document.createElement('figure');
+    figure.className = 'note-body-image-figure';
+    if (img.publicId) figure.dataset.publicId = img.publicId;
+    const image = document.createElement('img');
+    image.className = 'note-body-image';
+    image.src = img.url;
+    image.alt = '';
+    image.loading = 'lazy';
+    if (img.publicId) image.dataset.publicId = img.publicId;
+    if (img.width) image.width = Number(img.width);
+    if (img.height) image.height = Number(img.height);
+    figure.appendChild(image);
+    restoreNoteEditorSelection();
+    const sel = window.getSelection?.();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    if (range) {
+      range.deleteContents();
+      range.insertNode(figure);
+      const spacer = document.createElement('p');
+      spacer.innerHTML = '<br>';
+      figure.after(spacer);
+      const nextRange = document.createRange();
+      nextRange.setStart(spacer, 0);
+      nextRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+      window._noteEditorLastRange = nextRange.cloneRange();
+    } else {
+      editor.appendChild(figure);
+      editor.insertAdjacentHTML('beforeend', '<p><br></p>');
+    }
+  }
+  window.insertNoteDraftImageIntoBody = function insertNoteDraftImageIntoBody(idx) {
+    const img = Array.isArray(window._noteDraftImages) ? window._noteDraftImages[idx] : null;
+    if (!img) return;
+    insertNoteBodyImage(img);
+  };
+  function removeNoteBodyImageReferences(publicId) {
+    if (!publicId) return;
+    const editor = document.getElementById('noteBodyEditor');
+    if (!editor) return;
+    editor.querySelectorAll('[data-public-id]').forEach(node => {
+      if (String(node.dataset.publicId || '') !== String(publicId)) return;
+      const figure = node.closest?.('.note-body-image-figure');
+      (figure || node).remove();
+    });
+  }
   window.insertNoteEditorText = function insertNoteEditorText(text) {
     const editor = focusNoteEditor();
     if (!editor) return;
@@ -19617,6 +19746,7 @@ initApp();
             <button type="button" class="note-tool-callout" onclick="insertNoteEditorHtml('<div class=&quot;note-callout&quot;><strong>핵심:</strong><br></div>')">핵심박스</button>
             <button type="button" class="note-tool-warning" onclick="insertNoteEditorHtml('<div class=&quot;note-warning&quot;><strong>주의:</strong><br></div>')">주의박스</button>
             <button type="button" onclick="insertNoteTable()">표</button>
+            <button type="button" onclick="rememberNoteEditorSelection();document.getElementById('noteImageInput')?.click()">이미지</button>
             <span class="note-tool-sep" aria-hidden="true"></span>
             <button type="button" onclick="runLocalNoteAssistant('summary')">요약</button>
             <button type="button" onclick="runLocalNoteAssistant('analysis')">분석</button>
@@ -19628,7 +19758,7 @@ initApp();
             ${noteEditorSymbolHelperHtml()}
             ${noteEditorFormulaHelperHtml()}
           </div>
-          <div id="noteBodyEditor" class="note-editor" contenteditable="true" data-placeholder="개념 흐름, 표, 오답 함정, 암기 포인트를 자유롭게 정리하세요.">${body}</div>
+          <div id="noteBodyEditor" class="note-editor" contenteditable="true" data-placeholder="개념 흐름, 표, 오답 함정, 암기 포인트를 자유롭게 정리하세요." onkeyup="rememberNoteEditorSelection()" onmouseup="rememberNoteEditorSelection()" onfocus="rememberNoteEditorSelection()" oninput="rememberNoteEditorSelection()">${body}</div>
         </div>
         <div class="note-template-hint">노트 유형을 바꾸면 개념노트/오답노트에 맞는 기본 템플릿을 적용할 수 있습니다.</div>
       </div>`;
@@ -19861,7 +19991,7 @@ initApp();
             <div class="note-modal-section-title">📷 이미지</div>
             <div id="noteImageTray" class="note-image-tray"></div>
             <input id="noteImageInput" type="file" accept="image/*" multiple style="display:none" onchange="handleNoteImageUpload(event)">
-            <button type="button" class="data-action-btn outline" onclick="document.getElementById('noteImageInput').click()">이미지 추가</button>
+            <button type="button" class="data-action-btn outline" onclick="rememberNoteEditorSelection();document.getElementById('noteImageInput').click()">이미지 추가</button>
             <div class="note-modal-section-title">연결 자료</div>
             <div class="note-modal-grid">
               ${modalField('noteLinkedTerms', '관련 용어', noteCsv(n.linkedTerms), 1, 'Type 2 inflammation, IgE')}
@@ -19902,6 +20032,7 @@ initApp();
           if (!(window._noteDraftUploadedPublicIds instanceof Set)) window._noteDraftUploadedPublicIds = new Set();
           window._noteDraftUploadedPublicIds.add(img.publicId);
         }
+        insertNoteBodyImage(img);
         renderNoteImageTray();
       } catch (e) {
         showToast('⚠️ ' + (e.message || '업로드 실패'));
@@ -19912,7 +20043,8 @@ initApp();
   window.removeNoteDraftImage = function removeNoteDraftImage(idx) {
     if (!Array.isArray(window._noteDraftImages)) return;
     // 편집 중 제거는 목록에서만 빼고, Cloudinary 완전 삭제는 "저장" 시 일괄 처리(취소하면 삭제 안 됨)
-    window._noteDraftImages.splice(idx, 1);
+    const removed = window._noteDraftImages.splice(idx, 1)[0];
+    removeNoteBodyImageReferences(removed?.publicId);
     renderNoteImageTray();
   };
   function renderNoteImageTray() {
@@ -19921,7 +20053,7 @@ initApp();
     const imgs = window._noteDraftImages || [];
     tray.innerHTML = imgs.length ? imgs.map((im, i) => `
       <div class="note-image-thumb">
-        <img src="${escapeHtml(cloudinaryThumb(im.url, 168))}" alt="">
+        <img src="${escapeHtml(cloudinaryThumb(im.url, 168))}" alt="" title="본문 커서 위치에 다시 삽입" onclick="insertNoteDraftImageIntoBody(${i})">
         <button type="button" title="삭제" onclick="removeNoteDraftImage(${i})">×</button>
       </div>`).join('') : '<div class="note-image-empty">첨부된 이미지 없음</div>';
   }
