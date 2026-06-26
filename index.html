@@ -12895,12 +12895,121 @@ function showGuide() {
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:12px">
           ${chips.map(chip => `<span style="background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:10px;color:var(--text2);font-weight:750">${escapeHtml(chip)}</span>`).join('')}
         </div>
+        <button onclick="showDeploymentGuideModal(event)" style="margin-top:14px;background:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
+          설정·배포 가이드
+        </button>
       </div>
       ${sectionHtml}
       <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:4px">
         검색 화면으로 돌아가기
       </button>
     </div>`;
+}
+
+function showDeploymentGuideModal(event = null) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  const card = (title, body, accent = '#58a6ff') => `
+    <section style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:900;color:${accent};margin-bottom:10px">${title}</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.75">${body}</div>
+    </section>`;
+  const code = text => `<pre style="white-space:pre-wrap;word-break:break-word;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;color:var(--text);font-size:11px;line-height:1.55"><code>${escapeHtml(text)}</code></pre>`;
+  const mini = text => `<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 8px;margin:2px;color:var(--text2);font-weight:750">${escapeHtml(text)}</span>`;
+
+  showUtilityModal('설정·배포 가이드', `
+    <div style="padding:4px 0 80px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:20px;font-weight:900;color:var(--text)">Dr. Bugeon의 Medical Note 설정·배포 가이드</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px">Supabase · Edge Function · Cloudinary · GitHub Pages 설정 순서</div>
+        <div style="margin-top:10px">${mini('Supabase')}${mini('Edge Function')}${mini('Cloudinary')}${mini('GitHub Pages')}${mini('오류 해결')}</div>
+      </div>
+
+      ${card('1. 전체 구조', `
+        <p style="margin:0 0 8px">이미지 원본은 Cloudinary에 저장하고, Supabase에는 노트와 이미지 URL/publicId 같은 메타데이터만 저장합니다.</p>
+        ${code('앱 HTML\n  ├─ Supabase: 용어/약물/미생물/공식/단권화 노트 메타데이터\n  ├─ Cloudinary: 단권화 노트 이미지 원본\n  └─ Supabase Edge Function: Cloudinary 이미지 완전 삭제')}
+        <p style="margin:8px 0 0">브라우저 앱에는 Cloudinary API Secret을 넣지 않습니다. 업로드는 Unsigned preset으로 하고, 삭제는 Supabase Edge Function이 처리합니다.</p>
+      `)}
+
+      ${card('2. Supabase 기본 설정', `
+        <ol style="margin:0;padding-left:18px">
+          <li>Supabase 프로젝트를 만들고 Project URL과 anon public key를 확인합니다.</li>
+          <li>앱에서 제공하는 최신 Supabase SQL을 SQL Editor에 붙여넣고 실행합니다.</li>
+          <li><code>medical_notes</code>, <code>language_sync_meta</code> 테이블이 있는지 확인합니다.</li>
+          <li>앱 설정에 Supabase URL과 anon key를 입력하고 연결 테스트를 합니다.</li>
+        </ol>
+        ${code('Project Settings → API\nSupabase URL: https://프로젝트-ref.supabase.co\nSupabase anon key: eyJ...')}
+        <p style="margin:8px 0 0;color:var(--danger)">service_role key, database password는 앱과 GitHub에 절대 넣지 않습니다.</p>
+      `, '#38bdf8')}
+
+      ${card('3. Cloudinary 설정', `
+        <ol style="margin:0;padding-left:18px">
+          <li>Cloudinary Dashboard/API Keys에서 정확한 Cloud name을 확인합니다.</li>
+          <li>Settings → Upload → Upload presets에서 새 preset을 만듭니다.</li>
+          <li>Signing mode는 반드시 <b>Unsigned</b>로 설정합니다.</li>
+          <li>앱 Cloudinary 설정에 Cloud name, Upload preset, Folder를 그대로 입력합니다.</li>
+        </ol>
+        ${code('Cloud name: dbuciqybd\nUnsigned upload preset: medical_note_unsigned\nFolder: Dr_bugeon_medical_notes')}
+        ${code('Cloudinary preset 권장값\nName: medical_note_unsigned\nMode: Unsigned\nAsset folder: Dr_bugeon_medical_notes\nOverwrite: false\nGenerated public ID: Auto-generate an unguessable public ID value')}
+        <p style="margin:8px 0 0">preset 이름은 앱 입력값과 대소문자, 언더바까지 100% 같아야 합니다.</p>
+      `, '#4ade80')}
+
+      ${card('4. Supabase Edge Function 설정', `
+        <ol style="margin:0;padding-left:18px">
+          <li>Edge Functions → Secrets에서 Cloudinary Secret 3개를 등록합니다.</li>
+          <li>Functions → Open Editor에서 함수 이름을 <code>delete-cloudinary-image</code>로 만듭니다.</li>
+          <li>제공된 <code>index.ts</code> 코드를 붙여넣고 Save / Deploy 합니다.</li>
+          <li>웹 에디터에서는 <code>config.toml</code>을 꼭 추가하지 않아도 되지만, GitHub에는 같이 보관합니다.</li>
+        </ol>
+        ${code('Secrets 이름\nCLOUDINARY_CLOUD_NAME\nCLOUDINARY_API_KEY\nCLOUDINARY_API_SECRET')}
+        ${code('함수 이름\ndelete-cloudinary-image\n\n앱 호출 경로\n/functions/v1/delete-cloudinary-image')}
+        <p style="margin:8px 0 0;color:var(--danger)">CLOUDINARY_API_SECRET은 Supabase Secrets에만 넣고 GitHub에는 올리지 않습니다.</p>
+      `, '#fbbf24')}
+
+      ${card('5. Edge Function 테스트', `
+        <p style="margin:0 0 8px">Supabase 함수 화면 오른쪽 위 Test 버튼에서 아래 body로 실행합니다.</p>
+        ${code('{\n  "publicId": "test"\n}')}
+        <p style="margin:8px 0">성공 예시는 아래와 같습니다. <code>test</code> 이미지는 실제로 없으므로 <code>not found</code>가 나와도 정상입니다.</p>
+        ${code('{\n  "ok": true,\n  "publicId": "test",\n  "cloudinaryStatus": 200,\n  "cloudinaryStatusText": "OK",\n  "result": {\n    "result": "not found"\n  }\n}')}
+        <p style="margin:8px 0 0">성공 기준은 <code>ok: true</code>, <code>cloudinaryStatus: 200</code>입니다.</p>
+      `, '#a78bfa')}
+
+      ${card('6. 오류 해결표', `
+        <div style="display:grid;gap:8px">
+          <div><b>502 Edge function returned an error</b><br>함수는 실행됐지만 Cloudinary API 호출이 실패한 상태입니다. Logs 또는 Test 응답 Body를 확인합니다.</div>
+          <div><b>Invalid cloud_name</b><br><code>CLOUDINARY_CLOUD_NAME</code>이 실제 Cloudinary cloud name이 아닙니다. 이번 설정의 올바른 값은 <code>dbuciqybd</code>였습니다.</div>
+          <div><b>Invalid Signature</b><br><code>CLOUDINARY_API_SECRET</code> 오입력 또는 앞뒤 공백 가능성이 큽니다. Cloudinary에서 다시 복사해 Replace 합니다.</div>
+          <div><b>Unknown API key / Invalid api_key</b><br><code>CLOUDINARY_API_KEY</code>를 다시 확인합니다.</div>
+          <div><b>environment variables are missing</b><br>Supabase Secrets 이름 오타 또는 누락입니다. 세 이름을 정확히 맞춥니다.</div>
+          <div><b>앱 이미지 업로드 실패</b><br>Upload preset이 Signed인지, preset 이름이 앱 입력값과 다른지, Cloud name이 틀렸는지 확인합니다.</div>
+        </div>
+      `, '#f87171')}
+
+      ${card('7. GitHub Pages 배포', `
+        <ol style="margin:0;padding-left:18px">
+          <li>최신 HTML 파일을 GitHub Pages가 읽는 <code>index.html</code>로 교체합니다.</li>
+          <li>Edge Function 소스는 아래 구조로 같이 올립니다.</li>
+          <li>GitHub Pages 설정에서 main branch와 root 또는 docs 폴더를 선택합니다.</li>
+        </ol>
+        ${code('GitHub에 올릴 파일\nindex.html\nsupabase/functions/delete-cloudinary-image/index.ts\nsupabase/functions/delete-cloudinary-image/config.toml')}
+        ${code('GitHub에 올리면 안 되는 값\nCLOUDINARY_API_SECRET\nSupabase service_role key\nDatabase password\n개인 토큰')}
+        <p style="margin:8px 0 0">GitHub에 Edge Function 파일을 올리는 것은 버전관리용입니다. 실제 실행은 Supabase에 배포된 함수가 담당합니다.</p>
+      `, '#58a6ff')}
+
+      ${card('8. 최종 확인 체크리스트', `
+        <ol style="margin:0;padding-left:18px">
+          <li>GitHub Pages에서 앱이 열린다.</li>
+          <li>Supabase 연결 테스트가 성공한다.</li>
+          <li>단권화 노트가 Supabase에 저장된다.</li>
+          <li>Cloudinary 이미지 업로드가 된다.</li>
+          <li>본문 편집기 커서 위치에 이미지가 바로 삽입된다.</li>
+          <li>노트 저장 후 다시 열어도 이미지가 유지된다.</li>
+          <li>Edge Function Test에서 <code>ok: true</code>가 나온다.</li>
+          <li>이미지 제거/보호기록 정리 시 Cloudinary 삭제가 동작한다.</li>
+        </ol>
+      `, '#22c55e')}
+    </div>
+  `);
 }
 
 function showExportMenu() {
@@ -14558,14 +14667,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.46',
+  version: '4.47',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 12:04',
+  updatedAt: '2026년 6월 26일 12:11',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 앱 내 설정·배포 가이드 추가',
+    items: [
+      '기존 사용법 가이드 안에 설정·배포 가이드 버튼을 추가해 Supabase, Edge Function, Cloudinary, GitHub Pages 설정을 앱 안에서 바로 확인하도록 보강',
+      'Edge Function 테스트의 not found 성공 의미, 502, Invalid cloud_name, Invalid Signature 같은 실제 설정 오류 해결표를 앱 내부 문서로 정리',
+      'GitHub에 올릴 파일과 올리면 안 되는 Secret 값을 구분하고, 최종 배포 확인 체크리스트를 함께 표시',
+    ]
+  },
   {
     title: '최신 · 단권화 노트 본문 이미지 삽입',
     items: [
