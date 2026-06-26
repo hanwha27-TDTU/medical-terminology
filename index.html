@@ -348,6 +348,36 @@
     color: var(--text3);
     font-weight: 600;
   }
+  .note-source-choice-list {
+    display: grid;
+    gap: 10px;
+  }
+  .note-source-choice-card {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 12px 13px;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .note-source-choice-card:hover {
+    border-color: rgba(88,166,255,0.55);
+    background: var(--surface2);
+  }
+  .note-source-choice-title {
+    font-size: 15px;
+    font-weight: 850;
+    margin-bottom: 7px;
+  }
+  .note-source-choice-summary {
+    margin-top: 8px;
+    color: var(--text2);
+    font-size: 12px;
+    line-height: 1.5;
+  }
   .note-original-mcq {
     grid-column: 1 / -1;
     border: 1px solid var(--border);
@@ -14752,14 +14782,22 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.50',
+  version: '4.51',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 26일 12:40',
+  updatedAt: '2026년 6월 26일 12:50',
 };
 
 const UPDATE_HISTORY = [
+  {
+    title: '최신 · 중복 출처 검색 결과 선택창',
+    items: [
+      '메인 출처 검색칸에서 Enter를 눌렀을 때 일치 노트가 1개면 기존처럼 바로 열고, 2개 이상이면 선택창을 띄우도록 보강',
+      '선택창 항목에 제목, 유형, 분류, USMLE/KMLE 출처, 요약 단서를 함께 보여 같은 QID의 여러 노트를 구분하기 쉽게 정리',
+      '일치 항목이 없을 때는 빈 화면 대신 안내 토스트를 표시하도록 처리',
+    ]
+  },
   {
     title: '최신 · 노트 상세 화면 유형·출처 표시',
     items: [
@@ -19216,10 +19254,6 @@ initApp();
     updateSourceSearchUi();
     applyFilters();
   };
-  window.openFirstSourceMatchedNote = function openFirstSourceMatchedNote() {
-    const rows = filterIntegratedNotes(document.getElementById('searchInput')?.value || '', getNoteSourceSearchQuery());
-    if (rows[0]) openIntegratedNoteView(rows[0].id);
-  };
   function filterIntegratedNotes(query = '', sourceQuery = getNoteSourceSearchQuery()) {
     const q = String(query || '').trim().toLowerCase();
     const sq = String(sourceQuery || '').trim();
@@ -19229,6 +19263,48 @@ initApp();
       noteMatchesSourceSearch(n, sq)
     );
   }
+  function sourceMatchChoiceCardHtml(n) {
+    const brief = noteBriefMetaHtml(n, 'div');
+    const summary = n.summary || n.keyPoint || noteHtmlToText(n.bodyHtml || '').slice(0, 120);
+    return `
+      <button type="button" class="note-source-choice-card" onclick="selectSourceMatchedNote(${escapeHtml(JSON.stringify(String(n.id)))})">
+        <div class="note-source-choice-title">${escapeHtml(n.title || '제목 없음')}</div>
+        ${brief}
+        ${summary ? `<div class="note-source-choice-summary">${escapeHtml(summary)}</div>` : ''}
+      </button>`;
+  }
+  window.selectSourceMatchedNote = function selectSourceMatchedNote(id) {
+    document.getElementById('noteSourceMatchChooser')?.remove();
+    openIntegratedNoteView(id);
+  };
+  window.showSourceMatchChooser = function showSourceMatchChooser(rows = [], query = '') {
+    const safeRows = Array.isArray(rows) ? rows.filter(n => !n.deletedAt) : [];
+    document.getElementById('noteSourceMatchChooser')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="note-modal-overlay" id="noteSourceMatchChooser">
+        <div class="note-modal note-view-modal" role="dialog" aria-modal="true" aria-label="출처 검색 결과 선택">
+          <div class="note-modal-head">
+            <div>
+              <h2>출처 검색 결과 선택</h2>
+              <p>${escapeHtml(query || '출처 검색')} · ${safeRows.length}개 노트가 일치합니다.</p>
+            </div>
+            <button class="drawer-close-btn" onclick="document.getElementById('noteSourceMatchChooser')?.remove()" aria-label="닫기">×</button>
+          </div>
+          <div class="note-modal-body">
+            <div class="note-source-choice-list">
+              ${safeRows.map(sourceMatchChoiceCardHtml).join('')}
+            </div>
+          </div>
+        </div>
+      </div>`);
+  };
+  window.openFirstSourceMatchedNote = function openFirstSourceMatchedNote() {
+    const query = getNoteSourceSearchQuery();
+    const rows = filterIntegratedNotes(document.getElementById('searchInput')?.value || '', query);
+    if (!rows.length) { showToast('일치하는 출처 노트를 찾지 못했습니다.'); return; }
+    if (rows.length === 1) { openIntegratedNoteView(rows[0].id); return; }
+    showSourceMatchChooser(rows, query);
+  };
   function noteLinkButton(kind, label) {
     const clean = String(label || '').trim();
     if (!clean) return '';
@@ -19264,7 +19340,7 @@ initApp();
       n.kmleSource ? `<span class="note-link-chip terms">KMLE ${escapeHtml(n.kmleSource)}</span>` : ''
     ].filter(Boolean).join('');
   }
-  function noteBriefMetaHtml(n) {
+  function noteBriefMetaHtml(n, tag = 'section') {
     const typeLabel = n.noteType === 'wrong' ? '오답노트' : '개념노트';
     const chips = [
       `<span class="note-brief-chip"><b>유형</b>${escapeHtml(typeLabel)}</span>`,
@@ -19273,7 +19349,8 @@ initApp();
     if (n.usmleSource) chips.push(`<span class="note-brief-chip source"><b>USMLE</b>${escapeHtml(n.usmleSource)}</span>`);
     if (n.kmleSource) chips.push(`<span class="note-brief-chip source"><b>KMLE</b>${escapeHtml(n.kmleSource)}</span>`);
     if (!n.usmleSource && !n.kmleSource) chips.push('<span class="note-brief-chip empty"><b>출처</b>미입력</span>');
-    return `<section class="note-brief-meta">${chips.join('')}</section>`;
+    const safeTag = tag === 'div' ? 'div' : 'section';
+    return `<${safeTag} class="note-brief-meta">${chips.join('')}</${safeTag}>`;
   }
   function noteInlineSearchHtml(inputId = 'noteResourceSearch') {
     return `
