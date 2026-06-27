@@ -2517,14 +2517,6 @@ document.addEventListener('keydown', e => {
     box-shadow: inset 0 0 0 1px #bfdbfe;
   }
 
-  .library-mode-hint {
-    color: var(--text3);
-    font-size: 11px;
-    line-height: 1.5;
-    min-width: 180px;
-    flex: 1;
-  }
-
   @media (max-width: 640px) {
     .library-mode-switch {
       width: 100%;
@@ -5146,10 +5138,6 @@ document.addEventListener('keydown', e => {
       text-overflow: ellipsis;
     }
 
-    .library-mode-hint {
-      flex-basis: 100%;
-    }
-
     .data-header-btn,
     .kma-header-btn,
     .settings-header-btn,
@@ -5207,7 +5195,6 @@ document.addEventListener('keydown', e => {
     <button id="libraryModeDrugsBtn" class="library-mode-btn drug" role="tab" aria-selected="false" onclick="setLibraryMode('drugs')">💊 약물명 및 정보</button>
     <button id="libraryModeFormulasBtn" class="library-mode-btn formula" role="tab" aria-selected="false" onclick="setLibraryMode('formulas')">∑ 주요 의학계산공식</button>
   </div>
-  <div class="library-mode-hint" id="libraryModeHint">일반 의학용어를 개념분류와 대표 장기계로 봅니다.</div>
 </div>
 
 <div class="top-tool-row">
@@ -8214,7 +8201,6 @@ function updateLibraryModeControls() {
   const drugsBtn = document.getElementById('libraryModeDrugsBtn');
   const formulasBtn = document.getElementById('libraryModeFormulasBtn');
   const microbesBtn = document.getElementById('libraryModeMicrobesBtn');
-  const hint = document.getElementById('libraryModeHint');
   const search = document.getElementById('searchInput');
   termsBtn?.classList.toggle('active', !isDrugs && !isFormulas && !isMicrobes);
   drugsBtn?.classList.toggle('active', isDrugs);
@@ -8224,13 +8210,6 @@ function updateLibraryModeControls() {
   drugsBtn?.setAttribute('aria-selected', String(isDrugs));
   formulasBtn?.setAttribute('aria-selected', String(isFormulas));
   microbesBtn?.setAttribute('aria-selected', String(isMicrobes));
-  if (hint) hint.textContent = isMicrobes
-    ? '미생물을 병원체 유형과 관련 장기계 기준으로 봅니다.'
-    : (isFormulas
-      ? '주요 의학계산공식을 공식 분야와 관련 장기계 기준으로 봅니다.'
-      : (isDrugs
-        ? '약물명 및 정보를 USMLE 계열과 관련 장기계 기준으로 봅니다.'
-        : '일반 의학용어를 개념분류와 대표 장기계로 봅니다.'));
   if (search) search.placeholder = isMicrobes
     ? '미생물명, Gram, 독소, 질환, 치료, USMLE 단서로 검색...'
     : (isFormulas
@@ -14737,7 +14716,7 @@ async function confirmDangerousMicrobeDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.53',
+  version: '4.54',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -14746,7 +14725,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.53 코드 정리(중복 showGuide 제거 · 드로어 ID 비교 통일)',
+    title: '최신 · v4.54 검색 모드 설명문(libraryModeHint) 제거로 상단 정리',
+    items: [
+      '검색 화면 상단 모드 전환줄 오른쪽의 모드 설명문(예: "일반 의학용어를 개념분류와 대표 장기계로 봅니다")을 제거 — 탭 라벨만으로 충분히 명확하고, 모바일에서 한 줄을 통째로 차지하던 군더더기를 정리',
+      '관련 HTML 요소(#libraryModeHint), setLibraryMode/노트 모드의 텍스트 설정 JS, .library-mode-hint CSS(기본+640px 반응형)까지 고아 참조 없이 함께 제거',
+      'UI 정리만 수행 · 저장/동기화 구조 변경 없음(Supabase SQL 변경 없음)',
+    ]
+  },
+  {
+    title: 'v4.53 코드 정리(중복 showGuide 제거 · 드로어 ID 비교 통일)',
     items: [
       '전역에 중복 정의돼 있던 구버전 showGuide() 함수(약 140줄, 한 번도 실행되지 않던 죽은 코드)를 제거해 가이드 문구 수정 시 화면 미반영 함정을 없앰',
       '용어 드로어 이전/다음 네비게이션과 카운트(drawerNavigate · _updateDrawerNav · 디버그 drawer getter)의 ID 비교를 String() 정규화로 통일해, import/JSON/Supabase 경로로 id 타입(숫자↔문자열)이 달라져도 네비가 깨지지 않도록 보강',
@@ -19630,8 +19617,6 @@ initApp();
       btn.classList.toggle('active', Boolean(active));
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
-    const hint = document.getElementById('libraryModeHint');
-    if (hint && isNotes) hint.textContent = '개념노트와 오답노트를 용어, 약물, 미생물, 공식에 연결해 단권화합니다.';
     const search = document.getElementById('searchInput');
     if (search && isNotes) search.placeholder = '노트 제목, 오답 이유, 연결 자료로 검색...';
     document.body.classList.toggle('note-source-search-visible', isNotes);
