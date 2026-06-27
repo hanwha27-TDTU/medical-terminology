@@ -6978,8 +6978,10 @@ function saveCurrentStateToCloud() {
   const drugCount = dedupeDrugsById(DRUGS).filter(d => !d.deletedAt).length;
   const formulaCount = dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt).length;
   const microbeCount = dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt).length;
+  const diseaseCount = dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt).length;
+  const noteCount = activeNoteCountForToast();
   showConfirm(
-    `현재 화면의 활성 용어 ${count}개, 미생물 ${microbeCount}개, 약물 ${drugCount}개, 공식 ${formulaCount}개를<br><b style="color:#fbbf24">새 클라우드 최종상태</b>로 저장할까요?<br><br>` +
+    `현재 화면의 활성 용어 ${count}개, 미생물 ${microbeCount}개, 약물 ${drugCount}개, 공식 ${formulaCount}개, 주요 질환 ${diseaseCount}개, 단권화 노트 ${noteCount}개를<br><b style="color:#fbbf24">새 클라우드 최종상태</b>로 저장할까요?<br><br>` +
     `<span style="font-size:11px;color:var(--text3)">다른 기기에만 있던 항목은 최종본에서 제외될 수 있습니다. 저장 전 전체 백업 JSON을 권장합니다.</span>`,
     async () => {
       showToast('💾 최종상태 저장 중...');
@@ -8397,6 +8399,8 @@ const AppState = Object.freeze({
       microbes: MICROBES.filter(m => !m.deletedAt).length,
       drugs: DRUGS.filter(d => !d.deletedAt).length,
       formulas: FORMULAS.filter(f => !f.deletedAt).length,
+      diseases: DISEASES.filter(d => !d.deletedAt).length,
+      notes: Array.isArray(window.NOTEBOOK) ? window.NOTEBOOK.filter(n => n && !n.deletedAt).length : 0,
     };
   },
 });
@@ -11130,7 +11134,7 @@ function toggleBookmark(e, id) {
     return;
   }
   refreshTermCardBookmarkState(id);
-  if (_drawerTermId === id) _updateDrawerBookmarkButton();
+  if (String(_drawerTermId) === String(id)) _syncDrawerBookmarkBtn();
 }
 
 function refreshTermCardBookmarkState(id) {
@@ -16248,7 +16252,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.68',
+  version: '4.69',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16257,7 +16261,17 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.68 주요 질환 상세 드로어 디자인을 다른 도메인과 통일',
+    title: '최신 · v4.69 감사 리포트 검증 후 실버그 수정(즐겨찾기·미생물검색·저장문구·카운트)',
+    items: [
+      'P0 수정: 용어 드로어 연 채 별표 토글 시 호출되던 미정의 함수 _updateDrawerBookmarkButton() → _syncDrawerBookmarkBtn()로 교체(ReferenceError 제거, id 비교도 String 정규화)',
+      'P1 수정: 단권화 노트 통합검색의 미생물 필드명 오류 row.gram/row.usmle → gram_stain/usmle_clues로 통일(Gram·USMLE 단서 검색 누락 해소)',
+      'P1 수정: 최종상태 저장 확인 문구에 주요 질환·단권화 노트 개수 추가(실제 저장 범위와 일치)',
+      'P2 수정: AppState.counts에 diseases·notes 추가',
+      '검토 후 보류: IndexedDB 저장 async 전환·파일 모듈 분리·XLSX 로컬 번들은 단일 HTML 배포 원칙·리스크 대비 효용을 고려해 미적용(필요 시 별도 진행) · Supabase SQL 변경 없음',
+    ]
+  },
+  {
+    title: 'v4.68 주요 질환 상세 드로어 디자인을 다른 도메인과 통일',
     items: [
       '질환 상세 드로어를 미생물/약물 드로어와 같은 카드 디자인으로 정돈 — 섹션을 .drawer-section으로 감싸 여백·구분선 통일(빡빡함 해소), 청록 도메인 배지·속도 슬라이더 추가',
       '제목·칩에 이미 나온 정보(이름·Concept·System·경과·응급도)를 기본정보 그리드에서 중복 제거 → 그리드는 IPA·System Tags·질환 프로필(연령대·성별경향·위험인자)만 표시(내용 없으면 섹션 숨김)',
@@ -21091,7 +21105,7 @@ initApp();
   function noteSearchRowText(kind, row) {
     if (kind === 'terms') return [row.ko, row.en, row.uz, row.def_ko, row.def_en, row.usmle].filter(Boolean).join(' ');
     if (kind === 'drugs') return [row.generic_name, row.ko_name, row.brand_name, row.drug_class, row.target, row.moa, row.clinical_uses].filter(Boolean).join(' ');
-    if (kind === 'microbes') return [row.organism, row.ko_name, row.latin_name, row.gram, row.diseases, row.treatment, row.usmle].filter(Boolean).join(' ');
+    if (kind === 'microbes') return [row.organism, row.ko_name, row.latin_name, row.gram_stain, row.diseases, row.treatment, row.usmle_clues].filter(Boolean).join(' ');
     if (kind === 'formulas') return [row.name, row.short_name, row.formula, row.category, row.use_case, row.interpretation].filter(Boolean).join(' ');
     if (kind === 'diseases') return [row.ko_name, row.en_name, row.uz_name, row.category, row.one_line_summary, diseaseBodyText(row)].filter(Boolean).join(' ');
     return '';
@@ -21107,7 +21121,7 @@ initApp();
   function noteSearchRowSubtitle(kind, row) {
     if (kind === 'terms') return [row.en, row.uz, row.category].filter(Boolean).join(' · ');
     if (kind === 'drugs') return [row.ko_name, row.brand_name, row.drug_class].filter(Boolean).join(' · ');
-    if (kind === 'microbes') return [row.ko_name, row.latin_name, row.gram].filter(Boolean).join(' · ');
+    if (kind === 'microbes') return [row.ko_name, row.latin_name, row.gram_stain].filter(Boolean).join(' · ');
     if (kind === 'formulas') return [row.short_name, row.formula, row.category].filter(Boolean).join(' · ');
     if (kind === 'diseases') return [row.en_name, row.category, row.acuity].filter(Boolean).join(' · ');
     return '';
