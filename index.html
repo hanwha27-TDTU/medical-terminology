@@ -9253,7 +9253,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
       ${diseaseSelectHtml(`${prefix}_concept_category`, 'Concept Category', CONCEPT_CATEGORIES, d.concept_category || 'Diseases', IS)}
       ${diseaseSelectHtml(`${prefix}_category`, 'System (대표 장기계)', VALID_CATS, d.category || 'General', IS)}
-      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">System Tags (쉼표 구분)</label><input id="${prefix}_system_tags" value="${escVal(Array.isArray(d.system_tags) ? d.system_tags.join(', ') : '')}" placeholder="Cardiology, Emergency" style="${IS}"></div>
+      <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">보조 장기계 태그 (쉼표 · 장기계 값만 인식)</label><input id="${prefix}_system_tags" value="${escVal(Array.isArray(d.system_tags) ? d.system_tags.join(', ') : '')}" placeholder="예: Pulmonary, ENT · 장기계 외 값은 '기타'로 처리" title="대표 장기계 외 보조 장기계만 인식합니다. 병리 특징·분류 같은 서술형 키워드는 해당 임상 섹션이나 한 줄 요약에 적어주세요." style="${IS}"></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
       ${diseaseSelectHtml(`${prefix}_acuity`, '급성 / 아급성 / 만성', DISEASE_ACUITY_OPTIONS, d.acuity || '', IS)}
@@ -16252,7 +16252,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.69',
+  version: '4.70',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16261,7 +16261,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.69 감사 리포트 검증 후 실버그 수정(즐겨찾기·미생물검색·저장문구·카운트)',
+    title: '최신 · v4.70 질환 System Tags 안내문구 명확화(장기계 전용)',
+    items: [
+      'System Tags는 보조 "장기계" 태그 전용으로, 표준 장기계 외 값(예: Parotid gland, Salivary gland tumor 등 서술형)은 normalizeSystemCategory에서 "기타"로 처리됨 — 라벨/placeholder/툴팁에 이 점을 명시해 혼란 제거(동작은 의도대로 유지)',
+      '병리 특징·분류 같은 서술형 키워드는 해당 임상 섹션이나 한 줄 요약에 자유입력하도록 안내',
+    ]
+  },
+  {
+    title: 'v4.69 감사 리포트 검증 후 실버그 수정(즐겨찾기·미생물검색·저장문구·카운트)',
     items: [
       'P0 수정: 용어 드로어 연 채 별표 토글 시 호출되던 미정의 함수 _updateDrawerBookmarkButton() → _syncDrawerBookmarkBtn()로 교체(ReferenceError 제거, id 비교도 String 정규화)',
       'P1 수정: 단권화 노트 통합검색의 미생물 필드명 오류 row.gram/row.usmle → gram_stain/usmle_clues로 통일(Gram·USMLE 단서 검색 누락 해소)',
