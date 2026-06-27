@@ -1498,10 +1498,10 @@ function diseaseDrawerOpenEdit() {
   setTimeout(() => openDiseaseEditModal({ stopPropagation: () => {} }, id), 120);
 }
 
-function diseaseDetailLine(label, value) {
+function diseaseDetailLine(label, value, extraClass = '') {
   const text = String(value || '').trim();
   if (!text) return '';
-  return `<div class="microbe-info-card"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value">${escapeHtml(text)}</div></div>`;
+  return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value">${escapeHtml(text)}</div></div>`;
 }
 
 function _renderDiseaseDrawerContent(d) {
@@ -1513,32 +1513,28 @@ function _renderDiseaseDrawerContent(d) {
   if (titleEl) titleEl.textContent = title;
   if (subEl) subEl.textContent = subtitle || '주요 질환';
   if (!body) return;
-  const chips = [d.concept_category, d.acuity, d.emergency, d.progression, d.contagious, d.category].filter(Boolean);
+  const systemTags = Array.isArray(d.system_tags) ? d.system_tags.join(', ') : (d.system_tags || '');
+  const emgColor = diseaseEmergencyColor(d.emergency);
+  const emergencyChip = d.emergency ? `<span class="drug-chip" style="border-color:${emgColor};color:${emgColor}">${escapeHtml(d.emergency)}</span>` : '';
+  const otherChips = [d.concept_category, d.category, d.acuity, d.progression, d.contagious].filter(Boolean)
+    .map(c => `<span class="drug-chip">${escapeHtml(c)}</span>`).join('');
+  // 기본정보 그리드: 제목/칩에 이미 나온 이름·분류·경과는 중복하지 않고, 나머지(IPA·태그·프로필)만 표시
   const profileSec = DISEASE_SECTIONS.find(s => s.key === 'profile');
   const baseGrid = [
-    diseaseDetailLine('한국어명', d.ko_name),
-    diseaseDetailLine('English name', d.en_name),
-    diseaseDetailLine('Oʻzbekcha name', d.uz_name),
     diseaseDetailLine('IPA English', d.ipa),
-    diseaseDetailLine('Concept Category', d.concept_category),
-    diseaseDetailLine('System', d.category),
-    diseaseDetailLine('System Tags', (Array.isArray(d.system_tags) ? d.system_tags.join(', ') : '')),
-    diseaseDetailLine('급성 / 아급성 / 만성', d.acuity),
-    diseaseDetailLine('응급도', d.emergency),
-    diseaseDetailLine('진행성 여부', d.progression),
-    diseaseDetailLine('전염성 여부', d.contagious),
+    diseaseDetailLine('System Tags', systemTags, 'microbe-card-wide'),
     ...(profileSec ? profileSec.fields.map(f => diseaseDetailLine(f.label, d.body?.profile?.[f.k])) : []),
   ].filter(Boolean).join('');
   const accordion = DISEASE_SECTIONS.filter(s => s.key !== 'profile').map(sec => {
     if (sec.type === 'rows') {
       const rowArr = Array.isArray(d.body && d.body[sec.key]) ? d.body[sec.key] : [];
       if (!rowArr.length) return '';
-      const head = sec.rowFields.map(f => `<th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3);font-weight:600">${escapeHtml(f.label)}</th>`).join('');
-      const trs = rowArr.map(r => `<tr style="border-top:1px solid var(--border)">${sec.rowFields.map(f => `<td style="padding:7px 8px;font-size:12px;color:var(--text2);vertical-align:top">${escapeHtml(r[f.k] || '')}</td>`).join('')}</tr>`).join('');
+      const head = sec.rowFields.map(f => `<th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--text3);font-weight:700">${escapeHtml(f.label)}</th>`).join('');
+      const trs = rowArr.map(r => `<tr style="border-top:1px solid var(--border)">${sec.rowFields.map(f => `<td style="padding:8px 10px;font-size:12px;color:var(--text2);vertical-align:top;line-height:1.55">${escapeHtml(r[f.k] || '')}</td>`).join('')}</tr>`).join('');
       return `
       <details class="disease-acc" open>
         <summary>${sec.icon} ${escapeHtml(sec.title)} <span style="color:var(--text3);font-weight:500">· ${rowArr.length}건</span></summary>
-        <div style="padding:8px 12px;overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>${head}</tr></thead><tbody>${trs}</tbody></table></div>
+        <div style="padding:10px 14px;overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>${head}</tr></thead><tbody>${trs}</tbody></table></div>
       </details>`;
     }
     const secObj = (d.body && d.body[sec.key]) || {};
@@ -1551,24 +1547,40 @@ function _renderDiseaseDrawerContent(d) {
       </details>`;
   }).filter(Boolean).join('');
   body.innerHTML = `
-    <div class="microbe-overview-card">
-      <div class="microbe-overview-top">
-        <div>
-          <div class="microbe-title">${escapeHtml(title)}</div>
-          ${subtitle ? `<div class="microbe-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+    <div class="drawer-section">
+      <div class="microbe-overview-card">
+        <div class="microbe-overview-top">
+          <div>
+            <div class="drawer-lang-badge" style="background:rgba(45,212,191,0.12);color:#5eead4;border:1px solid rgba(45,212,191,0.4);margin-bottom:8px">🩺 주요 질환</div>
+            <div class="microbe-title">${escapeHtml(title)}</div>
+            ${subtitle ? `<div class="microbe-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+          </div>
+          <button class="speak-btn" id="speak-disease-drawer-${Number(d.id)}" onclick="speakDiseaseName(event,${Number(d.id)},'disease-drawer')" title="질환명 영어 발음 듣기" aria-label="질환명 영어 발음 듣기">
+            <div class="wave"><span></span><span></span><span></span><span></span></div>
+            발음 듣기
+          </button>
         </div>
-        <button class="speak-btn" id="speak-disease-drawer-${Number(d.id)}" onclick="speakDiseaseName(event,${Number(d.id)},'disease-drawer')" title="질환명 영어 발음 듣기" aria-label="질환명 영어 발음 듣기">
-          <div class="wave"><span></span><span></span><span></span><span></span></div>
-          발음
-        </button>
+        <div class="microbe-chip-row">
+          ${emergencyChip}${otherChips}
+          ${d.ipa ? `<span class="drug-chip">IPA ${escapeHtml(d.ipa)}</span>` : ''}
+        </div>
+        ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
+        <div class="microbe-tts-row">
+          <span class="tts-speed-label">속도</span>
+          <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
+          <span class="tts-speed-val">${ttsSpeed.toFixed(1)}×</span>
+        </div>
       </div>
-      <div class="microbe-chip-row">${chips.map(c => `<span class="drug-chip">${escapeHtml(c)}</span>`).join('')}</div>
-      ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
     </div>
-    <div class="microbe-section-title">기본정보 · 질환 프로필</div>
-    <div class="microbe-info-grid">${baseGrid || '<div class="microbe-info-value" style="color:var(--text3)">입력된 기본정보가 없습니다.</div>'}</div>
-    <div class="microbe-section-title">상세 (섹션을 눌러 펼치기)</div>
-    ${accordion || '<div class="microbe-info-value" style="color:var(--text3)">아직 상세 내용이 없습니다. 편집에서 채워보세요.</div>'}
+    ${baseGrid ? `
+    <div class="drawer-section">
+      <div class="microbe-section-title">기본 정보 · 질환 프로필</div>
+      <div class="microbe-info-grid">${baseGrid}</div>
+    </div>` : ''}
+    <div class="drawer-section">
+      <div class="microbe-section-title">상세 (섹션을 눌러 펼치기)</div>
+      ${accordion || '<div class="microbe-info-value" style="color:var(--text3)">아직 상세 내용이 없습니다. 편집에서 채워보세요.</div>'}
+    </div>
   `;
 }
 
@@ -16236,7 +16248,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.67',
+  version: '4.68',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16245,7 +16257,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.67 다크/라이트 대비 보정 + 추가 버튼/모달을 모드별 명칭으로',
+    title: '최신 · v4.68 주요 질환 상세 드로어 디자인을 다른 도메인과 통일',
+    items: [
+      '질환 상세 드로어를 미생물/약물 드로어와 같은 카드 디자인으로 정돈 — 섹션을 .drawer-section으로 감싸 여백·구분선 통일(빡빡함 해소), 청록 도메인 배지·속도 슬라이더 추가',
+      '제목·칩에 이미 나온 정보(이름·Concept·System·경과·응급도)를 기본정보 그리드에서 중복 제거 → 그리드는 IPA·System Tags·질환 프로필(연령대·성별경향·위험인자)만 표시(내용 없으면 섹션 숨김)',
+      '응급도 칩에 색 적용, 행 표(원인·Red flags) 패딩·줄간격 보정 · 동작/데이터/SQL 변경 없음',
+    ]
+  },
+  {
+    title: 'v4.67 다크/라이트 대비 보정 + 추가 버튼/모달을 모드별 명칭으로',
     items: [
       '라이트모드 점검: 통합검색 종류 배지를 CSS 클래스화하고 라이트 전용 색을 추가해 흐린 대비 보정(테마 전환 시 자동 반영), 질환 응급도 칩 색을 라이트에서 진하게, TXT 변환 상태문구 색을 중립(var(--text3))으로',
       '"+ 용어 추가" 버튼과 추가 모달 제목/안내를 현재 모드에 맞춰 표기(주요 질환 모드 → "주요 질환 추가", 미생물/약물/공식도 동일) — currentDomainAddLabel()',
