@@ -2714,6 +2714,40 @@ document.addEventListener('keydown', e => {
   }
   .disease-row-del:hover { color: #f87171; border-color: #991b1b; }
 
+  .assyst-converter .assyst-layout { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+  .assyst-converter .assyst-pane { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .assyst-converter .assyst-pane-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .assyst-converter .assyst-pane-head h2 { margin: 0; font-size: 13px; font-weight: 800; color: var(--text); }
+  .assyst-converter .assyst-counter { color: var(--text3); font-size: 11px; white-space: nowrap; }
+  .assyst-converter .assyst-editor,
+  .assyst-converter textarea.assyst-result {
+    width: 100%; min-height: 44vh; border: 0; outline: none; resize: vertical;
+    padding: 14px 16px; box-sizing: border-box;
+    font: 14px/1.65 "Cascadia Mono", "D2Coding", Consolas, monospace;
+    color: var(--text2); background: var(--bg);
+    white-space: pre-wrap; word-break: keep-all; overflow: auto;
+  }
+  .assyst-converter .assyst-editor:empty::before { content: attr(data-placeholder); color: var(--text3); white-space: pre-wrap; }
+  .assyst-converter .assyst-toolbar { margin-top: 14px; }
+  .assyst-converter .assyst-options { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 12px; color: var(--text2); font-size: 12px; }
+  .assyst-converter .assyst-options label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .assyst-converter .assyst-options input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+  .assyst-converter .assyst-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .assyst-converter .assyst-actions button {
+    border: 1px solid var(--border); border-radius: 9px; background: var(--surface2); color: var(--text2);
+    padding: 9px 14px; font: 700 12px/1.2 "Noto Sans KR", system-ui, sans-serif; cursor: pointer;
+  }
+  .assyst-converter .assyst-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .assyst-converter .assyst-actions button.primary { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+  .assyst-converter .assyst-note { margin: 12px 0 0; color: var(--text3); font-size: 11px; line-height: 1.6; }
+  .assyst-converter .assyst-status { color: var(--accent2); }
+  @media (max-width: 760px) {
+    .assyst-converter .assyst-layout { grid-template-columns: 1fr; }
+    .assyst-converter .assyst-editor,
+    .assyst-converter textarea.assyst-result { min-height: 30vh; }
+    .assyst-converter .assyst-actions button { flex: 1 1 120px; }
+  }
+
   html[data-theme="light"] .library-mode-switch {
     background: var(--surface);
     border-color: var(--border);
@@ -7323,6 +7357,17 @@ function mergeMicrobesForSync(cloudMicrobes, localMicrobes, localMicrobeTombston
 //  카드 트리는 DISEASE_SECTIONS 스키마 1곳으로 normalize/폼/드로어/CSV 모두 구동
 // ═══════════════════════════════════════════════════════
 const DISEASE_ACUITY_OPTIONS = ['', '급성', '아급성', '만성'];
+// 질환 유형별 "검사/진단 출발 골격" 템플릿(비-AI). 빈 칸에만 삽입되고 사용자가 검수·수정한다.
+const DISEASE_TYPE_TEMPLATES = {
+  '감염질환': { diagnosis: { initial_tests: 'Gram stain, 배양(culture)', confirmatory_tests: '배양/PCR 확진, 항원·항체 검사', blood: 'CBC, CRP/ESR, 혈액배양', imaging: '(감염 부위 영상)', criteria: '임상 + 미생물학적 확인' } },
+  '자가면역질환': { diagnosis: { initial_tests: 'ANA 등 자가항체, ESR/CRP', confirmatory_tests: '특이 자가항체, 조직검사', blood: 'ANA, 보체(C3/C4), ESR/CRP', urine: '(신침범 시) urinalysis', pathology: 'biopsy 특징 소견', criteria: '분류기준(classification criteria)' } },
+  '종양질환': { diagnosis: { initial_tests: '영상검사', confirmatory_tests: '조직검사(biopsy)로 확진', blood: 'tumor marker', imaging: 'CT/MRI/PET (병기설정)', pathology: 'biopsy + IHC/분자검사', criteria: 'TNM staging', interpretation: '전이(metastasis) 평가' } },
+  '심혈관 응급': { diagnosis: { initial_tests: 'ECG, troponin', confirmatory_tests: '심초음파, CT angiography', blood: 'troponin, CK-MB', imaging: 'echocardiography, CT angiography' } },
+  '신장질환': { diagnosis: { initial_tests: 'urinalysis, creatinine/eGFR', confirmatory_tests: '신생검(renal biopsy)', blood: 'creatinine, BUN, 전해질', urine: 'urinalysis, 단백/크레아티닌 비(UPCR)', imaging: '신장 초음파', pathology: 'renal biopsy' } },
+  '내분비질환': { diagnosis: { initial_tests: '선별 호르몬 검사', confirmatory_tests: '억제/자극 검사(suppression/stimulation)', blood: '관련 호르몬 수치', imaging: '(해당 분비선 영상)' } },
+  '대사질환': { diagnosis: { initial_tests: '대사 패널(혈당/지질/전해질)', confirmatory_tests: '특이 대사/유전 검사', blood: '대사 관련 수치' } },
+  '소아질환': { diagnosis: { initial_tests: '연령·예방접종력 확인', criteria: '선천성 단서, 성장·발달 평가' } },
+};
 const DISEASE_EMERGENCY_OPTIONS = ['', 'Emergency', 'Urgent', 'Non-urgent / Outpatient'];
 const DISEASE_PROGRESSION_OPTIONS = ['', 'Progressive', 'Episodic', 'Relapsing-remitting', 'Self-limited', 'Latent / Silent'];
 const DISEASE_CONTAGIOUS_OPTIONS = ['', '전염성 있음', '전염성 없음', '조건부 전염'];
@@ -9104,6 +9149,22 @@ function readDiseaseRowSection(prefix, secKey) {
     return obj;
   }).filter(o => Object.values(o).some(v => String(v || '').trim()));
 }
+function applyDiseaseTypeTemplate(prefix) {
+  const sel = document.getElementById(`${prefix}_typetmpl`);
+  const type = sel ? sel.value : '';
+  const tmpl = DISEASE_TYPE_TEMPLATES[type];
+  if (!tmpl) { showToast('먼저 질환 유형을 선택하세요'); return; }
+  let filled = 0;
+  Object.keys(tmpl).forEach(secKey => {
+    Object.keys(tmpl[secKey]).forEach(k => {
+      const el = document.getElementById(`${prefix}_body_${secKey}_${k}`);
+      if (el && !String(el.value || '').trim()) { el.value = tmpl[secKey][k]; filled++; }
+    });
+  });
+  const acc = document.getElementById(`${prefix}_body_diagnosis_initial_tests`)?.closest('details');
+  if (acc) acc.open = true;
+  showToast(filled ? `🧩 "${type}" 출발 템플릿을 빈 칸 ${filled}곳에 채웠습니다 · 검수·수정하세요` : '채울 빈 칸이 없습니다(이미 입력되어 보존됨)');
+}
 function diseaseSelectHtml(id, label, options, current, IS) {
   const opts = options.map(o => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o || '— 선택 —')}</option>`).join('');
   return `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(label)}</label><select id="${id}" style="${IS}">${opts}</select></div>`;
@@ -9133,7 +9194,15 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
         ? `<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><textarea id="${fid}" rows="2" style="${TA}">${escapeHtml(val)}</textarea></div>`
         : `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><input id="${fid}" value="${escVal(val)}" style="${IS}"></div>`;
     }).join('');
-    return `<details class="disease-acc"${sec.key === 'definition' ? ' open' : ''}><summary>${sec.icon} ${escapeHtml(sec.title)}</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
+    const extra = sec.key === 'diagnosis'
+      ? `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:12px 12px 0">
+          <span style="font-size:11px;color:var(--text3);font-weight:700">유형 템플릿</span>
+          <select id="${prefix}_typetmpl" style="${IS};flex:1 1 130px">${['', ...Object.keys(DISEASE_TYPE_TEMPLATES)].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t || '유형 선택…')}</option>`).join('')}</select>
+          <button type="button" class="speak-btn" style="height:36px" onclick="applyDiseaseTypeTemplate('${prefix}')">골격 삽입</button>
+          <span style="flex-basis:100%;font-size:10px;color:var(--text3)">선택 유형의 검사/진단 항목을 <b>빈 칸에만</b> 채움(기존 보존) · 채운 뒤 검수</span>
+        </div>`
+      : '';
+    return `<details class="disease-acc"${sec.key === 'definition' ? ' open' : ''}><summary>${sec.icon} ${escapeHtml(sec.title)}</summary>${extra}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
   };
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
@@ -9158,7 +9227,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
       ${diseaseSelectHtml(`${prefix}_contagious`, '전염성 여부', DISEASE_CONTAGIOUS_OPTIONS, d.contagious || '', IS)}
     </div>
     <div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">한 줄 요약</label><textarea id="${prefix}_one_line_summary" rows="2" style="${TA}">${escapeHtml(d.one_line_summary || '')}</textarea></div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">아래 섹션은 필요할 때만 펼쳐서 채우세요. 빈 칸은 카드에 표시되지 않습니다.</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">아래 섹션은 필요할 때만 펼쳐서 채우세요. 빈 칸은 카드에 표시되지 않습니다. (검사/진단 섹션 안에 "유형 템플릿" 빠른 삽입이 있습니다.)</div>
     ${DISEASE_SECTIONS.map(sectionHtml).join('')}
   `;
 }
@@ -16140,7 +16209,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.59',
+  version: '4.62',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16149,7 +16218,30 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.59 주요 질환 증상·징후: 무증상=드롭다운, Red flags=행 구조',
+    title: '최신 · v4.62 TXT 변환도구를 별도 팝업창 → 앱 내부 모달로 통합',
+    items: [
+      'TXT 변환(Assyst 양식)을 window.open 팝업창(about:blank, 별도 디자인)에서 앱 내부 모달로 전환 — 앱 디자인 토큰·폰트·다크/라이트 테마·반응형을 그대로 적용해 다른 버튼들과 통일',
+      '팝업 차단 위험 제거, 모바일에서도 자연스럽게 표시. 변환 로직(파싱/Assyst 포맷/복사/다운로드)은 그대로 유지',
+      '타이포·여백을 앱 기준으로 정돈하고 상태문구·안내문을 1줄로 축소',
+    ]
+  },
+  {
+    title: 'v4.61 유형 템플릿 컨트롤을 검사/진단 섹션 안으로 이동·축소',
+    items: [
+      '"유형별 출발 템플릿" 드롭다운+버튼을 폼 맨 위(전역처럼 보이던 위치)에서 검사/진단 섹션 내부 맨 위로 이동 — 실제로 검사/진단만 채우므로 위치가 기능과 일치',
+      '컨트롤을 축소(라벨·버튼 간소화)하고 안내문도 1줄로 정리',
+    ]
+  },
+  {
+    title: 'v4.60 주요 질환: 유형별 검사/진단 출발 템플릿(비-AI) 추가',
+    items: [
+      '질환 추가/편집 폼에 "유형별 출발 템플릿" 드롭다운(감염/자가면역/종양/심혈관 응급/신장/내분비/대사/소아) + "검사/진단 골격 삽입" 버튼 추가',
+      '선택 유형의 검사/진단 출발 항목(초기·확진·혈액·소변·영상·병리·진단기준 등)을 빈 칸에만 채우고 기존 입력은 보존 — 사용자는 검수·수정만',
+      '입력 부담을 줄이는 비-AI 스캐폴딩(API 키 불필요) · Supabase SQL 변경 없음. (질환별 알맹이까지 자동 채우는 AI 보강은 추후 옵션)',
+    ]
+  },
+  {
+    title: 'v4.59 주요 질환 증상·징후: 무증상=드롭다운, Red flags=행 구조',
     items: [
       '"무증상 가능 여부"를 자유입력 → 드롭다운(불가능/가능/흔함/초기무증상/선별검사발견/우연발견)으로 변경',
       '"Red flags"를 별도 섹션으로 분리하고 행 구조로 개편 — 행마다 위험 신호 + 분류(응급/감염·패혈증/출혈·허혈/신경학적/암의심/소아·임신/즉시검사) + 즉시 행동(next action). "신호 → 다음 행동" 페어로 정리',
@@ -23014,237 +23106,50 @@ initApp();
 
 <script>
 (() => {
-  function assystTxtConverterHtml() {
-    return `<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dr. Bugeon의 Medical Note · TXT 변환</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f8fb;
-      --surface: #ffffff;
-      --surface2: #f8fafc;
-      --text: #111827;
-      --text2: #475569;
-      --text3: #718096;
-      --border: #d9e2ef;
-      --accent: #4f63d7;
-      --accent2: #eef2ff;
-      --shadow: 0 18px 48px rgba(15, 23, 42, 0.10);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main {
-      width: min(1480px, calc(100vw - 36px));
-      margin: 0 auto;
-      padding: 24px 0 22px;
-    }
-    header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 24px;
-    }
-    h1 {
-      margin: 0;
-      font-size: clamp(25px, 3vw, 38px);
-      line-height: 1.15;
-      letter-spacing: 0;
-    }
-    .sub {
-      margin: 10px 0 0;
-      color: var(--text3);
-      font-size: 16px;
-    }
-    .status {
-      color: var(--text3);
-      font-size: 15px;
-      text-align: right;
-      white-space: nowrap;
-      margin-top: 12px;
-    }
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 20px;
-    }
-    section,
-    .toolbar {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-      overflow: hidden;
-    }
-    .section-head {
-      min-height: 56px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    h2 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.2;
-    }
-    .counter {
-      color: var(--text3);
-      font-size: 14px;
-      white-space: nowrap;
-    }
-    .editor,
-    textarea {
-      width: 100%;
-      min-height: 60vh;
-      border: 0;
-      outline: none;
-      resize: vertical;
-      padding: 24px 20px;
-      font: 17px/1.65 "Cascadia Mono", "D2Coding", Consolas, monospace;
-      color: var(--text2);
-      background: var(--surface);
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: keep-all;
-    }
-    .editor:empty::before {
-      content: attr(data-placeholder);
-      color: #9aa4b2;
-      white-space: pre-wrap;
-    }
-    .toolbar {
-      margin-top: 20px;
-      padding: 18px 20px;
-    }
-    .options {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 24px;
-      margin-bottom: 16px;
-      color: var(--text2);
-      font-size: 15px;
-    }
-    label {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--accent);
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    button {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--surface);
-      color: var(--text2);
-      padding: 10px 16px;
-      font: 700 15px/1.2 "Noto Sans KR", system-ui, sans-serif;
-      cursor: pointer;
-    }
-    button:hover {
-      background: var(--surface2);
-      border-color: #bfcbdd;
-    }
-    button.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
-    }
-    .note {
-      margin: 18px 0 0;
-      color: var(--text3);
-      font-size: 14px;
-    }
-    @media (max-width: 860px) {
-      main { width: min(100vw - 20px, 760px); padding-top: 16px; }
-      header, .layout { grid-template-columns: 1fr; display: grid; }
-      .status { text-align: left; white-space: normal; }
-      .editor, textarea { min-height: 38vh; font-size: 15px; }
-      .actions button { flex: 1 1 140px; }
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <header>
-      <div>
-        <h1>Dr. Bugeon의 TXT 변환도구</h1>
-        <p class="sub">붙여넣은 객관식 문제를 Assyst 고정 TXT 양식으로 변환합니다.</p>
-      </div>
-      <div id="assystStatus" class="status">브라우저 내부에서만 처리</div>
-    </header>
-    <div class="layout">
-      <section>
-        <div class="section-head">
-          <h2>원문 입력</h2>
-          <span id="assystInputCount" class="counter">0자</span>
-        </div>
-        <div id="assystSource" class="editor" contenteditable="true" spellcheck="false" data-placeholder="예)
+  function assystTxtConverterBodyHtml() {
+    return `
+    <div class="assyst-converter">
+      <div class="assyst-layout">
+        <div class="assyst-pane">
+          <div class="assyst-pane-head"><h2>원문 입력</h2><span id="assystInputCount" class="assyst-counter">0자</span></div>
+          <div id="assystSource" class="assyst-editor" contenteditable="true" spellcheck="false" data-placeholder="예)
 Q. 다음 중 이 앱의 개발자는 누구인가요?
 A. 김부건 정답
 B. 박근혜
 C. 박정희 오답
 D. 이승만
-E. 대중씨
 
 2. HTML의 의미는?
 A) Hyper Text Markup Language correct
 B) High Transfer Machine Language wrong
-C) Home Tool Markup Language incorrect
-D) Hyperlink Text Making Logic wrong"></div>
-      </section>
-      <section>
-        <div class="section-head">
-          <h2>Assyst 결과</h2>
-          <span id="assystOutputCount" class="counter">0문제</span>
+C) Home Tool Markup Language incorrect"></div>
         </div>
-        <textarea id="assystResult" spellcheck="false" placeholder="# 문제 문장
+        <div class="assyst-pane">
+          <div class="assyst-pane-head"><h2>Assyst 결과</h2><span id="assystOutputCount" class="assyst-counter">0문제</span></div>
+          <textarea id="assystResult" class="assyst-result" spellcheck="false" placeholder="# 문제 문장
 + 정답 보기
 - 오답 보기
-- 오답 보기
 - 오답 보기"></textarea>
-      </section>
-    </div>
-    <div class="toolbar">
-      <div class="options">
-        <label><input type="checkbox" id="assystUnknownAsWrong" checked> 정답 표시 없는 보기를 오답(-)으로 처리</label>
-        <label><input type="checkbox" id="assystRemoveMarkers" checked> 정답 표시 단어 제거</label>
-        <label><input type="checkbox" id="assystRemoveQuestionNumber" checked> 문제 번호 제거</label>
-        <label><input type="checkbox" id="assystCleanBlankLines" checked> 빈 줄 정리</label>
+        </div>
       </div>
-      <div class="actions">
-        <button id="assystSampleBtn" type="button">예시 넣기</button>
-        <button id="assystBoldBtn" type="button">굵게</button>
-        <button id="assystPlainBtn" type="button">서식 제거</button>
-        <button id="assystConvertBtn" class="primary" type="button">변환</button>
-        <button id="assystCopyBtn" type="button">결과 전체 복사</button>
-        <button id="assystDownloadBtn" type="button">TXT 다운로드</button>
+      <div class="assyst-toolbar">
+        <div class="assyst-options">
+          <label><input type="checkbox" id="assystUnknownAsWrong" checked> 정답 표시 없는 보기를 오답(-)으로</label>
+          <label><input type="checkbox" id="assystRemoveMarkers" checked> 정답 표시 단어 제거</label>
+          <label><input type="checkbox" id="assystRemoveQuestionNumber" checked> 문제 번호 제거</label>
+          <label><input type="checkbox" id="assystCleanBlankLines" checked> 빈 줄 정리</label>
+        </div>
+        <div class="assyst-actions">
+          <button id="assystSampleBtn" type="button">예시 넣기</button>
+          <button id="assystBoldBtn" type="button">굵게</button>
+          <button id="assystPlainBtn" type="button">서식 제거</button>
+          <button id="assystConvertBtn" class="primary" type="button">변환</button>
+          <button id="assystCopyBtn" type="button">결과 복사</button>
+          <button id="assystDownloadBtn" type="button">TXT 다운로드</button>
+        </div>
+        <p class="assyst-note">원문 서식은 자동 정리 · 정답은 +, 굵게, 또는 correct/answer/정답 같은 표시 단어로 인식 · <span id="assystStatus" class="assyst-status">브라우저 내부에서만 처리</span></p>
       </div>
-    </div>
-    <p class="note">원문 서식은 자동으로 정리됩니다. 정답은 +, 굵게, 또는 correct/answer/정답 같은 표시 단어로 잡을 수 있습니다.</p>
-  </main>
-</body>
-</html>`;
+    </div>`;
   }
 
   function initAssystTxtConverterWindow(win) {
@@ -23558,17 +23463,23 @@ D) Date`;
   }
 
   window.openAssystTxtConverter = function openAssystTxtConverter() {
-    const features = 'popup=yes,width=1280,height=820,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes';
-    const popup = window.open('', 'dr_bugeon_txt_converter', features);
-    if (!popup) {
-      if (typeof showToast === 'function') showToast('팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 눌러주세요.');
-      return;
-    }
-    popup.document.open();
-    popup.document.write(assystTxtConverterHtml());
-    popup.document.close();
-    initAssystTxtConverterWindow(popup);
-    try { popup.focus(); } catch {}
+    document.getElementById('assystConverterOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'assystConverterOverlay';
+    overlay.className = 'developer-modal-overlay';
+    overlay.innerHTML = `
+      <section class="developer-modal" role="dialog" aria-modal="true" style="width:min(96vw,1180px);max-width:1180px">
+        <div class="developer-modal-head">
+          <div>
+            <div style="font-size:17px;font-weight:900;color:var(--text)">🔁 TXT 변환도구</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">붙여넣은 객관식 문제를 Assyst 고정 TXT 양식으로 변환합니다 · 브라우저 내부에서만 처리</div>
+          </div>
+          <button onclick="document.getElementById('assystConverterOverlay').remove()" title="닫기" aria-label="TXT 변환도구 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+        </div>
+        <div style="padding:16px 20px 22px">${assystTxtConverterBodyHtml()}</div>
+      </section>`;
+    document.body.appendChild(overlay);
+    try { initAssystTxtConverterWindow(window); } catch (e) { console.warn('TXT converter init failed', e); if (typeof showToast === 'function') showToast('⚠️ TXT 변환도구 초기화 실패'); }
   };
 })();
 </script>
