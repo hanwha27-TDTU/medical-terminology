@@ -7384,17 +7384,9 @@ function mergeMicrobesForSync(cloudMicrobes, localMicrobes, localMicrobeTombston
 //  카드 트리는 DISEASE_SECTIONS 스키마 1곳으로 normalize/폼/드로어/CSV 모두 구동
 // ═══════════════════════════════════════════════════════
 const DISEASE_ACUITY_OPTIONS = ['', '급성', '아급성', '만성'];
-// 질환 유형별 "검사/진단 출발 골격" 템플릿(비-AI). 빈 칸에만 삽입되고 사용자가 검수·수정한다.
-const DISEASE_TYPE_TEMPLATES = {
-  '감염질환': { diagnosis: { initial_tests: 'Gram stain, 배양(culture)', confirmatory_tests: '배양/PCR 확진, 항원·항체 검사', blood: 'CBC, CRP/ESR, 혈액배양', imaging: '(감염 부위 영상)', criteria: '임상 + 미생물학적 확인' } },
-  '자가면역질환': { diagnosis: { initial_tests: 'ANA 등 자가항체, ESR/CRP', confirmatory_tests: '특이 자가항체, 조직검사', blood: 'ANA, 보체(C3/C4), ESR/CRP', urine: '(신침범 시) urinalysis', pathology: 'biopsy 특징 소견', criteria: '분류기준(classification criteria)' } },
-  '종양질환': { diagnosis: { initial_tests: '영상검사', confirmatory_tests: '조직검사(biopsy)로 확진', blood: 'tumor marker', imaging: 'CT/MRI/PET (병기설정)', pathology: 'biopsy + IHC/분자검사', criteria: 'TNM staging', interpretation: '전이(metastasis) 평가' } },
-  '심혈관 응급': { diagnosis: { initial_tests: 'ECG, troponin', confirmatory_tests: '심초음파, CT angiography', blood: 'troponin, CK-MB', imaging: 'echocardiography, CT angiography' } },
-  '신장질환': { diagnosis: { initial_tests: 'urinalysis, creatinine/eGFR', confirmatory_tests: '신생검(renal biopsy)', blood: 'creatinine, BUN, 전해질', urine: 'urinalysis, 단백/크레아티닌 비(UPCR)', imaging: '신장 초음파', pathology: 'renal biopsy' } },
-  '내분비질환': { diagnosis: { initial_tests: '선별 호르몬 검사', confirmatory_tests: '억제/자극 검사(suppression/stimulation)', blood: '관련 호르몬 수치', imaging: '(해당 분비선 영상)' } },
-  '대사질환': { diagnosis: { initial_tests: '대사 패널(혈당/지질/전해질)', confirmatory_tests: '특이 대사/유전 검사', blood: '대사 관련 수치' } },
-  '소아질환': { diagnosis: { initial_tests: '연령·예방접종력 확인', criteria: '선천성 단서, 성장·발달 평가' } },
-};
+// 검사/진단 행(rows) 항목 목록 + 구버전 평면 진단필드 → 항목 라벨 매핑(마이그레이션용)
+const DISEASE_DX_ITEMS = ['가장 먼저 할 검사', '확진 검사 (gold standard)', '특징적·병리진단적 소견', '특징적 검사실 소견', '영상 소견', '조직/생검 소견', '감별 검사', '진단 기준', '검사 결과 해석', '중증도·병기', '선별검사 (해당 시)', '다음 최선의 단계', '진단 알고리즘', '기타'];
+const DISEASE_DX_LEGACY_LABEL = { initial_tests: '가장 먼저 할 검사', confirmatory_tests: '확진 검사 (gold standard)', blood: '특징적 검사실 소견', urine: '특징적 검사실 소견', imaging: '영상 소견', pathology: '조직/생검 소견', criteria: '진단 기준', interpretation: '검사 결과 해석', algorithm: '진단 알고리즘' };
 const DISEASE_EMERGENCY_OPTIONS = ['', 'Emergency', 'Urgent', 'Non-urgent / Outpatient'];
 const DISEASE_PROGRESSION_OPTIONS = ['', 'Progressive', 'Episodic', 'Relapsing-remitting', 'Self-limited', 'Latent / Silent'];
 const DISEASE_CONTAGIOUS_OPTIONS = ['', '전염성 있음', '전염성 없음', '조건부 전염'];
@@ -7440,16 +7432,10 @@ const DISEASE_SECTIONS = [
     { k: 'category', label: '분류', type: 'select', options: DISEASE_REDFLAG_CATEGORIES },
     { k: 'action', label: '즉시 행동', type: 'text' },
   ]},
-  { key: 'diagnosis', title: '검사 / 진단', icon: '🔬', fields: [
-    { k: 'initial_tests', label: '초기 검사', area: true },
-    { k: 'confirmatory_tests', label: '확진 검사', area: true },
-    { k: 'blood', label: '혈액검사' },
-    { k: 'urine', label: '소변검사' },
-    { k: 'imaging', label: '영상검사' },
-    { k: 'pathology', label: '병리 / 조직검사' },
-    { k: 'criteria', label: '진단 기준', area: true },
-    { k: 'interpretation', label: '검사 결과 해석', area: true },
-    { k: 'algorithm', label: '질환별 진단 알고리즘', area: true },
+  { key: 'diagnosis', title: '검사 / 진단', icon: '🔬', type: 'rows', addLabel: '검사/진단 항목 추가', seed: ['가장 먼저 할 검사', '확진 검사 (gold standard)'], rowFields: [
+    { k: 'item', label: '항목', type: 'select', options: DISEASE_DX_ITEMS },
+    { k: 'method', label: '검사 방법', type: 'text' },
+    { k: 'usmle', label: 'USMLE 핵심', type: 'text' },
   ]},
   { key: 'treatment', title: '치료', icon: '💉', fields: [
     { k: 'initial', label: '초기 처치', area: true },
@@ -7533,6 +7519,11 @@ function normalizeDiseaseBody(rawBody) {
       } else if (sec.key === 'red_flags' && src.symptoms && cleanTermString(src.symptoms.red_flags)) {
         // 구버전: 증상 섹션의 red_flags 자유텍스트 → 한 행으로 이관
         rows = [{ sign: cleanTermString(src.symptoms.red_flags), category: '', action: '' }];
+      } else if (sec.key === 'diagnosis' && src.diagnosis && !Array.isArray(src.diagnosis) && typeof src.diagnosis === 'object') {
+        // 구버전: 평면 진단 필드(initial_tests 등) → 항목 행으로 이관
+        rows = Object.keys(DISEASE_DX_LEGACY_LABEL)
+          .map(k => ({ item: DISEASE_DX_LEGACY_LABEL[k], method: cleanTermString(src.diagnosis[k]), usmle: '' }))
+          .filter(r => r.method);
       } else {
         rows = [];
       }
@@ -9179,22 +9170,6 @@ function readDiseaseRowSection(prefix, secKey) {
     return obj;
   }).filter(o => Object.values(o).some(v => String(v || '').trim()));
 }
-function applyDiseaseTypeTemplate(prefix) {
-  const sel = document.getElementById(`${prefix}_typetmpl`);
-  const type = sel ? sel.value : '';
-  const tmpl = DISEASE_TYPE_TEMPLATES[type];
-  if (!tmpl) { showToast('먼저 질환 유형을 선택하세요'); return; }
-  let filled = 0;
-  Object.keys(tmpl).forEach(secKey => {
-    Object.keys(tmpl[secKey]).forEach(k => {
-      const el = document.getElementById(`${prefix}_body_${secKey}_${k}`);
-      if (el && !String(el.value || '').trim()) { el.value = tmpl[secKey][k]; filled++; }
-    });
-  });
-  const acc = document.getElementById(`${prefix}_body_diagnosis_initial_tests`)?.closest('details');
-  if (acc) acc.open = true;
-  showToast(filled ? `🧩 "${type}" 출발 템플릿을 빈 칸 ${filled}곳에 채웠습니다 · 검수·수정하세요` : '채울 빈 칸이 없습니다(이미 입력되어 보존됨)');
-}
 function diseaseSelectHtml(id, label, options, current, IS) {
   let opts = options.map(o => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o || '— 선택 —')}</option>`).join('');
   if (current && !options.includes(current)) opts = `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>` + opts;
@@ -9205,7 +9180,11 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
   const body = (d && d.body && typeof d.body === 'object') ? d.body : {};
   const sectionHtml = sec => {
     if (sec.type === 'rows') {
-      const initial = Array.isArray(body[sec.key]) ? body[sec.key] : [];
+      let initial = Array.isArray(body[sec.key]) ? body[sec.key] : [];
+      if (!initial.length && Array.isArray(sec.seed) && sec.seed.length) {
+        const seedKey = (sec.rowFields[0] || {}).k;
+        initial = sec.seed.map(s => ({ [seedKey]: s }));
+      }
       const rowsHtml = initial.map(r => diseaseRowHtml(sec, r)).join('');
       return `<details class="disease-acc" open><summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
         <div style="padding:12px">
@@ -9225,15 +9204,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
         ? `<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><textarea id="${fid}" rows="2" style="${TA}">${escapeHtml(val)}</textarea></div>`
         : `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><input id="${fid}" value="${escVal(val)}" style="${IS}"></div>`;
     }).join('');
-    const extra = sec.key === 'diagnosis'
-      ? `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:12px 12px 0">
-          <span style="font-size:11px;color:var(--text3);font-weight:700">유형 템플릿</span>
-          <select id="${prefix}_typetmpl" style="${IS};flex:1 1 130px">${['', ...Object.keys(DISEASE_TYPE_TEMPLATES)].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t || '유형 선택…')}</option>`).join('')}</select>
-          <button type="button" class="speak-btn" style="height:36px" onclick="applyDiseaseTypeTemplate('${prefix}')">골격 삽입</button>
-          <span style="flex-basis:100%;font-size:10px;color:var(--text3)">선택 유형의 검사/진단 항목을 <b>빈 칸에만</b> 채움(기존 보존) · 채운 뒤 검수</span>
-        </div>`
-      : '';
-    return `<details class="disease-acc"${sec.key === 'definition' ? ' open' : ''}><summary>${sec.icon} ${escapeHtml(sec.title)}</summary>${extra}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
+    return `<details class="disease-acc"${sec.key === 'definition' ? ' open' : ''}><summary>${sec.icon} ${escapeHtml(sec.title)}</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
   };
   return `
     <div class="note-inline-search" onclick="event.stopPropagation()" style="margin-bottom:12px">
@@ -9262,7 +9233,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
       ${diseaseSelectHtml(`${prefix}_contagious`, '전염성 여부', DISEASE_CONTAGIOUS_OPTIONS, d.contagious || '', IS)}
     </div>
     <div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">한 줄 요약</label><textarea id="${prefix}_one_line_summary" rows="2" style="${TA}">${escapeHtml(d.one_line_summary || '')}</textarea></div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">아래 섹션은 필요할 때만 펼쳐서 채우세요. 빈 칸은 카드에 표시되지 않습니다. (검사/진단 섹션 안에 "유형 템플릿" 빠른 삽입이 있습니다.)</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">아래 섹션은 필요할 때만 펼쳐서 채우세요. 빈 칸은 카드에 표시되지 않습니다.</div>
     ${DISEASE_SECTIONS.map(sectionHtml).join('')}
   `;
 }
@@ -16252,7 +16223,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.70',
+  version: '4.71',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16261,7 +16232,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.70 질환 System Tags 안내문구 명확화(장기계 전용)',
+    title: '최신 · v4.71 질환 검사/진단 섹션을 항목 행 구조로 개편(검사방법·USMLE 핵심 분리)',
+    items: [
+      '검사/진단을 자유 필드 묶음에서 "항목 행" 구조로 변경 — 각 행 = 항목(드롭다운: 가장 먼저 할 검사·확진 검사·영상·조직/생검·진단 기준 등) + 검사 방법 + USMLE 핵심',
+      '신규 질환 추가 시 "가장 먼저 할 검사"·"확진 검사(gold standard)" 2개 행을 기본 골격으로 자동 표시, 나머지 항목은 "검사/진단 항목 추가"로 추가',
+      '정적 "유형별 검사/진단 골격 삽입" 템플릿(applyDiseaseTypeTemplate)을 제거 — 행 구조로 대체',
+      '기존 질환의 구형 diagnosis 객체(initial_tests/imaging/criteria 등)는 로드 시 항목 행으로 자동 마이그레이션',
+    ]
+  },
+  {
+    title: 'v4.70 질환 System Tags 안내문구 명확화(장기계 전용)',
     items: [
       'System Tags는 보조 "장기계" 태그 전용으로, 표준 장기계 외 값(예: Parotid gland, Salivary gland tumor 등 서술형)은 normalizeSystemCategory에서 "기타"로 처리됨 — 라벨/placeholder/툴팁에 이 점을 명시해 혼란 제거(동작은 의도대로 유지)',
       '병리 특징·분류 같은 서술형 키워드는 해당 임상 섹션이나 한 줄 요약에 자유입력하도록 안내',
