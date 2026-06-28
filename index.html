@@ -239,7 +239,7 @@
     line-height: 1.5;
     margin-top: 5px;
   }
-  /* ── 단권화 노트 본문 위계 · 의미색 (에디터 + 카드 렌더 공통) ── */
+  /* ── 개념·오답 노트 본문 위계 · 의미색 (에디터 + 카드 렌더 공통) ── */
   .note-editor h3, .note-body-render h3 {
     font-size: 16px; font-weight: 800; color: var(--text);
     margin: 4px 0 13px; padding-bottom: 8px;
@@ -1538,6 +1538,19 @@ function _renderDiseaseDrawerContent(d) {
       </details>`;
     }
     const secObj = (d.body && d.body[sec.key]) || {};
+    if (sec.key === 'ddx') {
+      const lines = [];
+      const sim = String(secObj.similar_diseases || '').trim();
+      if (sim) lines.push(`<div class="microbe-info-card microbe-card-wide"><div class="microbe-info-label">${escapeHtml(sec.fields[0].label)}</div><div class="microbe-info-value disease-ddx-links">${diseaseLinkifySimilar(sim)}</div></div>`);
+      sec.fields.slice(1).forEach(f => { const ln = diseaseDetailLine(f.label, secObj[f.k]); if (ln) lines.push(ln); });
+      const ddxRows = lines.join('');
+      if (!ddxRows) return '';
+      return `
+      <details class="disease-acc">
+        <summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
+        <div class="microbe-info-grid">${ddxRows}</div>
+      </details>`;
+    }
     const rows = sec.fields.map(f => diseaseDetailLine(f.label, secObj[f.k])).filter(Boolean).join('');
     if (!rows) return '';
     return `
@@ -2725,6 +2738,50 @@ document.addEventListener('keydown', e => {
     cursor: pointer;
   }
   .disease-row-del:hover { color: #f87171; border-color: #991b1b; }
+
+  /* 질환 목차(TOC) 뷰 · 마인드맵 1단계 */
+  .disease-view-toggle { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .disease-view-toggle button {
+    border: 0; background: var(--surface); color: var(--text3);
+    font-size: 11.5px; font-weight: 700; padding: 5px 12px; cursor: pointer;
+  }
+  .disease-view-toggle button + button { border-left: 1px solid var(--border); }
+  .disease-view-toggle button.active { background: var(--accent); color: #fff; }
+  .disease-toc-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; margin-bottom: 10px;
+    border: 1px dashed var(--border); border-radius: 10px;
+    background: var(--surface); font-size: 12px; color: var(--text3);
+  }
+  .disease-toc-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .disease-toc-row:last-child { border-bottom: 0; }
+  .disease-toc-row:hover { background: var(--surface2); }
+  .disease-toc-dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; }
+  .disease-toc-name { font-size: 13.5px; font-weight: 650; color: var(--text); }
+  .disease-toc-en { font-size: 11px; color: var(--text3); }
+  .disease-toc-emg {
+    margin-left: auto; font-size: 10px; font-weight: 800;
+    color: #fff; background: #dc2626; border-radius: 6px; padding: 2px 7px;
+  }
+  .disease-ddx-links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .disease-ddx-link {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 12px; font-weight: 650;
+    color: var(--accent); background: var(--surface2);
+    border: 1px solid var(--accent); border-radius: 999px;
+    padding: 3px 10px; cursor: pointer;
+  }
+  .disease-ddx-link:hover { background: var(--accent); color: #fff; }
+  .disease-ddx-plain {
+    display: inline-flex; align-items: center;
+    font-size: 12px; color: var(--text2);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 10px;
+  }
 
   .assyst-converter .assyst-layout { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
   .assyst-converter .assyst-pane { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -5472,7 +5529,7 @@ document.addEventListener('keydown', e => {
   </div>
   <div class="search-wrap source-search-wrap" id="sourceSearchWrap">
     <span class="search-icon">🔎</span>
-    <input class="search-input source-search-input" id="sourceSearchInput" type="text" placeholder="UWorld QID, First Aid, KMLE 기출 출처 검색..." autocomplete="off" aria-label="단권화 노트 출처 검색">
+    <input class="search-input source-search-input" id="sourceSearchInput" type="text" placeholder="UWorld QID, First Aid, KMLE 기출 출처 검색..." autocomplete="off" aria-label="개념·오답 노트 출처 검색">
     <button class="search-clear" id="sourceSearchClear" onclick="clearSourceSearch()" aria-label="출처 검색어 지우기">✕</button>
   </div>
   </div>
@@ -6981,7 +7038,7 @@ function saveCurrentStateToCloud() {
   const diseaseCount = dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt).length;
   const noteCount = activeNoteCountForToast();
   showConfirm(
-    `현재 화면의 활성 용어 ${count}개, 미생물 ${microbeCount}개, 약물 ${drugCount}개, 공식 ${formulaCount}개, 주요 질환 ${diseaseCount}개, 단권화 노트 ${noteCount}개를<br><b style="color:#fbbf24">새 클라우드 최종상태</b>로 저장할까요?<br><br>` +
+    `현재 화면의 활성 용어 ${count}개, 미생물 ${microbeCount}개, 약물 ${drugCount}개, 공식 ${formulaCount}개, 주요 질환 ${diseaseCount}개, 개념·오답 노트 ${noteCount}개를<br><b style="color:#fbbf24">새 클라우드 최종상태</b>로 저장할까요?<br><br>` +
     `<span style="font-size:11px;color:var(--text3)">다른 기기에만 있던 항목은 최종본에서 제외될 수 있습니다. 저장 전 전체 백업 JSON을 권장합니다.</span>`,
     async () => {
       showToast('💾 최종상태 저장 중...');
@@ -7399,6 +7456,7 @@ const DISEASE_ASYMPTOMATIC_OPTIONS = ['', '불가능 / 매우 드묾', '가능 (
 const DISEASE_REDFLAG_CATEGORIES = ['응급', '감염/패혈증', '출혈/허혈', '신경학적 위험', '암 의심', '소아/임신 위험', '즉시 검사 필요', '기타'];
 const DISEASE_SECTIONS = [
   { key: 'profile', title: '질환 기본 프로필', icon: '🧬', fields: [
+    { k: 'chief_complaints', label: '주증상 (쉼표로 구분 · 마인드맵 분기 기준)', area: true },
     { k: 'age_group', label: '주요 연령대' },
     { k: 'sex_tendency', label: '주요 성별 경향' },
     { k: 'risk_factors', label: '대표 위험인자', area: true },
@@ -8913,6 +8971,87 @@ function diseaseEmergencyColor(emergency) {
   if (/Non-urgent|Outpatient/i.test(e)) return light ? '#15803d' : '#4ade80';
   return 'var(--text3)';
 }
+let currentDiseaseView = 'list';
+function setDiseaseView(view) {
+  currentDiseaseView = view === 'toc' ? 'toc' : 'list';
+  renderDiseaseFrame(filterDiseasesForQuery(document.getElementById('searchInput')?.value || ''));
+}
+function diseaseCompleteness(d) {
+  const body = (d && d.body) || {};
+  let filled = 0, total = 0;
+  DISEASE_SECTIONS.forEach(sec => {
+    total++;
+    if (sec.type === 'rows') {
+      const arr = Array.isArray(body[sec.key]) ? body[sec.key] : [];
+      if (arr.some(r => (sec.rowFields || []).some(f => String(r[f.k] || '').trim()))) filled++;
+    } else {
+      const obj = body[sec.key] || {};
+      if ((sec.fields || []).some(f => String(obj[f.k] || '').trim())) filled++;
+    }
+  });
+  return total ? filled / total : 0;
+}
+function diseaseStatusDot(ratio) {
+  if (ratio <= 0) return { color: 'var(--text3)', label: '미시작' };
+  if (ratio < 0.6) return { color: '#f59e0b', label: '진행' };
+  return { color: '#16a34a', label: '충분' };
+}
+function renderDiseaseTocHtml(active, viewToggle = '') {
+  const groups = new Map();
+  active.forEach(d => {
+    const key = normalizeDrugFilterValue(d.category, '') || 'General';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(d);
+  });
+  const groupArr = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'ko'));
+  const ccCount = active.filter(d => String(d.body?.profile?.chief_complaints || '').trim()).length;
+  const sections = groupArr.map(([sys, list]) => {
+    const sorted = list.slice().sort((a, b) => String(a.ko_name || a.en_name || '').localeCompare(String(b.ko_name || b.en_name || ''), 'ko', { sensitivity: 'base', numeric: true }));
+    const avg = Math.round(list.reduce((s, d) => s + diseaseCompleteness(d), 0) / list.length * 100);
+    const rows = sorted.map(d => {
+      const dot = diseaseStatusDot(diseaseCompleteness(d));
+      const isEmg = d.emergency && /Emergency/i.test(d.emergency);
+      return `<div class="disease-toc-row" onclick="openDiseaseDrawer(event, ${Number(d.id)})" title="질환 상세 보기">
+          <span class="disease-toc-dot" style="background:${dot.color}"></span>
+          <span class="disease-toc-name">${escapeHtml(diseaseDisplayName(d))}</span>
+          ${d.en_name ? `<span class="disease-toc-en">${escapeHtml(d.en_name)}</span>` : ''}
+          ${isEmg ? '<span class="disease-toc-emg">응급</span>' : ''}
+        </div>`;
+    }).join('');
+    return `<details class="disease-acc" open>
+        <summary>${escapeHtml(sys)} <span style="color:var(--text3);font-weight:500">· ${list.length}개 · ${avg}%</span></summary>
+        <div style="padding:4px 8px 8px">${rows}</div>
+      </details>`;
+  }).join('');
+  return `<section class="drug-frame">
+      <div class="drug-frame-title">
+        <strong>🩺 질환 목차 · ${active.length}개</strong>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text3)">장기계별 · 진도 자동표시</span>
+          ${viewToggle}
+        </div>
+      </div>
+      <div class="disease-toc-banner">
+        <span style="font-size:15px">🗺</span>
+        <span>주증상 마인드맵(2단계 예정) · 주증상 태그가 있는 질환 <b style="color:var(--text2)">${ccCount}</b>/${active.length}개 — 태그를 채우면 여기서 자동 생성됩니다</span>
+      </div>
+      ${sections}
+    </section>`;
+}
+function diseaseLinkifySimilar(text) {
+  const norm = s => String(s || '').toLowerCase().replace(/[\s()]/g, '');
+  const tokens = String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
+  const all = getActiveDiseases();
+  return tokens.map(tok => {
+    const nk = norm(tok);
+    let hit = nk ? all.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n) === nk)) : null;
+    if (!hit && nk.length >= 4) hit = all.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
+    if (hit && Number(hit.id) !== Number(_drawerDiseaseId)) {
+      return `<span class="disease-ddx-link" onclick="openDiseaseDrawer(event, ${Number(hit.id)})" title="질환 상세 열기">${escapeHtml(tok)} ↗</span>`;
+    }
+    return `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`;
+  }).join('');
+}
 function renderDiseaseFrame(diseases = []) {
   const frame = document.getElementById('diseaseFrame');
   const empty = document.getElementById('emptyState');
@@ -8937,11 +9076,23 @@ function renderDiseaseFrame(diseases = []) {
     return;
   }
   if (empty) empty.style.display = 'none';
+  const viewToggle = `<div class="disease-view-toggle">
+        <button class="${currentDiseaseView !== 'toc' ? 'active' : ''}" onclick="setDiseaseView('list')">목록</button>
+        <button class="${currentDiseaseView === 'toc' ? 'active' : ''}" onclick="setDiseaseView('toc')">목차</button>
+      </div>`;
+  if (currentDiseaseView === 'toc') {
+    frame.innerHTML = renderDiseaseTocHtml(active, viewToggle);
+    updateCounts(active.length, active.length, 'diseases');
+    return;
+  }
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
         <strong>🩺 주요 질환 · ${active.length}개</strong>
-        <span style="font-size:10px;color:var(--text3)">USMLE/KMLE 질환 정리 카드</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text3)">USMLE/KMLE 질환 정리 카드</span>
+          ${viewToggle}
+        </div>
       </div>
       ${active.map(d => {
         const chips = [d.acuity, d.progression, d.contagious, d.category].filter(Boolean).slice(0, 5);
@@ -11829,7 +11980,7 @@ function showAISettings() {
       <div id="localConfigBox" style="background:var(--surface);border:1px solid rgba(34,197,94,0.35);border-radius:12px;padding:16px;margin-bottom:10px;display:${cfg.route === 'local' ? 'block' : 'none'}">
         <div style="font-size:13px;color:#4ade80;font-weight:700;margin-bottom:5px">로컬 LLM · 데스크톱/노트북 전용</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px">
-          선생님이 직접 입력한 단권화 노트 본문을 요약, 분석, 비교표 초안으로 정리할 때만 사용합니다.<br>
+          선생님이 직접 입력한 개념·오답 노트 본문을 요약, 분석, 비교표 초안으로 정리할 때만 사용합니다.<br>
           모바일·태블릿에서는 실행하지 않고, Ollama에 ${LOCAL_LLM_MODEL_LABEL} 모델이 설치되어 있을 때만 호출합니다.
         </div>
         <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;color:var(--text2);font-size:12px;line-height:1.7">
@@ -14011,9 +14162,9 @@ function showGuide() {
       title: '앱의 현재 역할',
       accent: '#58a6ff',
       items: [
-        '이 앱은 의학용어장만이 아니라 단권화 노트, 약물, 미생물, 공식, 퀴즈, 백업, Supabase 동기화, 로컬 PDF RAG를 함께 다루는 Medical Note입니다.',
-        '검색 화면의 모드 전환으로 용어, 약물, 미생물, 공식, 단권화 노트를 오가며 같은 학습 흐름 안에서 관리합니다.',
-        '단권화 노트는 본문, 요약, 암기 포인트, 비교 포인트, 오답 블록, 관련 자료 링크를 한 카드 안에서 정리하는 중심 기능입니다.'
+        '이 앱은 의학용어장만이 아니라 개념·오답 노트, 약물, 미생물, 공식, 퀴즈, 백업, Supabase 동기화, 로컬 PDF RAG를 함께 다루는 Medical Note입니다.',
+        '검색 화면의 모드 전환으로 용어, 약물, 미생물, 공식, 개념·오답 노트를 오가며 같은 학습 흐름 안에서 관리합니다.',
+        '개념·오답 노트는 본문, 요약, 암기 포인트, 비교 포인트, 오답 블록, 관련 자료 링크를 한 카드 안에서 정리하는 중심 기능입니다.'
       ]
     },
     {
@@ -14022,11 +14173,11 @@ function showGuide() {
       items: [
         '먼저 검색 화면에서 필요한 자료 도메인을 고르고, 카드나 상세 드로어에서 정의, 발음, USMLE 포인트, 관련 정보를 확인합니다.',
         '중요한 항목은 즐겨찾기와 학습상태를 남기고, 반복 확인이 필요한 내용은 퀴즈와 복습 흐름으로 돌립니다.',
-        '새 개념을 정리할 때는 단권화 노트에 본문을 작성하고, 관련 용어·약물·미생물·공식은 자동 링크 또는 연결 칩으로 묶습니다.'
+        '새 개념을 정리할 때는 개념·오답 노트에 본문을 작성하고, 관련 용어·약물·미생물·공식은 자동 링크 또는 연결 칩으로 묶습니다.'
       ]
     },
     {
-      title: '단권화 노트와 자동 링크',
+      title: '개념·오답 노트와 자동 링크',
       accent: '#a78bfa',
       items: [
         '본문 안의 용어, 약물, 미생물, 공식 이름은 저장 후 카드 보기에서 자동 링크로 바뀌며, 누르면 해당 자료로 이동합니다.',
@@ -14039,7 +14190,7 @@ function showGuide() {
       accent: '#fbbf24',
       items: [
         'AI 설정이 있을 때만 자동 보강을 사용하고, 설정이 없으면 직접 입력과 기본 저장 흐름으로 안전하게 돌아갑니다.',
-        '로컬 LLM은 PC에서 Ollama와 Qwen3를 실행한 상태에서 단권화 노트 요약, 분석, 비교, 암기 포인트 작성 보조에 사용합니다.',
+        '로컬 LLM은 PC에서 Ollama와 Qwen3를 실행한 상태에서 개념·오답 노트 요약, 분석, 비교, 암기 포인트 작성 보조에 사용합니다.',
         'PDF RAG 서버는 Medical Library (RAG) 폴더의 PDF를 색인해 로컬 LLM 답변에 참고 문단을 붙이는 보조 장치입니다.'
       ]
     },
@@ -14047,7 +14198,7 @@ function showGuide() {
       title: '데이터 관리와 백업',
       accent: '#f87171',
       items: [
-        '전체 JSON 백업은 용어, 약물, 미생물, 공식, 단권화 노트, 학습상태, tombstone, 동기화 메타를 함께 보존하는 기본 안전장치입니다.',
+        '전체 JSON 백업은 용어, 약물, 미생물, 공식, 개념·오답 노트, 학습상태, tombstone, 동기화 메타를 함께 보존하는 기본 안전장치입니다.',
         '영역별 Excel/CSV/JSON 내보내기와 가져오기는 도메인별 정리용이며, 가져오기 후에는 로컬 반영을 확인한 다음 동기화 방식을 선택합니다.',
         '삭제된 항목은 바로 사라지는 것처럼 보여도 tombstone으로 남아 다른 기기에서 되살아나는 일을 막습니다.'
       ]
@@ -14072,7 +14223,7 @@ function showGuide() {
     }
   ];
 
-  const chips = ['용어', '약물', '미생물', '공식', '단권화 노트', '퀴즈', '백업', 'Supabase', '로컬 RAG'];
+  const chips = ['용어', '약물', '미생물', '공식', '개념·오답 노트', '퀴즈', '백업', 'Supabase', '로컬 RAG'];
   const sectionHtml = sections.map(section => `
     <section style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px">
       <div style="font-size:15px;font-weight:850;color:${section.accent};margin-bottom:10px">${escapeHtml(section.title)}</div>
@@ -14124,7 +14275,7 @@ function showDeploymentGuideModal(event = null) {
 
       ${card('1. 전체 구조', `
         <p style="margin:0 0 8px">이미지 원본은 Cloudinary에 저장하고, Supabase에는 노트와 이미지 URL/publicId 같은 메타데이터만 저장합니다.</p>
-        ${code('앱 HTML\n  ├─ Supabase: 용어/약물/미생물/공식/단권화 노트 메타데이터\n  ├─ Cloudinary: 단권화 노트 이미지 원본\n  └─ Supabase Edge Function: Cloudinary 이미지 완전 삭제')}
+        ${code('앱 HTML\n  ├─ Supabase: 용어/약물/미생물/공식/개념·오답 노트 메타데이터\n  ├─ Cloudinary: 개념·오답 노트 이미지 원본\n  └─ Supabase Edge Function: Cloudinary 이미지 완전 삭제')}
         <p style="margin:8px 0 0">브라우저 앱에는 Cloudinary API Secret을 넣지 않습니다. 업로드는 Unsigned preset으로 하고, 삭제는 Supabase Edge Function이 처리합니다.</p>
       `)}
 
@@ -14197,7 +14348,7 @@ function showDeploymentGuideModal(event = null) {
         <ol style="margin:0;padding-left:18px">
           <li>GitHub Pages에서 앱이 열린다.</li>
           <li>Supabase 연결 테스트가 성공한다.</li>
-          <li>단권화 노트가 Supabase에 저장된다.</li>
+          <li>개념·오답 노트가 Supabase에 저장된다.</li>
           <li>Cloudinary 이미지 업로드가 된다.</li>
           <li>본문 편집기 커서 위치에 이미지가 바로 삽입된다.</li>
           <li>노트 저장 후 다시 열어도 이미지가 유지된다.</li>
@@ -14298,7 +14449,7 @@ function showExportMenu() {
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('diseases')">주요 질환 JSON</button>
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('drugs')">약물 JSON</button>
               <button class="data-action-btn outline" onclick="exportDomainJsonBackup('formulas')">공식 JSON</button>
-              <button class="data-action-btn outline" data-note-backup-btn onclick="exportDomainJsonBackup('notes')">단권화 노트 JSON</button>
+              <button class="data-action-btn outline" data-note-backup-btn onclick="exportDomainJsonBackup('notes')">개념·오답 노트 JSON</button>
             </div>
             <input id="dataJsonImport" type="file" accept=".json,application/json" hidden onchange="previewDataImport(event,'json')">
             <div class="data-section-label">표 파일 가져오기</div>
@@ -14320,7 +14471,7 @@ function showExportMenu() {
               <option value="diseases">주요 질환</option>
               <option value="drugs">약물명 및 정보</option>
               <option value="formulas">주요 의학계산공식</option>
-              <option value="notes">단권화 노트</option>
+              <option value="notes">개념·오답 노트</option>
             </select>
             <div class="data-section-label">범위</div>
             <select id="dataExportScope" class="data-select" onchange="updateDataExportPanel(true)"></select>
@@ -14410,15 +14561,15 @@ function showExportMenu() {
                 ${diseaseAcuities.map(acuity => `<option value="${escapeHtml(acuity)}">${escapeHtml(acuity)} (${DISEASES.filter(d => (d.acuity || '미분류') === acuity).length}개)</option>`).join('')}
               </select>
               <button class="data-action-btn red" onclick="confirmDangerousDiseaseDelete()">선택 질환 범위 삭제</button>
-              <div class="data-section-label" style="color:#fca5a5">단권화 노트 일괄 삭제</div>
+              <div class="data-section-label" style="color:#fca5a5">개념·오답 노트 일괄 삭제</div>
               <select id="bulkDeleteNoteScope" class="data-select">
-                <option value="__all__">전체 단권화 노트 (${noteRowsForDanger.length}개)</option>
+                <option value="__all__">전체 개념·오답 노트 (${noteRowsForDanger.length}개)</option>
                 <option value="concept">개념노트 (${noteConceptCount}개)</option>
                 <option value="wrong">오답노트 (${noteWrongCount}개)</option>
               </select>
               <button class="data-action-btn red" onclick="confirmDangerousNoteDelete()">선택 노트 범위 삭제</button>
-              <div class="data-section-label" style="color:#fca5a5">단권화 노트 휴지통</div>
-              <button class="data-action-btn outline" data-note-trash-status onclick="showIntegratedNoteTrashManager()">단권화 노트 휴지통 열기</button>
+              <div class="data-section-label" style="color:#fca5a5">개념·오답 노트 휴지통</div>
+              <button class="data-action-btn outline" data-note-trash-status onclick="showIntegratedNoteTrashManager()">개념·오답 노트 휴지통 열기</button>
               <div class="data-section-label" style="color:#fca5a5">휴지통 목록 비우기</div>
               <div class="data-button-row">
                 <button class="data-action-btn red" onclick="confirmEmptyTrash()">용어 휴지통</button>
@@ -16223,7 +16374,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.71',
+  version: '4.73',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16232,7 +16383,23 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.71 질환 검사/진단 섹션을 항목 행 구조로 개편(검사방법·USMLE 핵심 분리)',
+    title: '최신 · v4.73 질환 목차(TOC) 뷰 + 감별진단 질환 링크 + 주증상 태그 (마인드맵 1단계)',
+    items: [
+      '주요 질환 모드에 "목록 ↔ 목차" 토글 추가 — 목차 뷰는 장기계(System)별로 질환을 묶고, 카드 채움 비율로 진도(✓충분/◐진행/○미시작)와 그룹 완성도%를 자동 표시(별도 저장 없음)',
+      '감별진단의 "비슷한 질환 목록"에서 실제 등록된 질환명을 자동 인식해 클릭 링크(↗)로 표시 — 누르면 해당 질환 드로어가 바로 열려 카드끼리 유기적으로 연결',
+      '질환 기본 프로필에 "주증상(쉼표 구분)" 필드 추가 — 2단계 데이터 기반 마인드맵의 분기 기준이 됨(body에 저장, SQL 변경 없음)',
+      '목차 상단에 "🗺 주증상 마인드맵(2단계 예정)" 자리표시 — 주증상 태그를 채운 질환 수를 함께 표시. 마인드맵은 외부 이미지가 아니라 질환 카드 데이터에서 자동 생성하는 방향으로 설계',
+    ]
+  },
+  {
+    title: 'v4.72 "단권화 노트" → "개념·오답 노트"로 표시 이름 변경',
+    items: [
+      '탭·모달·버튼·안내문구·데이터관리·동기화·개발자정보 등 화면에 보이는 "단권화 노트" 표기를 모두 "개념·오답 노트"로 변경 — 모든 도메인이 결국 이 노트로 자동링크되는 중심 기능임을 이름에서 바로 드러냄',
+      '내부 식별자(mode 키 notes·localStorage/IndexedDB 키·Supabase medical_notes 테이블)와 과거 업데이트 이력 문구는 그대로 유지 — 기존 노트 데이터·동기화 호환 보존',
+    ]
+  },
+  {
+    title: 'v4.71 질환 검사/진단 섹션을 항목 행 구조로 개편(검사방법·USMLE 핵심 분리)',
     items: [
       '검사/진단을 자유 필드 묶음에서 "항목 행" 구조로 변경 — 각 행 = 항목(드롭다운: 가장 먼저 할 검사·확진 검사·영상·조직/생검·진단 기준 등) + 검사 방법 + USMLE 핵심',
       '신규 질환 추가 시 "가장 먼저 할 검사"·"확진 검사(gold standard)" 2개 행을 기본 골격으로 자동 표시, 나머지 항목은 "검사/진단 항목 추가"로 추가',
@@ -17678,7 +17845,7 @@ const SUPABASE_SCHEMA_UPDATED_AT = '2026년 6월 27일';
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon Medical Note Supabase 통합 스키마
 -- Schema version: v4.13 · 단권화노트통합스키마
 -- Schema updated at: 2026년 6월 24일 03:17
--- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 단권화 노트, 학습상태, 최종본 메타
+-- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 개념·오답 노트, 학습상태, 최종본 메타
 -- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요.
 
 create table if not exists public.medical_terms (
@@ -18583,7 +18750,7 @@ function showDeveloperInfo() {
           ${devMetaCell('현재 파일명', currentFileName())}
         </div>
         <div style="color:var(--text3);font-size:11px;line-height:1.7;margin-bottom:16px">
-          의학용어·단권화 노트·약물·미생물·공식·로컬 RAG를 함께 관리하는 개인 의학 학습 노트입니다. 의료 판단에는 원문 출처와 최신 임상지침을 별도로 확인해야 합니다.
+          의학용어·개념·오답 노트·약물·미생물·공식·로컬 RAG를 함께 관리하는 개인 의학 학습 노트입니다. 의료 판단에는 원문 출처와 최신 임상지침을 별도로 확인해야 합니다.
         </div>
         <div class="update-history">
         <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">업데이트 이력 <span style="font-size:11px;font-weight:600;color:var(--text3)">전체 ${UPDATE_HISTORY.length}건</span></div>
@@ -20409,7 +20576,7 @@ initApp();
 
 <script>
 /* ─────────────────────────────────────────────
-   단권화 노트 MVP
+   개념·오답 노트 MVP
    - 의학용어앱 프레임 안에서 개념노트 + 오답블록 + 연결자료를 관리
    - 이번 단계는 로컬 저장/전체 JSON 백업 포함 MVP이며 Supabase 직접 동기화는 후속 단계에서 분리
 ───────────────────────────────────────────── */
@@ -21223,7 +21390,7 @@ initApp();
     document.getElementById('integratedNoteViewModal')?.remove();
     document.body.insertAdjacentHTML('beforeend', `
       <div class="note-modal-overlay" id="integratedNoteViewModal">
-        <div class="note-modal note-view-modal" role="dialog" aria-modal="true" aria-label="단권화 노트 보기">
+        <div class="note-modal note-view-modal" role="dialog" aria-modal="true" aria-label="개념·오답 노트 보기">
           <div class="note-modal-head">
             <div>
               <h2>${escapeHtml(n.title || '제목 없음')}</h2>
@@ -21268,18 +21435,18 @@ initApp();
     const rows = Array.isArray(notes) ? notes.filter(n => !n.deletedAt) : [];
     const sectionLabel = document.getElementById('sectionLabel');
     if (sectionLabel) {
-      sectionLabel.innerHTML = `<div class="section-label-row"><span class="section-label-spacer">전체 단권화 노트 · ${rows.length}개</span><button class="inline-add-btn" onclick="openIntegratedNoteModal()">+ 노트 추가</button></div>`;
+      sectionLabel.innerHTML = `<div class="section-label-row"><span class="section-label-spacer">전체 개념·오답 노트 · ${rows.length}개</span><button class="inline-add-btn" onclick="openIntegratedNoteModal()">+ 노트 추가</button></div>`;
     }
     if (!rows.length) {
       frame.innerHTML = `
         <section class="note-frame">
           <div class="note-frame-title">
-            <strong>📘 단권화 노트 · 0개</strong>
+            <strong>📘 개념·오답 노트 · 0개</strong>
             <span>개념노트와 오답노트를 용어·미생물·약물·공식과 연결합니다.</span>
           </div>
           <div class="note-empty-card">
             <div class="icon">📘</div>
-            <h3>단권화 노트가 없습니다</h3>
+            <h3>개념·오답 노트가 없습니다</h3>
             <p>상단의 노트 추가 버튼으로 개념 흐름, 오답 함정, 연결 자료를 한 카드에 정리해보세요.</p>
           </div>
         </section>`;
@@ -21287,7 +21454,7 @@ initApp();
       frame.innerHTML = `
         <section class="note-frame">
           <div class="note-frame-title">
-            <strong>📘 단권화 노트 · ${rows.length}개</strong>
+            <strong>📘 개념·오답 노트 · ${rows.length}개</strong>
             <span>목록은 제목만 보고, 클릭하면 넓은 팝업에서 내용을 확인합니다.</span>
           </div>
           ${rows.map(n => `
@@ -21334,7 +21501,7 @@ initApp();
       || document.getElementById('libraryModeDrugsBtn')?.parentElement
       || document.getElementById('libraryModeTermsBtn')?.parentElement;
     if (switcher && !document.getElementById('libraryModeNotesBtn')) {
-      switcher.insertAdjacentHTML('beforeend', `<button id="libraryModeNotesBtn" class="library-mode-btn note" role="tab" aria-selected="false" onclick="setLibraryMode('notes')">🧠 단권화 노트</button>`);
+      switcher.insertAdjacentHTML('beforeend', `<button id="libraryModeNotesBtn" class="library-mode-btn note" role="tab" aria-selected="false" onclick="setLibraryMode('notes')">🧠 개념·오답 노트</button>`);
     }
     if (!document.getElementById('noteFrame')) {
       const anchor = document.getElementById('microbeFrame')
@@ -21849,7 +22016,7 @@ initApp();
       <div class="note-modal-field" style="grid-column:1 / -1">
         <label>본문 편집기</label>
         <div class="note-editor-wrap">
-          <div class="note-editor-toolbar" aria-label="단권화 노트 편집 도구">
+          <div class="note-editor-toolbar" aria-label="개념·오답 노트 편집 도구">
             <button type="button" onclick="noteEditorCommand('bold')">B</button>
             <button type="button" onclick="noteEditorCommand('italic')">I</button>
             <button type="button" onclick="noteEditorCommand('underline')">U</button>
@@ -22082,9 +22249,9 @@ initApp();
     document.getElementById('integratedNoteModal')?.remove();
     document.body.insertAdjacentHTML('beforeend', `
       <div class="note-modal-overlay" id="integratedNoteModal">
-        <div class="note-modal" role="dialog" aria-modal="true" aria-label="단권화 노트 편집">
+        <div class="note-modal" role="dialog" aria-modal="true" aria-label="개념·오답 노트 편집">
           <div class="note-modal-head">
-            <div><h2>🧠 단권화 노트</h2><p>개념노트와 오답노트를 기존 학습자료에 연결합니다.</p></div>
+            <div><h2>🧠 개념·오답 노트</h2><p>개념노트와 오답노트를 기존 학습자료에 연결합니다.</p></div>
             <button class="drawer-close-btn" onclick="closeIntegratedNoteModal()" aria-label="닫기">×</button>
           </div>
           <div class="note-modal-body">
@@ -22218,7 +22385,7 @@ initApp();
       createdAt: old?.createdAt || now,
       updatedAt: now,
     });
-    if (!next.title) { showToast('⚠️ 단권화 노트 제목을 입력해주세요'); return; }
+    if (!next.title) { showToast('⚠️ 개념·오답 노트 제목을 입력해주세요'); return; }
     const keptIds = new Set((next.images || []).map(im => im.publicId).filter(Boolean));
     const removedImages = (old?.images || []).filter(im => im.publicId && !keptIds.has(im.publicId));
     const uploadedIds = window._noteDraftUploadedPublicIds instanceof Set ? [...window._noteDraftUploadedPublicIds] : [];
@@ -22251,12 +22418,12 @@ initApp();
     window._noteModalSaving = true;
     window.closeIntegratedNoteModal(true);
     setLibraryMode('notes');
-    showToast(cloudSaved ? '🧠 단권화 노트 저장 완료' : '⚠️ 단권화 노트 로컬 저장 완료 · 클라우드 동기화는 나중에 다시 시도해주세요');
+    showToast(cloudSaved ? '🧠 개념·오답 노트 저장 완료' : '⚠️ 개념·오답 노트 로컬 저장 완료 · 클라우드 동기화는 나중에 다시 시도해주세요');
   };
   window.deleteIntegratedNote = function deleteIntegratedNote(id) {
     const idx = NOTEBOOK.findIndex(n => Number(n.id) === Number(id));
     if (idx < 0) return;
-    if (!confirm('이 단권화 노트를 삭제할까요?')) return;
+    if (!confirm('이 개념·오답 노트를 삭제할까요?')) return;
     const deletedAt = noteNow();
     NOTEBOOK[idx] = { ...NOTEBOOK[idx], deletedAt, updatedAt: deletedAt };
     saveIntegratedNotes();
@@ -22265,7 +22432,7 @@ initApp();
       window.deleteIntegratedNoteFromCloud(id, deletedAt).catch(e => console.warn('note immediate cloud delete failed', e));
     }
     renderIntegratedNoteFrame();
-    showToast('🗑️ 단권화 노트 삭제 완료');
+    showToast('🗑️ 개념·오답 노트 삭제 완료');
   };
 
   function normalizeNoteResourceLookup(value = '') {
@@ -22463,8 +22630,8 @@ initApp();
   exportDomainJsonBackup = function patchedExportDomainJsonBackup(domain) {
     if (domain !== 'notes') return originalExportDomainJsonBackup(domain);
     const backup = createDomainBackupObject('notes');
-    downloadBlobFile(JSON.stringify(backup, null, 2), `${dataFilePrefix('단권화노트백업')}.json`, 'application/json;charset=utf-8');
-    showToast(`📦 단권화 노트 JSON 백업 완료 · ${(backup.notes || []).length}개`);
+    downloadBlobFile(JSON.stringify(backup, null, 2), `${dataFilePrefix('개념오답노트백업')}.json`, 'application/json;charset=utf-8');
+    showToast(`📦 개념·오답 노트 JSON 백업 완료 · ${(backup.notes || []).length}개`);
   };
 
   function getIntegratedNotesByExportScope(scope) {
@@ -22514,11 +22681,11 @@ initApp();
     });
   }
 
-  function exportIntegratedNoteCollection(format, selectedNotes = null, label = '단권화노트') {
+  function exportIntegratedNoteCollection(format, selectedNotes = null, label = '개념오답노트') {
     const notes = (selectedNotes || activeNotes()).map(normalizeIntegratedNote).filter(n => !n.deletedAt);
-    if (!notes.length) { showToast('⚠️ 내보낼 단권화 노트가 없습니다'); return; }
-    if (format === 'anki') { showToast('⚠️ 단권화 노트 Anki 변환은 노트 카드 구조 확정 후 제공 예정입니다'); return; }
-    const prefix = dataFilePrefix(label || '단권화노트');
+    if (!notes.length) { showToast('⚠️ 내보낼 개념·오답 노트가 없습니다'); return; }
+    if (format === 'anki') { showToast('⚠️ 개념·오답 노트 Anki 변환은 노트 카드 구조 확정 후 제공 예정입니다'); return; }
+    const prefix = dataFilePrefix(label || '개념오답노트');
     const rows = integratedNoteExportRows(notes);
     if (format === 'xlsx') {
       if (!window.XLSX) { showToast('⚠️ Excel 모듈을 불러오지 못했습니다'); return; }
@@ -22532,7 +22699,7 @@ initApp();
       const csv = [headers.join(','), ...rows.map(row => headers.map(key => csvCell(row[key])).join(','))].join('\r\n');
       downloadBlobFile('\uFEFF' + csv, `${prefix}.csv`, 'text/csv;charset=utf-8');
     }
-    showToast(`✅ 단권화 노트 ${notes.length}개 내보내기 완료`);
+    showToast(`✅ 개념·오답 노트 ${notes.length}개 내보내기 완료`);
   }
 
   const originalUpdateDataExportPanelForNotes = updateDataExportPanel;
@@ -22547,7 +22714,7 @@ initApp();
     const rows = activeNotes();
     const systems = [...new Set(rows.map(n => n.system || 'General'))].sort((a, b) => a.localeCompare(b, 'ko'));
     const options = [
-      ['all', `전체 단권화 노트 (${getIntegratedNotesByExportScope('all').length}개)`],
+      ['all', `전체 개념·오답 노트 (${getIntegratedNotesByExportScope('all').length}개)`],
       ['visible', `현재 검색 결과 (${getIntegratedNotesByExportScope('visible').length}개)`],
       ['favorites', `즐겨찾기 (${getIntegratedNotesByExportScope('favorites').length}개)`],
       ['concept', `개념노트 (${getIntegratedNotesByExportScope('concept').length}개)`],
@@ -22564,7 +22731,7 @@ initApp();
     const domain = document.getElementById('dataExportDomain')?.value || 'terms';
     if (domain !== 'notes') return originalExportManagedDataForNotes(format);
     const scope = document.getElementById('dataExportScope')?.value || 'all';
-    const label = document.getElementById('dataExportScope')?.selectedOptions?.[0]?.textContent || '단권화 노트';
+    const label = document.getElementById('dataExportScope')?.selectedOptions?.[0]?.textContent || '개념·오답 노트';
     exportIntegratedNoteCollection(format, getIntegratedNotesByExportScope(scope), label);
   };
 
@@ -22573,9 +22740,9 @@ initApp();
     document.getElementById('integratedNoteTrashModal')?.remove();
     document.body.insertAdjacentHTML('beforeend', `
       <div class="note-modal-overlay" id="integratedNoteTrashModal">
-        <div class="note-modal" role="dialog" aria-modal="true" aria-label="단권화 노트 휴지통">
+        <div class="note-modal" role="dialog" aria-modal="true" aria-label="개념·오답 노트 휴지통">
           <div class="note-modal-head">
-            <div><h2>🗑 단권화 노트 휴지통</h2><p>삭제 기록은 전체 JSON 백업과 복원에 함께 포함됩니다.</p></div>
+            <div><h2>🗑 개념·오답 노트 휴지통</h2><p>삭제 기록은 전체 JSON 백업과 복원에 함께 포함됩니다.</p></div>
             <button class="drawer-close-btn" onclick="document.getElementById('integratedNoteTrashModal')?.remove()" aria-label="닫기">×</button>
           </div>
           <div class="note-modal-body">
@@ -22591,7 +22758,7 @@ initApp();
                     <button class="data-action-btn danger" onclick="hideIntegratedNoteTombstone(${Number(n.id)})">숨김</button>
                   </div>
                 </div>
-              </article>`).join('') : `<div class="note-empty-card"><h3>휴지통이 비어 있습니다</h3><p>삭제된 단권화 노트가 있으면 이곳에서 복원할 수 있습니다.</p></div>`}
+              </article>`).join('') : `<div class="note-empty-card"><h3>휴지통이 비어 있습니다</h3><p>삭제된 개념·오답 노트가 있으면 이곳에서 복원할 수 있습니다.</p></div>`}
           </div>
         </div>
       </div>`);
@@ -22609,13 +22776,13 @@ initApp();
     saveIntegratedNoteTombstones(tombstones);
     showIntegratedNoteTrashManager();
     if (currentLibraryMode === 'notes') renderIntegratedNoteFrame();
-    showToast('단권화 노트를 복원했습니다.');
+    showToast('개념·오답 노트를 복원했습니다.');
   };
   window.hideIntegratedNoteTombstone = function hideIntegratedNoteTombstone(id) {
     const tombstones = loadIntegratedNoteTombstones().map(n => Number(n.id) === Number(id) ? { ...n, hiddenAt: noteNow() } : n);
     saveIntegratedNoteTombstones(tombstones);
     showIntegratedNoteTrashManager();
-    showToast('단권화 노트 삭제 기록을 휴지통 목록에서 숨겼습니다.');
+    showToast('개념·오답 노트 삭제 기록을 휴지통 목록에서 숨겼습니다.');
   };
 
   window.getIntegratedNoteTombstoneCount = function getIntegratedNoteTombstoneCount() {
@@ -22657,7 +22824,7 @@ initApp();
     const visibleRows = loadIntegratedNoteTombstones().filter(n => !n.hiddenAt);
     const count = visibleRows.length;
     if (!count) { showToast('✅ 노트 휴지통이 비어 있습니다'); return; }
-    showConfirm(`삭제된 단권화 노트 기록 ${count}개를 휴지통 목록에서 숨길까요?<br><span style="font-size:11px;color:var(--text3)">기기 간 부활 방지를 위해 내부 삭제 기록은 보존됩니다.</span>`, () => {
+    showConfirm(`삭제된 개념·오답 노트 기록 ${count}개를 휴지통 목록에서 숨길까요?<br><span style="font-size:11px;color:var(--text3)">기기 간 부활 방지를 위해 내부 삭제 기록은 보존됩니다.</span>`, () => {
       const hiddenIds = new Set(visibleRows.map(n => String(n.id)));
       const rows = loadIntegratedNoteTombstones().map(n => hiddenIds.has(String(n.id)) ? { ...n, hiddenAt: noteNow() } : n);
       saveIntegratedNoteTombstones(rows);
@@ -22674,9 +22841,9 @@ initApp();
       : scope === 'wrong'
         ? activeRows.filter(n => n.noteType === 'wrong')
         : [...activeRows];
-    if (!targets.length) { showToast('⚠️ 삭제할 단권화 노트가 없습니다'); return; }
+    if (!targets.length) { showToast('⚠️ 삭제할 개념·오답 노트가 없습니다'); return; }
     exportCompleteJsonBackup();
-    const label = scope === 'concept' ? '개념노트' : scope === 'wrong' ? '오답노트' : '전체 단권화 노트';
+    const label = scope === 'concept' ? '개념노트' : scope === 'wrong' ? '오답노트' : '전체 개념·오답 노트';
     const typed = window.prompt(`자동 백업을 내려받았습니다.\n${label} ${targets.length}개를 삭제하려면 "삭제"를 입력하세요.`);
     if (typed !== '삭제') { showToast('삭제가 취소되었습니다'); return; }
 
@@ -22702,7 +22869,7 @@ initApp();
       }
     }
     if (currentLibraryMode === 'notes') renderIntegratedNoteFrame();
-    showToast(`🗑️ 단권화 노트 ${targets.length}개 삭제 완료`);
+    showToast(`🗑️ 개념·오답 노트 ${targets.length}개 삭제 완료`);
     showExportMenu();
   };
 
@@ -22714,7 +22881,7 @@ initApp();
     if (summaryGrid && !summaryGrid.querySelector('[data-note-summary-card]')) {
       summaryGrid.insertAdjacentHTML('beforeend', `
         <div class="data-summary-card" data-note-summary-card>
-          <div class="data-summary-label">단권화 노트</div>
+          <div class="data-summary-label">개념·오답 노트</div>
           <div class="data-summary-value">${metrics.rows.length}개</div>
           <div style="margin-top:4px;color:var(--text3);font-size:10px">개념 ${metrics.concept} · 오답 ${metrics.wrong} · 연결 ${metrics.linked}</div>
         </div>`);
@@ -22723,7 +22890,7 @@ initApp();
     if (domainGrid && !domainGrid.querySelector('[data-note-domain-pill]')) {
       domainGrid.insertAdjacentHTML('beforeend', `
         <div class="data-domain-pill" data-note-domain-pill>
-          <span>단권화 노트 JSON</span><span>노트 · 노트 삭제기록 · 로컬 백업 상태</span>
+          <span>개념·오답 노트 JSON</span><span>노트 · 노트 삭제기록 · 로컬 백업 상태</span>
         </div>`);
     }
     const backupRows = [...document.querySelectorAll('.data-button-row')];
@@ -22732,18 +22899,18 @@ initApp();
       row.querySelector('[onclick*="exportDomainJsonBackup(&quot;formulas&quot;)"]')
     );
     if (domainBackupRow && !domainBackupRow.querySelector('[data-note-backup-btn]')) {
-      domainBackupRow.insertAdjacentHTML('beforeend', `<button class="data-action-btn outline" data-note-backup-btn onclick="exportDomainJsonBackup('notes')">단권화 노트 JSON</button>`);
+      domainBackupRow.insertAdjacentHTML('beforeend', `<button class="data-action-btn outline" data-note-backup-btn onclick="exportDomainJsonBackup('notes')">개념·오답 노트 JSON</button>`);
     }
     const cleanupCard = [...document.querySelectorAll('.data-card')].find(card => card.textContent.includes('복구') || card.textContent.includes('정리'));
     const cleanupRow = cleanupCard?.querySelector('.data-button-row');
     if (cleanupRow && !cleanupRow.querySelector('[data-note-trash-status]')) {
-      cleanupRow.insertAdjacentHTML('beforeend', `<button class="data-action-btn outline" data-note-trash-status onclick="showIntegratedNoteTrashManager()">단권화 노트 휴지통 ${metrics.tombstones.filter(n => !n.hiddenAt).length}</button>`);
+      cleanupRow.insertAdjacentHTML('beforeend', `<button class="data-action-btn outline" data-note-trash-status onclick="showIntegratedNoteTrashManager()">개념·오답 노트 휴지통 ${metrics.tombstones.filter(n => !n.hiddenAt).length}</button>`);
     }
     const hero = document.querySelector('.data-manager-hero');
     if (hero && !hero.querySelector('[data-note-cloud-note]')) {
       hero.insertAdjacentHTML('beforeend', `
         <div data-note-cloud-note style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text3);font-size:11px;line-height:1.65">
-          단권화 노트는 전체 JSON 백업/복원, 영역별 JSON, Supabase 동기화, Excel/CSV 내보내기에 포함됩니다.
+          개념·오답 노트는 전체 JSON 백업/복원, 영역별 JSON, Supabase 동기화, Excel/CSV 내보내기에 포함됩니다.
         </div>`);
     }
   };
@@ -22757,9 +22924,9 @@ initApp();
       const metrics = noteDashboardMetrics();
       body.insertAdjacentHTML('beforeend', `
         <div data-note-sync-diagnostic style="margin-top:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px;color:var(--text);line-height:1.65">
-          <div style="font-weight:850;color:var(--text)">📘 단권화 노트 동기화 안내</div>
+          <div style="font-weight:850;color:var(--text)">📘 개념·오답 노트 동기화 안내</div>
           <div style="margin-top:4px;color:var(--text3);font-size:12px">
-            현재 단권화 노트 ${metrics.rows.length}개, 삭제기록 ${metrics.tombstones.filter(n => !n.hiddenAt).length}개는 전체 JSON 백업/복원과 로컬 캐시에 포함됩니다.
+            현재 개념·오답 노트 ${metrics.rows.length}개, 삭제기록 ${metrics.tombstones.filter(n => !n.hiddenAt).length}개는 전체 JSON 백업/복원과 로컬 캐시에 포함됩니다.
             Supabase 실시간 양방향 동기화 테이블은 아직 별도 적용 전이므로, 최종본 저장 전에는 전체 JSON 백업을 함께 확인해주세요.
           </div>
         </div>`);
@@ -22776,7 +22943,7 @@ initApp();
     if (topMetricGrid && !topMetricGrid.querySelector('[data-note-metric]')) {
       topMetricGrid.insertAdjacentHTML('beforeend', `
         <button type="button" data-note-metric onclick="openIntegratedNotesFromDashboard()" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--text);cursor:pointer">
-          <div style="font-size:12px;color:var(--text3);font-weight:800">단권화 노트</div>
+          <div style="font-size:12px;color:var(--text3);font-weight:800">개념·오답 노트</div>
           <div style="margin-top:8px;font-size:22px;font-weight:850;color:var(--text)">${metrics.rows.length}개</div>
           <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55">개념 ${metrics.concept} · 오답 ${metrics.wrong} · 연결 ${metrics.linked}</div>
         </button>`);
@@ -22788,7 +22955,7 @@ initApp();
         <button type="button" data-note-library-card onclick="openIntegratedNotesFromDashboard()" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--text);cursor:pointer">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
             <div>
-              <div style="font-size:13px;font-weight:850;color:var(--text)">단권화 노트</div>
+              <div style="font-size:13px;font-weight:850;color:var(--text)">개념·오답 노트</div>
               <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.55">개념 ${metrics.concept} · 오답 ${metrics.wrong} · 기존 자료 연결 ${metrics.linked}</div>
             </div>
             <div style="font-size:18px;font-weight:850;color:var(--text)">${metrics.rows.length}개</div>
@@ -22873,15 +23040,15 @@ initApp();
     if (!previewBox) return;
     const preview = calculateImportPreview(pendingDataImport);
     previewBox.insertAdjacentHTML('beforeend',
-      `<span style="font-size:10px;color:#a78bfa">단권화 노트 추가 ${preview.noteAdded}</span>` +
-      `<span style="font-size:10px;color:#9cc7ff">단권화 노트 갱신 ${preview.noteUpdated}</span>` +
-      `<span style="font-size:10px;color:#f87171">단권화 노트 교체 시 제거 ${preview.noteReplaced}</span>`
+      `<span style="font-size:10px;color:#a78bfa">개념·오답 노트 추가 ${preview.noteAdded}</span>` +
+      `<span style="font-size:10px;color:#9cc7ff">개념·오답 노트 갱신 ${preview.noteUpdated}</span>` +
+      `<span style="font-size:10px;color:#f87171">개념·오답 노트 교체 시 제거 ${preview.noteReplaced}</span>`
     );
   };
 
   const originalApplyPendingDataImport = applyPendingDataImport;
   const NOTES_TABLE = 'medical_notes';
-  // ═══════════ 단권화 노트 클라우드 동기화 (용어·약물·미생물·공식과 동일 방식) ═══════════
+  // ═══════════ 개념·오답 노트 클라우드 동기화 (용어·약물·미생물·공식과 동일 방식) ═══════════
   function noteSyncTime(n) {
     return Date.parse(n?.updatedAt || n?.deletedAt || n?.createdAt || 0) || 0;
   }
@@ -23029,9 +23196,9 @@ initApp();
     const noteIdsOk = storedNoteRecordIdsHash && storedNoteRecordIdsHash === cloudNoteRecordIdsHash;
     const localNotesMatchCloud = localActiveNotes.length === cloudActiveNotes.length && localNoteSnapshotHash === cloudNoteSnapshotHash;
     grid.insertAdjacentHTML('beforeend', `
-      <div class="developer-field"><div class="developer-field-label">단권화 노트 저장본</div><div class="developer-field-value">클라우드 ${cloudActiveNotes.length}개 · 삭제 표시 ${cloudDeletedNotes.length}개<br>저장메타 ${escapeHtml(metaMap[NOTE_CANONICAL_ACTIVE_COUNT_META_KEY]?.value || '없음')}개</div></div>
-      <div class="developer-field"><div class="developer-field-label">단권화 노트 hash</div><div class="developer-field-value" style="color:${noteSnapshotOk && noteIdsOk ? '#4ade80' : '#fbbf24'}">ids ${escapeHtml(compactHash(cloudNoteRecordIdsHash))}${storedNoteRecordIdsHash ? `<br><span>저장메타 ${escapeHtml(compactHash(storedNoteRecordIdsHash))}</span>` : ''}<br>snapshot ${escapeHtml(compactHash(cloudNoteSnapshotHash))}${storedNoteSnapshotHash ? `<br><span>저장메타 ${escapeHtml(compactHash(storedNoteSnapshotHash))}</span>` : ''}</div></div>
-      <div class="developer-field"><div class="developer-field-label">단권화 노트 로컬 캐시</div><div class="developer-field-value" style="color:${localNotesMatchCloud ? '#4ade80' : '#fbbf24'}">${localActiveNotes.length}개 · ${localNotesMatchCloud ? '일치' : '다름'}<br>note ids ${escapeHtml(compactHash(computeNoteRecordIdsHash(localActiveNotes)))}</div></div>
+      <div class="developer-field"><div class="developer-field-label">개념·오답 노트 저장본</div><div class="developer-field-value">클라우드 ${cloudActiveNotes.length}개 · 삭제 표시 ${cloudDeletedNotes.length}개<br>저장메타 ${escapeHtml(metaMap[NOTE_CANONICAL_ACTIVE_COUNT_META_KEY]?.value || '없음')}개</div></div>
+      <div class="developer-field"><div class="developer-field-label">개념·오답 노트 hash</div><div class="developer-field-value" style="color:${noteSnapshotOk && noteIdsOk ? '#4ade80' : '#fbbf24'}">ids ${escapeHtml(compactHash(cloudNoteRecordIdsHash))}${storedNoteRecordIdsHash ? `<br><span>저장메타 ${escapeHtml(compactHash(storedNoteRecordIdsHash))}</span>` : ''}<br>snapshot ${escapeHtml(compactHash(cloudNoteSnapshotHash))}${storedNoteSnapshotHash ? `<br><span>저장메타 ${escapeHtml(compactHash(storedNoteSnapshotHash))}</span>` : ''}</div></div>
+      <div class="developer-field"><div class="developer-field-label">개념·오답 노트 로컬 캐시</div><div class="developer-field-value" style="color:${localNotesMatchCloud ? '#4ade80' : '#fbbf24'}">${localActiveNotes.length}개 · ${localNotesMatchCloud ? '일치' : '다름'}<br>note ids ${escapeHtml(compactHash(computeNoteRecordIdsHash(localActiveNotes)))}</div></div>
     `);
     const noteCloudCell = document.getElementById('noteSyncCloudCount');
     const noteLocalCell = document.getElementById('noteSyncLocalCount');
@@ -23134,7 +23301,7 @@ initApp();
         const count = await pushNotesToCloud();
         await setIntegratedNoteCanonicalMetaFromLocal();
         if (currentLibraryMode === 'notes') renderIntegratedNoteFrame();
-        showToast(`☁️ 단권화 노트 ${count}개도 클라우드 최종본에 저장했습니다`);
+        showToast(`☁️ 개념·오답 노트 ${count}개도 클라우드 최종본에 저장했습니다`);
       } catch (e) {
         console.warn('note cloud push failed', e);
         showToast('⚠️ 노트 클라우드 저장 실패 · medical_notes 테이블(SQL) 생성 여부를 확인하세요');
