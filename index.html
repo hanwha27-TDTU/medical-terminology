@@ -12851,6 +12851,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <textarea id="addJsonArea" placeholder='{ "terms": [ { "id": 8000000000001, "en": "Atrial fibrillation", "ko": "심방세동", ... } ] }   ← 또는 TSV' rows="8" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
           </div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:8px">같은 이름이 이미 있을 때 (이름 기준):</div>
+          <button onclick="importAIPasteText('review', document.getElementById('addJsonArea')?.value)" style="width:100%;background:rgba(88,166,255,0.12);border:1px solid #58a6ff;border-radius:8px;padding:11px 8px;color:#74b0ff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4;margin-bottom:8px">🔍 비교 후 선택<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
           <div style="display:flex;gap:8px">
             <button onclick="importAIPasteText('skip', document.getElementById('addJsonArea')?.value)" style="flex:1;background:rgba(63,185,80,0.12);border:1px solid #238636;border-radius:8px;padding:11px 8px;color:#7ee787;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">➕ 신규만 추가<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 건너뛰기</span></button>
             <button onclick="importAIPasteText('overwrite', document.getElementById('addJsonArea')?.value)" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:11px 8px;color:#fbbf24;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">♻️ 중복 덮어쓰기<br><span style="font-size:10px;font-weight:400;opacity:.85">기존 갱신</span></button>
@@ -14922,7 +14923,8 @@ function openAIPasteImport() {
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">📥 AI 답변 붙여넣기</div>
       <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:12px">AI가 준 <b>맨 끝 블록</b>(용어=TSV, 그 외=JSON)을 붙여넣으세요. 형식은 자동 인식합니다. 코드블록(\`\`\`)이 붙어와도 괜찮습니다.<br><b>같은 이름이 이미 있을 때</b> 아래에서 처리 방식을 고르세요(이름 기준).</div>
       <textarea id="aiPasteArea" placeholder="여기에 TSV 또는 JSON 붙여넣기" style="width:100%;min-height:160px;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:12px;font-family:monospace;resize:vertical"></textarea>
-      <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="importAIPasteText('review')" style="width:100%;margin-top:12px;background:rgba(88,166,255,0.12);border:1px solid #58a6ff;border-radius:8px;padding:11px 8px;color:#74b0ff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">🔍 비교 후 선택<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
+      <div style="display:flex;gap:8px;margin-top:8px">
         <button onclick="importAIPasteText('skip')" style="flex:1;background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:11px 8px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">➕ 신규만 추가<br><span style="font-size:10px;font-weight:400;opacity:.85">중복은 건너뛰기</span></button>
         <button onclick="importAIPasteText('overwrite')" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:11px 8px;color:#fbbf24;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">♻️ 중복 덮어쓰기<br><span style="font-size:10px;font-weight:400;opacity:.85">기존을 갱신</span></button>
       </div>
@@ -14963,6 +14965,16 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
   // 코드블록 펜스(```json ... ```)가 붙어 와도 제거
   text = text.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
   if (!text) { showToast('⚠️ 붙여넣은 내용이 없습니다'); return; }
+  if (policy === 'review') {
+    // 중복 비교 검토(항목 단위 선택) — JSON에서 지원
+    if (/^[\[{]/.test(text)) {
+      try { openDuplicateReviewModal(JSON.parse(text)); }
+      catch (e) { showToast('⚠️ JSON 파싱 실패 · 형식을 확인하세요'); }
+    } else {
+      showToast('ℹ️ 비교 검토는 JSON 붙여넣기에서 지원됩니다 · TSV는 신규만 추가/덮어쓰기를 사용하세요');
+    }
+    return;
+  }
   const jsonMode = policy === 'overwrite' ? 'merge' : 'append';
   const tsvMode = policy === 'overwrite' ? 'merge' : 'add_only';
   try {
@@ -14986,6 +14998,139 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
   }
 }
 
+// ── 중복 항목 비교 검토(항목 단위 선택) ──────────────────────────────
+const _DUP_FIELD_LABEL = { ko:'한국어', en:'영어', uz:'우즈벡', def_ko:'정의(한)', def_en:'정의(영)', def_uz:'정의(우즈)', usmle:'USMLE', ipa:'발음', category:'장기계', system_tags:'장기태그', concept_category:'개념분류', generic_name:'성분명', ko_name:'한국어명', brand_name:'상품명', drug_class:'계열', same_class_drugs:'동일계열', drug_form:'제형', atc_class:'ATC', target:'타깃', route:'투여', usmle_yield:'중요도', organism:'균주', latin_name:'학명', name:'이름', short_name:'약칭', formula:'식', body:'본문(섹션 데이터)', en_name:'영어명', uz_name:'우즈벡명', gram_stain:'그람', microbe_type:'유형' };
+function _dupDomainCfg() {
+  const fk = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || ''); return n ? 'name:' + n : ''; };
+  return [
+    { key: 'terms', label: '📘 용어', arr: TERMS, idfn: termIdentityKey, name: r => (r.ko || r.en || r.uz || ''), norm: normalizeTermForStorage },
+    { key: 'drugs', label: '💊 약물', arr: DRUGS, idfn: drugIdentityKey, name: r => (r.generic_name || r.ko_name || r.brand_name || ''), norm: normalizeDrugForStorage },
+    { key: 'formulas', label: '∑ 공식', arr: FORMULAS, idfn: fk, name: r => (r.name || r.short_name || ''), norm: normalizeFormulaForStorage },
+    { key: 'microbes', label: '🧫 미생물', arr: MICROBES, idfn: microbeIdentityKey, name: r => (r.organism || r.ko_name || ''), norm: normalizeMicrobeForStorage },
+    { key: 'diseases', label: '🩺 주요 질환', arr: DISEASES, idfn: diseaseIdentityKey, name: r => (r.ko_name || r.en_name || ''), norm: normalizeDiseaseForStorage },
+  ];
+}
+function _dupChanges(norm, existing, incoming) {
+  let ex = {}, inc = {};
+  try { ex = norm(existing); inc = norm({ ...incoming, id: existing.id }); } catch (e) { return []; }
+  const skip = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'hiddenAt', 'conceptCategory']);
+  const out = [];
+  Object.keys(inc).forEach(k => {
+    if (skip.has(k)) return;
+    const a = ex[k], b = inc[k];
+    const sa = (a && typeof a === 'object') ? JSON.stringify(a) : String(a == null ? '' : a);
+    const sb = (b && typeof b === 'object') ? JSON.stringify(b) : String(b == null ? '' : b);
+    if (sa !== sb) out.push({ label: _DUP_FIELD_LABEL[k] || k, from: sa, to: sb });
+  });
+  return out;
+}
+function _aiCollectDuplicates(parsed) {
+  const groups = [];
+  _dupDomainCfg().forEach(cfg => {
+    if (!Array.isArray(parsed[cfg.key]) || !parsed[cfg.key].length) return;
+    const byKey = new Map();
+    (Array.isArray(cfg.arr) ? cfg.arr : []).forEach(r => { const k = cfg.idfn(r); if (k && !byKey.has(k)) byKey.set(k, r); });
+    let newCount = 0; const dups = [];
+    parsed[cfg.key].forEach((rec, i) => {
+      if (!rec || typeof rec !== 'object') return;
+      const k = cfg.idfn(rec); const existing = k ? byKey.get(k) : null;
+      if (!existing) { newCount++; return; }
+      dups.push({ idx: i, name: cfg.name(rec) || cfg.name(existing) || '(이름 없음)', changes: _dupChanges(cfg.norm, existing, rec) });
+    });
+    if (newCount || dups.length) groups.push({ domain: cfg.key, label: cfg.label, newCount, dups });
+  });
+  return groups;
+}
+function openDuplicateReviewModal(parsed) {
+  const groups = _aiCollectDuplicates(parsed);
+  const totalDup = groups.reduce((s, g) => s + g.dups.length, 0);
+  const totalNew = groups.reduce((s, g) => s + g.newCount, 0);
+  if (!totalDup) {
+    // 중복 없음 → 곧장 적용(merge=신규 추가)
+    window._dupReview = { parsed };
+    showConfirm(`중복 없음 · 신규 ${totalNew}건을 추가합니다.`, () => applyDuplicateReview());
+    return;
+  }
+  window._dupReview = { parsed };
+  const esc = escapeHtml;
+  const trunc = s => { s = String(s || ''); return s.length > 70 ? esc(s.slice(0, 70)) + '…' : esc(s) || '<span style="color:var(--text3)">(빈칸)</span>'; };
+  const groupsHtml = groups.map(g => {
+    if (!g.dups.length) return `<div style="font-size:12px;color:var(--text3);margin:10px 0 4px">${esc(g.label)} · 신규 ${g.newCount}건 (전부 추가)</div>`;
+    const rows = g.dups.map(d => {
+      const changes = d.changes.length
+        ? d.changes.map(c => `<div style="font-size:11px;line-height:1.5;margin-top:3px"><b style="color:var(--text2)">${esc(c.label)}</b> <span style="color:#f87171">${trunc(c.from)}</span> <span style="color:var(--text3)">→</span> <span style="color:#3fb950">${trunc(c.to)}</span></div>`).join('')
+        : `<div style="font-size:11px;color:var(--text3);margin-top:3px">내용 동일(변경 없음)</div>`;
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface2)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text);font-weight:700">
+          <input type="checkbox" id="dup_${g.domain}_${d.idx}" ${d.changes.length ? 'checked' : ''} style="width:16px;height:16px;accent-color:#fbbf24">
+          ${esc(d.name)} <span style="font-size:10px;font-weight:400;color:var(--text3)">— 체크 시 덮어쓰기, 해제 시 기존 유지</span>
+        </label>
+        <div style="margin-top:6px;padding-left:24px">${changes}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-top:12px"><div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:6px">${esc(g.label)} · 신규 ${g.newCount}건 · 중복 ${g.dups.length}건</div>${rows}</div>`;
+  }).join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'dupReviewModal';
+  overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div>
+          <div style="font-size:17px;font-weight:900;color:var(--text)">🔍 중복 항목 비교 검토</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">신규 ${totalNew}건은 그대로 추가됩니다. 중복 ${totalDup}건만 항목별로 덮어쓸지 고르세요.</div>
+        </div>
+        <button onclick="document.getElementById('dupReviewModal').remove()" title="닫기" aria-label="검토창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:16px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button onclick="_dupSetAll(true)" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:9px;color:#fbbf24;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 덮어쓰기</button>
+          <button onclick="_dupSetAll(false)" style="flex:1;background:rgba(46,160,67,0.12);border:1px solid #2ea043;border-radius:8px;padding:9px;color:#2ea043;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 건너뛰기(기존 유지)</button>
+        </div>
+        ${groupsHtml}
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button onclick="applyDuplicateReview()" style="flex:2;background:var(--accent);border:none;border-radius:8px;padding:12px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✅ 선택대로 가져오기</button>
+          <button onclick="document.getElementById('dupReviewModal').remove()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
+        </div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+function _dupSetAll(checked) {
+  document.querySelectorAll('#dupReviewModal input[type="checkbox"][id^="dup_"]').forEach(cb => { cb.checked = checked; });
+}
+async function applyDuplicateReview() {
+  const parsed = window._dupReview?.parsed;
+  if (!parsed) return;
+  const now = new Date().toISOString();
+  _dupDomainCfg().forEach(cfg => {
+    if (!Array.isArray(parsed[cfg.key])) return;
+    const byKey = new Map();
+    (Array.isArray(cfg.arr) ? cfg.arr : []).forEach(r => { const k = cfg.idfn(r); if (k && !byKey.has(k)) byKey.set(k, r); });
+    parsed[cfg.key] = parsed[cfg.key].filter((rec, i) => {
+      if (!rec || typeof rec !== 'object') return false;
+      const k = cfg.idfn(rec); const existing = k ? byKey.get(k) : null;
+      if (!existing) return true;                       // 신규 → 추가
+      const cb = document.getElementById(`dup_${cfg.key}_${i}`);
+      const overwrite = cb ? cb.checked : true;
+      if (!overwrite) return false;                     // 건너뛰기 → 기존 유지
+      rec.id = existing.id; rec.updatedAt = now;        // 덮어쓰기 → 기존 id에 최신본으로
+      return true;
+    });
+  });
+  try {
+    const file = new File([JSON.stringify(parsed)], 'AI_review.json', { type: 'application/json' });
+    pendingDataImport = await readDataImportFile(file, 'json');
+    document.getElementById('dupReviewModal')?.remove();
+    document.getElementById('aiPasteModal')?.remove();
+    document.getElementById('aiTemplateModal')?.remove();
+    await applyPendingDataImport({ mode: 'merge' });
+  } catch (e) {
+    console.warn('duplicate review apply failed', e);
+    showToast('⚠️ 적용 실패 · ' + (e && e.message ? String(e.message).slice(0, 60) : '형식 확인'));
+  }
+}
 
 function createCompleteBackupObject() {
   return {
@@ -16755,7 +16900,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.14',
+  version: '1.15',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16764,7 +16909,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.14 — 질환 편집창 넓히기 + 원인·위험인자 중요도순 자동 정렬',
+    title: '최신 · v1.15 — 가져오기 중복 시 "비교 후 항목별 선택"',
+    items: [
+      'JSON 붙여넣기 가져오기에 "🔍 비교 후 선택" 버튼을 추가했습니다. 중복(같은 이름) 항목마다 기존↔새 내용의 바뀌는 필드를 미리 보여주고, 항목별로 덮어쓸지/기존을 유지할지 직접 고를 수 있습니다. 신규 항목은 그대로 추가됩니다.',
+      '기존의 전부 건너뛰기/전부 덮어쓰기 버튼도 그대로 유지됩니다. (검토는 5개 도메인 공통 · 전체 덮어쓰기/전체 건너뛰기 도우미 포함)',
+    ]
+  },
+  {
+    title: 'v1.14 — 질환 편집창 넓히기 + 원인·위험인자 중요도순 자동 정렬',
     items: [
       '주요 질환 편집창을 넓혔습니다(원인·위험인자 행이 5칸이라 더 넓은 폭이 필요). 좁은 화면에서는 화면 폭에 맞춰 자동 조정됩니다.',
       '원인·위험인자 행이 저장·표시 시 중요도(High-yield → Medium → Low → 빈칸)순으로 자동 정렬됩니다. 같은 중요도는 입력 순서를 유지합니다.',
