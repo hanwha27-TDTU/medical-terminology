@@ -207,6 +207,7 @@ YYMMDD_HH.MM 앱이름_업데이트내역.html
 - **이후 업데이트마다 `APP_INFO.version`을 +0.01** 올린다: `1.00 → 1.01 → … → 1.99 → 2.00`. (큰 단위 점프 없이 일관되게 0.01씩.)
 - **매 업데이트 기록 절차:** ① `APP_INFO.version`을 +0.01 ② `UPDATE_HISTORY` **최상단에** `{ title: '최신 · vX.XX 한 줄 요약', items: ['변경점', …] }` 추가 ③ **직전 항목 title에서 '최신 · ' 접두사 제거**(`UPDATE_HISTORY[0]`만 '최신 ·'를 갖는다 — 코드가 `[0]`을 펼쳐 보여줌) ④ 필요하면 `updatedAt` 갱신.
 - `APP_INFO.version`은 **표시 전용**이다(개발자 패널 배지·배포 가이드·백업 메타). 동기화 기준본은 별개의 `canonicalVersion`(`<epoch>-<deviceId>`)이라, 버전 번호를 바꿔도 동기화/복원/마이그레이션 로직에 영향이 없다. (그래서 4.85→1.00 리셋도 안전했다.)
+- **Supabase SQL 이력은 자동 동기화된다(v1.13~).** `SUPABASE_SCHEMA_SQL` 헤더의 `App version`은 `${APP_INFO.version}`을 동적 표기하므로 위 ①에서 버전을 올리면 **SQL 헤더도 자동으로 함께 바뀐다**(수동 갱신·누락 없음 — "어느 버전 기준 SQL인지" 항상 명확). 별도 작업이 필요한 경우는 **테이블/컬럼 '구조'가 실제로 바뀔 때뿐**: 그때만 SQL 본문(`create/alter ... if not exists`)을 갱신하고 헤더의 `Schema version`을 +1 한다. `body jsonb`에 들어가는 값(질환 상세 분류 등)·표시 문구 변경은 구조 변경이 아니므로 SQL 본문/Schema version 불변.
 
 예시:
 
