@@ -250,6 +250,8 @@
 8. **id는 숫자(bigint), 노트는 `Date.now()` 기반.** 비교 시 문자열/숫자 혼용 주의(`String(id)`로 통일하는 곳 많음).
 
 > ⚠️AUDIT 추가 불변조건 (2026-06-29 로직 전수감사 — 모두 실제 코드에서 확인된 결함 기반)
+>
+> **수정 반영 상태:** 불변조건 **9·10**과 노트 로드-전 push 가드(§5.6)는 **v4.75에서 코드 수정 완료**(PR #2 머지). 나머지(11~17)는 아직 코드 미수정 — 가드레일로 유지하며 후속 수정 예정.
 
 9. **fence는 로컬 tombstone을 버리지 않는다(삭제 부활 방지).** `filterLocalRowsAfterCanonicalFence`에서 `deletedAt` 행을 무조건 제거하면 기준본 이후 삭제가 병합에 도달 못 해 클라우드에서 부활한다. tombstone은 fence 통과 → 병합 우선. (§5.5, §15.1)
 10. **노트 충돌판정 = 해시 페이로드와 같은 필드셋.** `noteContentDiffers`는 `linkedTerms`뿐 아니라 `linkedDrugs/linkedMicrobes/linkedFormulas` 4종 전부 비교. 누락하면 링크 편집이 동기화 중 소실. (§5.6, §6.1)
