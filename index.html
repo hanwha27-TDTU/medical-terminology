@@ -14455,6 +14455,7 @@ function showExportMenu() {
           <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
             <button class="data-action-btn outline" style="width:auto;min-width:150px" onclick="showSavedVersionInfo()">저장본 확인</button>
             <button class="data-action-btn outline" style="width:auto;min-width:150px" onclick="openDevRepoMenu()" title="앱 HTML과 개발 스킬 문서 전체가 든 GitHub 저장소에서 받기(데스크탑 이어작업용)">📦 개발 저장소(GitHub)</button>
+            <button class="data-action-btn outline" style="width:auto;min-width:150px" onclick="openAIContentTemplateMenu()" title="AI(ChatGPT·Claude·Gemini 등)로 용어·약물·미생물·질환을 만들 양식 복사 — 받은 JSON을 신규만 추가로 가져오기">🤖 AI 콘텐츠 양식</button>
           </div>
         </div>
         <div class="data-summary-grid">${summaryCards}</div>
@@ -14669,6 +14670,159 @@ function openDevRepoMenu() {
         <a href="${DEV_REPO_ZIP_URL}" download onclick="setTimeout(function(){var m=document.getElementById('devRepoModal');if(m)m.remove();},80)" style="text-decoration:none;text-align:center;background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:12px;color:#2ea043;font-size:13px;font-weight:700">⬇️ ZIP 다운로드 (HTML + 스킬 전부)</a>
         <button onclick="openExternalSiteWindow(event, DEV_REPO_URL, 'medicalDevRepo')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔗 저장소 페이지 열기</button>
         <button onclick="document.getElementById('devRepoModal')?.remove()" style="background:transparent;border:none;padding:8px;color:var(--text3);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+// AI(ChatGPT·Claude·Gemini 등)에게 줄 "콘텐츠 생성 양식"을 앱의 실제 상수(드롭다운 값)에서
+// 자동 생성한다 → 드롭다운 목록이 바뀌어도 양식이 항상 최신. (스킬 §0.6: 외부생성→가져오기)
+function _aiCopyFallback(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;left:-9999px;';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { showToast('복사 실패 — 직접 길게 눌러 복사하세요'); }
+  ta.remove();
+}
+function _aiCopyToClipboard(text, okMsg) {
+  const done = () => showToast(okMsg || '📋 복사했습니다');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => _aiCopyFallback(text, done));
+  } else { _aiCopyFallback(text, done); }
+}
+function buildAIContentSpec(domain) {
+  const cats = VALID_CATS.join(', ');
+  const concepts = CONCEPT_CATEGORIES.join(', ');
+  const rules = [
+    '너는 의학 학습 앱에 넣을 데이터를 만든다. 아래 규칙을 반드시 지켜라.',
+    '1) 출력은 JSON 객체 하나만. 코드블록으로 감싸고, 그 외 설명·인사·주석은 절대 쓰지 마라.',
+    '2) "선택목록"이 있는 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 "".',
+    '3) 모르거나 불확실한 칸은 지어내지 말고 "". 모르는 행(row) 배열은 [].',
+    '4) 각 항목의 id는 서로 겹치지 않는 큰 숫자. 8000000000001 부터 1씩 올려라.',
+    '5) 의학적으로 정확하게, USMLE/KMLE 관점으로. 모르는 언어 칸은 비워라.',
+    '6) 내가 말한 개수만큼 배열 안에 항목을 채워라.',
+    '',
+    '[공통 선택목록]',
+    '· 장기계(category/system/system_tags): ' + cats,
+    '· 개념분류(concept_category): ' + concepts,
+  ].join('\n');
+
+  const blocks = {};
+  blocks.terms = [
+    '=== terms (일반용어) — 필수: ko/en/uz 중 1개 이상 ===',
+    '{ "terms": [ {',
+    '  "id": 8000000000001,',
+    '  "ko": "한국어", "en": "English", "uz": "(모르면 빈칸)",',
+    '  "concept_category": "[개념분류 목록 중 1개]",',
+    '  "category": "[장기계 목록 중 1개]",',
+    '  "system_tags": "[장기계 값 쉼표, 0~여러개]",',
+    '  "def_ko": "정의(한국어)", "def_en": "definition(English)", "def_uz": "",',
+    '  "usmle": "USMLE 핵심", "ipa": "/발음/"',
+    '} ] }',
+  ].join('\n');
+  blocks.drugs = [
+    '=== drugs (약물) — 필수: generic_name 또는 ko_name. (개념분류는 자동 Pharmacology, 넣지 마라) ===',
+    '{ "drugs": [ {',
+    '  "id": 8000000000001,',
+    '  "generic_name": "성분명(영어)", "ko_name": "한국어명", "brand_name": "",',
+    '  "drug_class": "USMLE 계열(자유)", "same_class_drugs": "", "drug_form": "제형(자유)",',
+    '  "atc_class": "", "target": "표적/수용체", "route": "투여경로(자유)",',
+    '  "category": "[장기계 목록 중 1개]", "system_tags": "[장기계 값 쉼표]",',
+    '  "usmle_yield": "High Yield / Moderate Yield / Low Yield",',
+    '  "ipa": "/발음/", "definition_ko": "", "definition_en": "", "definition_uz": "",',
+    '  "causal_chain": "", "why": "", "moa": "작용기전", "clinical_uses": "",',
+    '  "adverse_effects": "", "precautions": "", "usmle_strategy": "", "memory_line": "한 줄 암기"',
+    '} ] }',
+  ].join('\n');
+  blocks.formulas = [
+    '=== formulas (공식) — 필수: (name 또는 short_name) + formula. (3개국어 없음) ===',
+    '{ "formulas": [ {',
+    '  "id": 8000000000001,',
+    '  "name": "이름", "short_name": "약어", "formula": "계산식",',
+    '  "category": "공식 분야(자유, 예: Acid-base)", "system": "[장기계 목록 중 1개]",',
+    '  "use_case": "", "normal_range": "", "interpretation": "", "example": "",',
+    '  "memory_tip": "", "usmle_trap": "", "variables": "", "tags": "[장기계 값 쉼표]"',
+    '} ] }',
+  ].join('\n');
+  blocks.microbes = [
+    '=== microbes (미생물) — 필수: organism 또는 ko_name. (category만 목록, 나머지 분류칸은 자유텍스트) ===',
+    '{ "microbes": [ {',
+    '  "id": 8000000000001,',
+    '  "organism": "균명(영어/학명)", "ko_name": "한국어명", "latin_name": "학명", "ipa": "/발음/",',
+    '  "microbe_type": "Bacteria/Virus/Fungus/Parasite(자유)", "gram_stain": "(자유)", "shape": "(자유)",',
+    '  "oxygen": "(자유)", "genome": "(자유)", "virulence": "", "diseases": "", "diagnosis": "",',
+    '  "treatment": "", "prevention": "", "usmle_clues": "", "memory_line": "",',
+    '  "category": "[장기계 목록 중 1개, 기본 Infectious Disease]", "system_tags": "[장기계 값 쉼표]"',
+    '} ] }',
+  ].join('\n');
+  const acu = DISEASE_ACUITY_OPTIONS.filter(Boolean).join(' | ');
+  const emg = DISEASE_EMERGENCY_OPTIONS.filter(Boolean).join(' | ');
+  const prog = DISEASE_PROGRESSION_OPTIONS.filter(Boolean).join(' | ');
+  const cont = DISEASE_CONTAGIOUS_OPTIONS.filter(Boolean).join(' | ');
+  const dxItems = DISEASE_DX_ITEMS.join(' | ');
+  const causeCat = DISEASE_CAUSE_CATEGORIES.join(' | ');
+  const causeRole = DISEASE_CAUSE_ROLES.join(' | ');
+  const yieldOpt = DISEASE_YIELD_OPTIONS.filter(Boolean).join(' | ');
+  const asymp = DISEASE_ASYMPTOMATIC_OPTIONS.filter(Boolean).join(' | ');
+  const redCat = DISEASE_REDFLAG_CATEGORIES.join(' | ');
+  blocks.diseases = [
+    '=== diseases (주요 질환) — 필수: ko_name 또는 en_name. body 12섹션 전부 포함 ===',
+    '[질환 선택목록] acuity: ' + acu + '  /  emergency: ' + emg + '  /  progression: ' + prog + '  /  contagious: ' + cont,
+    '[body 행배열 선택목록] cause.category: ' + causeCat,
+    '  cause.role: ' + causeRole + '  /  cause.yield: ' + yieldOpt,
+    '  symptoms.asymptomatic: ' + asymp,
+    '  red_flags.category: ' + redCat,
+    '  diagnosis.item: ' + dxItems,
+    '{ "diseases": [ {',
+    '  "id": 8000000000001,',
+    '  "ko_name": "한국어명", "en_name": "English name", "uz_name": "", "ipa": "",',
+    '  "concept_category": "Diseases", "category": "[장기계 목록 중 1개]", "system_tags": "[장기계 값 쉼표]",',
+    '  "one_line_summary": "한 줄 요약",',
+    '  "acuity": "[위 acuity 목록 또는 \\"\\"]", "emergency": "[emergency 목록 또는 \\"\\"]",',
+    '  "progression": "[progression 목록 또는 \\"\\"]", "contagious": "[contagious 목록 또는 \\"\\"]",',
+    '  "body": {',
+    '    "profile": { "chief_complaints": "주증상(쉼표)", "age_group": "", "sex_tendency": "", "risk_factors": "" },',
+    '    "definition": { "ko": "", "en": "", "uz": "" },',
+    '    "cause": [ { "category": "[cause.category 목록]", "role": "[cause.role 목록]", "item": "세부원인", "yield": "[yield 목록 또는 \\"\\"]" } ],',
+    '    "pathophysiology": { "core_mechanism": "", "causal_chain": "", "cells_tissues": "", "molecules": "", "step1_link": "" },',
+    '    "symptoms": { "main_symptoms": "", "exam_findings": "", "vignette": "", "asymptomatic": "[asymptomatic 목록 또는 \\"\\"]" },',
+    '    "red_flags": [ { "sign": "위험신호", "category": "[red_flags.category 목록]", "action": "즉시행동" } ],',
+    '    "diagnosis": [ { "item": "[diagnosis.item 목록]", "method": "검사방법", "usmle": "USMLE 핵심" } ],',
+    '    "treatment": { "initial": "", "emergency": "", "pharmacologic": "", "surgical": "", "conservative": "", "longterm": "", "followup": "", "contraindications": "", "algorithm": "" },',
+    '    "course": { "untreated": "", "treated": "", "acute_exacerbation": "", "recurrence": "", "chronicity": "", "prognosis": "", "mortality_disability": "" },',
+    '    "complications": { "acute": "", "chronic": "", "life_threatening": "", "treatment_related": "" },',
+    '    "ddx": { "similar_diseases": "", "distinguishing_points": "", "key_tests": "", "common_misdiagnosis": "" },',
+    '    "usmle": { "high_yield": "", "buzzwords": "", "next_best_step": "", "initial_management": "", "best_diagnostic_test": "", "traps": "", "one_line_memory": "" }',
+    '  }',
+    '} ] }',
+  ].join('\n');
+
+  const order = ['terms', 'drugs', 'formulas', 'microbes', 'diseases'];
+  const pick = domain === 'all' ? order : [domain];
+  const bodyText = pick.map(d => blocks[d]).filter(Boolean).join('\n\n');
+  const tail = '\n\n[가져오기] 출력한 JSON을 .json 파일로 저장 → 앱: 데이터 관리 → "JSON 백업 복원" → 파일 선택 → 가져오기 방식 "신규만 추가". (용어는 TSV 붙여넣기도 가능)';
+  return rules + '\n\n' + bodyText + tail;
+}
+function openAIContentTemplateMenu() {
+  const existing = document.getElementById('aiTemplateModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'aiTemplateModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(6px);padding:24px;';
+  const domBtn = (d, label) => `<button onclick="_aiCopyToClipboard(buildAIContentSpec('${d}'), '📋 ${label} 양식 복사됨 · AI 채팅에 붙여넣고 \\'O개 만들어줘\\'')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-align:left">📋 ${label}</button>`;
+  modal.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px;max-height:84vh;overflow:auto">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">🤖 AI 콘텐츠 생성 양식 복사</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:16px">아무 AI(ChatGPT·Claude·Gemini 등)에 붙여넣을 양식을 복사합니다. <b>드롭다운 값은 이 앱의 현재 설정에서 자동 생성</b>되어 항상 정확합니다.<br>복사 → AI 채팅에 붙여넣기 → <b>"○개 만들어줘"</b> → 받은 JSON을 .json 파일로 저장 → JSON 백업 복원(신규만 추가).</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${domBtn('terms', '일반용어 (terms)')}
+        ${domBtn('drugs', '약물 (drugs)')}
+        ${domBtn('formulas', '공식 (formulas)')}
+        ${domBtn('microbes', '미생물 (microbes)')}
+        ${domBtn('diseases', '주요 질환 (diseases)')}
+        <button onclick="_aiCopyToClipboard(buildAIContentSpec('all'), '📋 전체 양식 복사됨')" style="background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:11px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 전체 (5개 도메인 모두)</button>
+        <button onclick="document.getElementById('aiTemplateModal')?.remove()" style="background:transparent;border:none;padding:8px;color:var(--text3);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
       </div>
     </div>`;
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
@@ -16439,7 +16593,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.79',
+  version: '4.80',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16448,7 +16602,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.79 노트 이미지 보호·학습기록·기기 비교 마무리 수정',
+    title: '최신 · v4.80 데이터 관리에 "AI 콘텐츠 양식" 버튼 추가',
+    items: [
+      'AI(ChatGPT·Claude·Gemini 등)로 용어·약물·공식·미생물·주요 질환을 만들 때 쓰는 JSON 양식을 복사하는 버튼 추가 — 받은 JSON을 "JSON 백업 복원 → 신규만 추가"로 가져오면 됨',
+      '양식의 드롭다운 값(장기계·개념분류·질환 섹션 선택목록 등)은 앱의 현재 설정에서 자동 생성돼 항상 최신·정확',
+      '도메인별(용어/약물/공식/미생물/질환) 또는 전체 양식을 골라 복사 가능. 자세한 설명은 저장소의 docs/AI_콘텐츠_생성_양식.md 참고',
+    ]
+  },
+  {
+    title: 'v4.79 노트 이미지 보호·학습기록·기기 비교 마무리 수정',
     items: [
       '노트 저장 시 본문에 삽입된 이미지의 publicId도 삭제 보호집합에 포함 — 첨부 트레이에서만 빠지고 본문엔 남은 이미지의 원본이 삭제돼 깨지던 문제 방지',
       '학습기록(복습 상태) 읽기/쓰기 저장소 불일치로 시작 직후 일부 기록이 빈 값으로 덮일 수 있던 잠재 문제 보강 — 시작 로더가 메모리에 먼저 쓰인 기록을 보존하도록 병합',
