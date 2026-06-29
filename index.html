@@ -13514,6 +13514,12 @@ function finishAddFlow(openTermId = null, mode = null) {
   applyFilters();
   if (openTermId) setTimeout(() => openDrawer(openTermId), 80);
 }
+// 붙여넣기/검토 가져오기 후 이동할 도메인: 단일 도메인 페이로드면 그 도메인, 혼합/없음이면 용어.
+function _pasteNavDomain(parsed) {
+  const order = [['diseases', 'diseases'], ['drugs', 'drugs'], ['formulas', 'formulas'], ['microbes', 'microbes'], ['terms', 'terms']];
+  const present = order.filter(([k]) => Array.isArray(parsed?.[k]) && parsed[k].length > 0);
+  return present.length === 1 ? present[0][1] : 'terms';
+}
 
 function inputStyle(isTextarea = false) {
   return `width:100%;background:var(--add-input-bg,var(--surface2));border:1px solid var(--border);border-radius:10px;padding:11px 12px;color:var(--text);font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;${isTextarea ? 'resize:vertical;' : ''}`;
@@ -15338,7 +15344,8 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
       pendingDataImport = await readDataImportFile(file, 'json');
       document.getElementById('aiPasteModal')?.remove();
       document.getElementById('aiTemplateModal')?.remove();
-      await applyPendingDataImport({ mode: jsonMode });
+      await applyPendingDataImport({ mode: jsonMode, refresh: false });
+      finishAddFlow(null, _pasteNavDomain(parsed)); // 데이터 관리에 머물지 않고 추가한 도메인 목록으로
     } else {
       // TSV(용어): 기존 TSV importer가 이름 기준으로 처리(merge=덮어쓰기 / add_only=건너뛰기)
       document.getElementById('aiPasteModal')?.remove();
@@ -15515,7 +15522,8 @@ async function applyDuplicateReview() {
     document.getElementById('dupReviewModal')?.remove();
     document.getElementById('aiPasteModal')?.remove();
     document.getElementById('aiTemplateModal')?.remove();
-    await applyPendingDataImport({ mode: 'merge' });
+    await applyPendingDataImport({ mode: 'merge', refresh: false });
+    finishAddFlow(null, _pasteNavDomain(parsed)); // 검토 적용 후 추가한 도메인 목록으로
   } catch (e) {
     console.warn('duplicate review apply failed', e);
     showToast('⚠️ 적용 실패 · ' + (e && e.message ? String(e.message).slice(0, 60) : '형식 확인'));
@@ -17358,7 +17366,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.41',
+  version: '1.42',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17367,7 +17375,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.41 — SQL 스키마 버전 이력 정정(finding_type 반영 누락)',
+    title: '최신 · v1.42 — JSON 붙여넣기로 추가 후 데이터 관리에 머물던 문제 수정',
+    items: [
+      'JSON 붙여넣기(및 "비교 후 선택")로 항목을 추가하면 끝 화면이 "데이터 관리"로 빠지던 동작을 고쳤습니다. 이제 단어 하나/TSV 추가와 동일하게, 추가한 도메인 목록 화면으로 이동합니다(단일 도메인이면 그 도메인, 혼합이면 용어).',
+    ]
+  },
+  {
+    title: 'v1.41 — SQL 스키마 버전 이력 정정(finding_type 반영 누락)',
     items: [
       'v1.36에서 medical_terms에 finding_type 컬럼을 추가했는데(SQL 자체는 정상 반영됨), 설정 SQL의 버전 배지·갱신일·Schema version 주석을 함께 올리지 않았던 이력 누락을 정정했습니다. 이제 배지(v4.56)·날짜·Schema version(v4.15)이 컬럼 변경을 반영합니다. 기능 변화는 없습니다.',
     ]
