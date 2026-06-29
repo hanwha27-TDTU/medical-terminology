@@ -244,6 +244,8 @@ deleted_at
 - 이 단계에서는 `sbBatchUpsert(merged)` 같은 전체 업로드를 하지 않는다.
 - 로컬 전용 항목이 있어도 최종본 기준 시각보다 오래된 항목은 업로드 후보가 아니다.
 
+> ⚠️AUDIT(부분 로드 시 `canonicalVersion` 전진 금지 — v1.06): `canonicalChanged` 분기에서 일부 도메인(약물·공식·미생물·질환) 클라우드 로드가 실패(`canSync*=false`)하면 그 도메인 적용은 건너뛰는데, **그래도 `canonicalVersion`을 저장하면 안 된다.** 저장하면 실패한 도메인은 새 기준본을 영영 적용받지 못하고(다음부터 `canonicalChanged=false`), 다음 일반 병합에서 오래된 로컬 데이터가 fence를 통과해 **재업로드(부활)** 된다. → **모든 동기 대상 도메인이 정상 로드됐을 때만(`allDomainsLoaded`) `canonicalVersion`을 전진**시키고, 아니면 보류해 다음 동기화에서 재적용(멱등)되게 한다. 부분 적용 시 토스트도 "일부 도메인 보류"로 구분한다.
+
 ```javascript
 const isNewDevice = !localVersion;
 
@@ -262,10 +264,12 @@ if (isNewDevice || versionMismatch) {
 
 일반 동기화에서 로컬 전용 항목은 다음 조건을 모두 만족할 때만 업로드 후보가 된다.
 
-- 현재 `canonical_version` 이후 생성 또는 수정됨
+- 현재 `canonical_version` 이후 **생성**됨 (구현은 `createdTime > canonicalTime && updatedTime > canonicalTime`)
 - id 형식이 정상임
 - 삭제 tombstone과 충돌하지 않음
 - 클라우드에 더 최신 삭제 표시가 없음
+
+> ⚠️AUDIT(의도된 보수 fence — "수정만 이후"로 넓히지 말 것): 이 조건은 사실상 **"기준본 이후 생성된 진짜 신규"** 만 통과시킨다(`createdAt`은 불변, 신규면 `updatedAt`도 자동으로 이후). 외부 리뷰가 "기준본 이후 생성 *또는 수정*(OR=`updatedTime > canonicalTime`)으로 넓혀야 한다"고 지적할 수 있으나, **의도적으로 거부한다**: `updatedAt`은 정규화·마이그레이션·해시 재계산으로 흔들릴 수 있어, OR로 넓히면 *다른 기기 기준본에 없던 오래된 로컬 항목*이 사소한 touch만으로 부활(재업로드)된다. 이 앱의 1순위 적은 부활이므로 `createdAt` 기반 AND를 유지한다. 트레이드오프(다른 기기 기준본에 없던 옛 로컬 항목을 이후 실제 수정해도 제외됨)는 UI 경고 "이 기기에 없는 항목은 제외될 수 있습니다"와 일치하는 의도된 동작이다.
 
 > ⚠️AUDIT(fence는 활성 항목에만 적용 — 삭제기록은 통과): 위 "기준본 이후 생성/수정" 필터(fence, `filterLocalRowsAfterCanonicalFence`)는 **활성 행에만** 적용한다. 로컬 tombstone(삭제기록)을 "기준본 이후" 조건으로 같이 걸러내면, 기준본 이후의 삭제가 병합에 도달하지 못해 클라우드 활성본이 승자가 되고 **삭제 항목이 부활**한다. 구현에서 `if (row.deletedAt) return false;`를 타임스탬프 비교보다 먼저 두면 정확히 이 버그가 난다 → tombstone은 fence를 무조건 통과시키고 병합 우선순위(§6)로 처리한다.
 
@@ -517,5 +521,13 @@ SQL 변경 판단:
 4. 텍스트(본문 등)가 실제로 다르면 그때는 "(충돌 사본)"으로 보존되는지 확인한다.
 
 주의: `canonicalNoteHashPayload`에는 링크가 그대로 들어가므로, 합집합 병합으로 링크가 바뀌면 "저장본 버전 확인"이 1회 어긋날 수 있다(해시 변경 = 1회 재베이스라인, 손상 아님).
+
+### 15.9 부분 도메인 로드 실패 시 기준본 전진 차단 (⚠️AUDIT · v1.06)
+
+1. 약물(또는 공식/미생물/질환) 테이블 로드가 실패하는 상황을 만든다(예: 통합 SQL 미실행 또는 일시적 네트워크 실패) + 클라우드 `canonical_version`이 로컬과 다른 상태.
+2. 동기화를 실행한다. 실패 도메인은 적용을 건너뛰고, 토스트가 "일부 도메인 보류"로 뜨는지 확인.
+3. **로컬 `canonicalVersion`이 전진하지 않았는지** 확인한다(저장본 버전 확인).
+4. 실패 도메인을 정상화(SQL 실행/연결 복구) 후 다시 동기화하면, `canonicalChanged`가 다시 잡혀 그 도메인까지 기준본이 적용되고 그제서야 `canonicalVersion`이 전진하는지 확인.
+5. 회귀 신호: 부분 실패인데도 `canonicalVersion`이 올라가면 → 실패 도메인의 오래된 로컬 데이터가 다음 일반 병합에서 재업로드(부활)된다.
 
 ---
