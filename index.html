@@ -2841,6 +2841,17 @@ document.addEventListener('keydown', e => {
   }
   .complaint-disease-item:hover { border-color: var(--accent); background: var(--bg); }
   .complaint-disease-item.current { border-color: var(--accent); }
+  .finding-cond-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--text); font-weight: 650;
+    background: rgba(88,166,255,0.12); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 3px 6px 3px 10px;
+  }
+  .finding-cond-chip button {
+    border: none; background: var(--accent); color: #0d1117;
+    width: 16px; height: 16px; border-radius: 999px; cursor: pointer;
+    font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
 
   .assyst-converter .assyst-layout { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
   .assyst-converter .assyst-pane { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -9196,52 +9207,128 @@ function buildFindingConceptIndex() {
   });
   return idx;
 }
+// ── 감별 워크벤치 상태(조건 AND 누적 + 목록/표 토글) ──
+let _findingFilter = [];     // [{field, value}] — AND 조건
+let _findingView = 'list';   // 'list' | 'table'
+function _findingNorm(s) { return String(s || '').toLowerCase().replace(/\s/g, ''); }
+function _findingSplit(s) { return String(s || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean); }
+function _diseaseHasFinding(d, cond, idx) {
+  const cfg = FINDING_FIELDS[cond.field]; if (!cfg) return false;
+  const target = _findingNorm(cond.value);
+  const tc = idx.get(normFindingConcept(cond.value)) ?? null;
+  return _findingSplit(cfg.path(d)).some(t => {
+    const n = _findingNorm(t);
+    if (n && (n === target || n.includes(target) || target.includes(n))) return true; // 문자열(공백무시·부분)
+    const c = idx.get(normFindingConcept(t)) ?? null;
+    return c != null && tc != null && c === tc; // 용어 개념키(동의어·다국어)
+  });
+}
+function _findingMatches(idx) {
+  return getActiveDiseases().filter(d => _findingFilter.every(c => _diseaseHasFinding(d, c, idx)));
+}
+// 동반 소견: 매칭 질환들의 다른 소견을 빈도순으로(이미 조건에 든 것은 제외) — 클릭하면 AND로 좁힘.
+function _findingCandidates(matches, idx) {
+  const active = new Set(_findingFilter.map(c => c.field + '|' + normFindingConcept(c.value)));
+  const counts = new Map();
+  matches.forEach(d => {
+    Object.keys(FINDING_FIELDS).forEach(field => {
+      _findingSplit(FINDING_FIELDS[field].path(d)).forEach(tok => {
+        const key = field + '|' + normFindingConcept(tok);
+        if (!key.split('|')[1] || active.has(key)) return;
+        if (!counts.has(key)) counts.set(key, { field, value: tok, count: 0 });
+        counts.get(key).count++;
+      });
+    });
+  });
+  return [...counts.values()].filter(c => c.count >= 1).sort((a, b) => b.count - a.count).slice(0, 14);
+}
 function openFindingDiseaseList(event, finding, field = 'chief_complaints') {
   if (event) event.stopPropagation?.();
-  const cfg = FINDING_FIELDS[field] || FINDING_FIELDS.chief_complaints;
-  const norm = s => String(s || '').toLowerCase().replace(/\s/g, '');
-  const splitF = s => String(s || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
-  const conceptIdx = buildFindingConceptIndex();
-  const conceptOf = s => conceptIdx.get(normFindingConcept(s)) ?? null;
-  const target = norm(finding);
-  const targetConcept = conceptOf(finding);
-  if (!target) return;
-  const matches = getActiveDiseases().filter(d =>
-    splitF(cfg.path(d)).some(t => {
-      const n = norm(t);
-      // 1) 정규화 문자열(공백 무시·부분포함) 매칭 — 띄어쓰기 차이는 이미 흡수
-      if (n && (n === target || n.includes(target) || target.includes(n))) return true;
-      // 2) 용어 DB 개념키가 같으면 매칭 — 동의어/다국어(실신↔syncope) 흡수
-      const tc = conceptOf(t);
-      return tc != null && targetConcept != null && tc === targetConcept;
-    })
-  );
+  if (!String(finding || '').trim()) return;
+  _findingFilter = [{ field: FINDING_FIELDS[field] ? field : 'chief_complaints', value: finding }];
+  _findingView = 'list';
+  renderFindingWorkbench();
+}
+function _findingAddCond(field, value) {
+  if (!FINDING_FIELDS[field] || !String(value || '').trim()) return;
+  const key = field + '|' + normFindingConcept(value);
+  if (_findingFilter.some(c => c.field + '|' + normFindingConcept(c.value) === key)) return;
+  _findingFilter.push({ field, value });
+  renderFindingWorkbench();
+}
+function _findingRemoveCond(i) {
+  _findingFilter.splice(i, 1);
+  if (!_findingFilter.length) { document.getElementById('findingDiseaseModal')?.remove(); return; }
+  renderFindingWorkbench();
+}
+function _findingSetView(v) { _findingView = v; renderFindingWorkbench(); }
+function renderFindingWorkbench() {
+  const idx = buildFindingConceptIndex();
+  const matches = _findingMatches(idx);
+  const condChips = _findingFilter.map((c, i) => {
+    const cfg = FINDING_FIELDS[c.field];
+    return `<span class="finding-cond-chip"><span style="color:var(--text3);font-weight:700">${escapeHtml(cfg.noun)}</span> ${escapeHtml(c.value)} <button type="button" onclick="_findingRemoveCond(${i})" title="조건 제거" aria-label="조건 제거">×</button></span>`;
+  }).join('');
+  const cands = _findingCandidates(matches, idx);
+  const candChips = cands.length
+    ? cands.map(c => `<span class="disease-ddx-link" data-field="${escapeHtml(c.field)}" data-value="${escapeHtml(c.value)}" onclick="_findingAddCond(this.dataset.field, this.dataset.value)" title="이 소견으로 더 좁히기 (AND)"><span style="opacity:.7;font-weight:700">${escapeHtml(FINDING_FIELDS[c.field].noun)}</span> ${escapeHtml(c.value)} <span style="opacity:.6">+${c.count}</span></span>`).join('')
+    : `<span style="color:var(--text3);font-size:11px">추가로 좁힐 동반 소견이 없습니다.</span>`;
+  let bodyHtml;
+  if (!matches.length) {
+    bodyHtml = `<div style="color:var(--text3);font-size:13px;padding:10px 2px">모든 조건을 동시에 만족하는 질환이 없습니다. 조건을 줄여보세요.</div>`;
+  } else if (_findingView === 'table') {
+    const ROWS = [
+      { label: '한 줄', get: d => d.one_line_summary },
+      { label: '주호소', get: d => d.body?.profile?.chief_complaints },
+      { label: '증상', get: d => d.body?.symptoms?.symptoms },
+      { label: '징후', get: d => d.body?.symptoms?.signs },
+    ];
+    const headCols = matches.map(d => {
+      const cur = Number(d.id) === Number(_drawerDiseaseId);
+      return `<th style="text-align:left;padding:8px 10px;font-size:12px;font-weight:800;color:var(--text);min-width:170px;border-left:1px solid var(--border);cursor:pointer" onclick="document.getElementById('findingDiseaseModal').remove(); openDiseaseDrawer(null, ${Number(d.id)})" title="질환 상세 열기">${escapeHtml(diseaseDisplayName(d))}${cur ? ' <span style="font-size:9px;color:var(--accent)">· 현재</span>' : ''}</th>`;
+    }).join('');
+    const bodyRows = ROWS.map(r => {
+      const tds = matches.map(d => `<td style="padding:8px 10px;font-size:12px;color:var(--text2);vertical-align:top;line-height:1.5;border-left:1px solid var(--border)">${escapeHtml(String(r.get(d) || '').trim()) || '<span style="color:var(--text3)">—</span>'}</td>`).join('');
+      return `<tr style="border-top:1px solid var(--border)"><th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);white-space:nowrap;position:sticky;left:0;background:var(--surface)">${escapeHtml(r.label)}</th>${tds}</tr>`;
+    }).join('');
+    bodyHtml = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr><th style="position:sticky;left:0;background:var(--surface);z-index:1"></th>${headCols}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
+  } else {
+    bodyHtml = matches.map(d => {
+      const cur = Number(d.id) === Number(_drawerDiseaseId);
+      const sub = [d.en_name, d.uz_name].filter(Boolean).join(' · ');
+      const lines = _findingFilter.map(c => {
+        const v = String(FINDING_FIELDS[c.field].path(d) || '').trim();
+        return v ? `<div style="font-size:11px;color:var(--text2);margin-top:4px;line-height:1.5"><span style="color:var(--accent);font-weight:700">${escapeHtml(FINDING_FIELDS[c.field].noun)}</span> ${escapeHtml(v)}</div>` : '';
+      }).filter(Boolean).join('');
+      return `<button type="button" class="complaint-disease-item${cur ? ' current' : ''}" onclick="document.getElementById('findingDiseaseModal').remove(); openDiseaseDrawer(null, ${Number(d.id)})">
+        <div style="font-weight:800;color:var(--text)">${escapeHtml(diseaseDisplayName(d))}${cur ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">· 현재</span>' : ''}</div>
+        ${sub ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(sub)}</div>` : ''}
+        ${lines}
+      </button>`;
+    }).join('');
+  }
+  const viewBtn = (v, label) => `<button type="button" onclick="_findingSetView('${v}')" style="background:${_findingView === v ? 'var(--accent)' : 'var(--surface2)'};color:${_findingView === v ? '#0d1117' : 'var(--text2)'};border:1px solid ${_findingView === v ? 'var(--accent)' : 'var(--border)'};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${label}</button>`;
   document.getElementById('findingDiseaseModal')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'findingDiseaseModal';
   overlay.className = 'developer-modal-overlay';
-  const list = matches.length
-    ? matches.map(d => {
-        const cur = Number(d.id) === Number(_drawerDiseaseId);
-        const sub = [d.en_name, d.uz_name].filter(Boolean).join(' · ');
-        const fieldVal = String(cfg.path(d) || '').trim();
-        return `<button type="button" class="complaint-disease-item${cur ? ' current' : ''}" onclick="document.getElementById('findingDiseaseModal').remove(); openDiseaseDrawer(null, ${Number(d.id)})">
-          <div style="font-weight:800;color:var(--text)">${escapeHtml(diseaseDisplayName(d))}${cur ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">· 현재</span>' : ''}</div>
-          ${sub ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(sub)}</div>` : ''}
-          ${fieldVal ? `<div style="font-size:11px;color:var(--text2);margin-top:5px;line-height:1.5"><span style="color:var(--accent);font-weight:700">${escapeHtml(cfg.noun)}</span> ${escapeHtml(fieldVal)}</div>` : ''}
-        </button>`;
-      }).join('')
-    : `<div style="color:var(--text3);font-size:13px;padding:10px 2px">이 ${escapeHtml(cfg.noun)}을(를) 가진 질환이 없습니다.</div>`;
   overlay.innerHTML = `
-    <section class="developer-modal" role="dialog" aria-modal="true" style="width:min(560px,100%)">
+    <section class="developer-modal" role="dialog" aria-modal="true" style="width:min(${_findingView === 'table' ? 920 : 600}px,100%)">
       <div class="developer-modal-head">
         <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text)">🔍 "${escapeHtml(finding)}" ${escapeHtml(cfg.noun)} 질환</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">이 ${escapeHtml(cfg.noun)}이(가) ${escapeHtml(cfg.verb)} 질환 ${matches.length}건 · 감별진단 참고 · 용어 동의어·다국어 포함</div>
+          <div style="font-size:16px;font-weight:900;color:var(--text)">🔬 감별 워크벤치</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">조건을 모두 만족하는 질환 ${matches.length}건 · 용어 동의어·다국어 포함</div>
         </div>
         <button onclick="document.getElementById('findingDiseaseModal').remove()" aria-label="닫기" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
       </div>
-      <div style="padding:14px 18px 20px;display:flex;flex-direction:column;gap:8px">${list}</div>
+      <div style="padding:14px 18px 20px">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.5px;margin-bottom:6px">조건 (모두 만족 · AND)</div>
+        <div class="disease-ddx-links" style="margin-bottom:12px">${condChips}</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.5px;margin-bottom:6px">동반 소견으로 좁히기</div>
+        <div class="disease-ddx-links" style="margin-bottom:14px">${candChips}</div>
+        <div style="display:flex;gap:6px;margin-bottom:12px">${viewBtn('list', '📋 목록')}${viewBtn('table', '📊 감별 표')}</div>
+        ${bodyHtml}
+      </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
@@ -17141,7 +17228,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.34',
+  version: '1.35',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17150,7 +17237,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.34 — 호소·증상·징후 역추적에 동의어·다국어 매칭',
+    title: '최신 · v1.35 — 감별 워크벤치: 증상 조합(AND) 검색 + 감별 표',
+    items: [
+      '소견 칩 클릭 모달이 "감별 워크벤치"로 확장됐습니다. 동반 소견을 +칩으로 눌러 조건을 누적하면(예: 어지럼 + 저혈압) 모두 만족하는 질환만 좁혀 보여줍니다(조합 검색, AND).',
+      '"📊 감별 표" 보기를 켜면 후보 질환을 열로, 한 줄·주호소·증상·징후를 행으로 나란히 비교할 수 있습니다. 조건·표 모두 용어 동의어·다국어 매칭이 적용됩니다.',
+    ]
+  },
+  {
+    title: 'v1.34 — 호소·증상·징후 역추적에 동의어·다국어 매칭',
     items: [
       '주호소·증상·징후 칩으로 질환을 모아볼 때, 글자가 달라도 같은 개념이면 함께 잡습니다. 용어 DB(한국어 쉼표 동의어 + 영어 + 우즈벡어)를 개념 사전으로 활용해 실신=기절=syncope, 어지럼=현기증처럼 동의어·다국어를 묶어 검색합니다(미등록 단어는 기존 정규화 문자열 매칭). 용어를 채울수록 똑똑해집니다.',
     ]
