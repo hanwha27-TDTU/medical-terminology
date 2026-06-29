@@ -14815,7 +14815,7 @@ function buildAIContentSpec(domain) {
   const header = [
     '너는 의학 학습 앱에 넣을 데이터를 만든다. 출력은 "두 부분"이다.',
     '',
-    '[언어 규칙 — 중요] 설명·포인트·주의 등 모든 "자유 서술 텍스트"는 한국어를 기본으로 써라(예: usmle/USMLE·KMLE 고득점 포인트, drug_class 설명, 질환 임상 포인트, 1부 정리 글). 다음만 예외로 원어를 유지한다: ① 언어가 정해진 칸 — def_ko=한국어, def_en=영어, def_uz=우즈벡어 / ② 용어명·약물명(generic/brand)·학명(organism)·약어·발음기호(ipa) 같은 고유표기는 원어 그대로. 한국어 설명 안에 영어 용어를 괄호로 병기하는 건 좋다.',
+    '[언어 규칙 — 중요] 설명·포인트·주의 등 모든 "자유 서술 텍스트"는 한국어를 기본(주 서술 언어)으로 써라(예: usmle/USMLE·KMLE 고득점 포인트, MOA/기전, 임상 사용, 부작용, drug_class 설명, 질환 임상 포인트, 1부 정리 글). 문장·서술 골격은 한국어로 하고, 그 안의 "의학용어는 반드시 한국어와 영어를 함께 병기"한다 — 형식: 한국어(영어), 예: "서맥(bradycardia)", "방실차단(AV block)", "심근경색(myocardial infarction) 후 이차 예방". 영어 의학용어만 나열하지 마라. 다음만 예외로 원어를 유지한다: ① 언어가 정해진 칸 — def_ko=한국어, def_en=영어, def_uz=우즈벡어(이 칸들은 병기하지 말고 해당 언어만) / ② 약물명(generic/brand)·학명(organism)·발음기호(ipa)·순수 약어(예: PO, IV)는 원어 그대로.',
     '',
     '[1부 — 예쁜 정리(사람 검토용)] 먼저 사람이 검토하기 좋게 한국어 중심으로 깔끔하게 정리해서 보여줘라.',
     ' · 각 항목을 제목(한국어 / 영어) → 분류 → 정의(한/영/우즈벡) → USMLE·KMLE 포인트(한국어) → 발음 순으로, 굵게·줄바꿈 자유롭게 읽기 좋게.',
@@ -16733,7 +16733,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.07',
+  version: '1.08',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16742,7 +16742,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.07 — 약물 상품명(brand) 입력칸 추가 (보이는데 못 고치던 문제)',
+    title: '최신 · v1.08 — AI 양식: 설명을 한국어 위주 + 의학용어 한/영 병기로',
+    items: [
+      'AI 콘텐츠 생성 양식의 언어 규칙을 강화했습니다. MOA·임상 사용·부작용·USMLE 포인트 등 서술 칸을 한국어 문장으로 쓰되, 그 안의 의학용어는 반드시 한국어(영어) 형식으로 병기하도록 했습니다(예: 서맥(bradycardia), 방실차단(AV block)). 영어 용어만 나열하지 않습니다.',
+      'def_en/def_uz처럼 언어가 정해진 칸과 약물명·학명·발음기호·순수 약어(PO·IV 등)는 예외로 원어를 유지합니다.',
+    ]
+  },
+  {
+    title: 'v1.07 — 약물 상품명(brand) 입력칸 추가 (보이는데 못 고치던 문제)',
     items: [
       '약물 카드·상세에 "한국어명 · 상품명(예: 아테놀롤 · Tenormin)"으로 표시되던 상품명을, 추가·편집 화면에서 직접 입력·수정·삭제할 수 있게 입력칸을 추가했습니다. 이전에는 가져오기/API 보강으로만 채워지고 화면에선 보이나 편집은 불가했습니다.',
       '"무료 API로 보강"도 이제 상품명 칸을 채울 수 있습니다.',
