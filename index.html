@@ -17302,7 +17302,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.38',
+  version: '1.39',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17311,7 +17311,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.38 — 가져오기 미리보기를 선택 모드 기준으로 정확히 표시',
+    title: '최신 · v1.39 — 개념·오답 노트 필터(구성·연결 자료) 부활',
+    items: [
+      '노트 목록 상단에 필터 바를 추가했습니다. 구성(전체/개념노트/오답노트)과 연결 자료(용어/약물/미생물/공식)로 노트를 좁혀 볼 수 있습니다. 이전에는 동작하지 않던(렌더되지 않던) 필터를 실제로 살렸습니다.',
+    ]
+  },
+  {
+    title: 'v1.38 — 가져오기 미리보기를 선택 모드 기준으로 정확히 표시',
     items: [
       '가져오기 미리보기의 추가/갱신/제거 수치가 이제 선택한 모드(병합·신규만·교체)에 맞게 정확히 계산됩니다. 모드를 바꾸면 수치가 즉시 그 기준으로 갱신됩니다(신규만=갱신 0, 병합=새 파일이 더 최신일 때만 갱신, 교체=덮어쓰기+미포함 제거).',
     ]
@@ -20935,6 +20941,42 @@ initApp();
       noteMatchesSourceSearch(n, sq)
     );
   }
+  // 노트 구성(개념/오답) · 연결 자료(용어/약물/미생물/공식) 필터 상태
+  let _noteTypeFilter = 'all';   // 'all' | 'concept' | 'wrong'
+  let _noteLinkFilter = 'all';   // 'all' | 'terms' | 'drugs' | 'microbes' | 'formulas'
+  const NOTE_LINK_FIELD = { terms: 'linkedTerms', drugs: 'linkedDrugs', microbes: 'linkedMicrobes', formulas: 'linkedFormulas' };
+  function applyNoteChipFilters(rows) {
+    return (Array.isArray(rows) ? rows : []).filter(n => {
+      if (_noteTypeFilter === 'concept' && n.noteType === 'wrong') return false;
+      if (_noteTypeFilter === 'wrong' && n.noteType !== 'wrong') return false;
+      if (_noteLinkFilter !== 'all') {
+        const field = NOTE_LINK_FIELD[_noteLinkFilter];
+        if (!field || !((n[field] || []).length)) return false;
+      }
+      return true;
+    });
+  }
+  window.setNoteTypeFilter = function setNoteTypeFilter(v) { _noteTypeFilter = v; if (typeof applyFilters === 'function') applyFilters(); };
+  window.setNoteLinkFilter = function setNoteLinkFilter(v) { _noteLinkFilter = v; if (typeof applyFilters === 'function') applyFilters(); };
+  function noteFilterBarHtml() {
+    const all = activeNotes();
+    const concept = all.filter(n => n.noteType !== 'wrong').length;
+    const wrong = all.filter(n => n.noteType === 'wrong').length;
+    const linkCount = field => all.filter(n => (n[field] || []).length).length;
+    const tBtn = (v, label) => `<button class="filter-btn ${_noteTypeFilter === v ? 'active' : ''}" onclick="setNoteTypeFilter('${v}')">${label}</button>`;
+    const lBtn = (v, label) => `<button class="filter-btn ${_noteLinkFilter === v ? 'active' : ''}" onclick="setNoteLinkFilter('${v}')">${label}</button>`;
+    return `
+      <div class="note-filter-bar" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <span style="font-size:11px;color:var(--text3);font-weight:700;margin-right:2px">🧠 구성</span>
+          ${tBtn('all', `전체 ${all.length}`)}${tBtn('concept', `개념노트 ${concept}`)}${tBtn('wrong', `오답노트 ${wrong}`)}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <span style="font-size:11px;color:var(--text3);font-weight:700;margin-right:2px">🔗 연결</span>
+          ${lBtn('all', '전체')}${lBtn('terms', `용어 ${linkCount('linkedTerms')}`)}${lBtn('drugs', `약물 ${linkCount('linkedDrugs')}`)}${lBtn('microbes', `미생물 ${linkCount('linkedMicrobes')}`)}${lBtn('formulas', `공식 ${linkCount('linkedFormulas')}`)}
+        </div>
+      </div>`;
+  }
   function sourceMatchChoiceCardHtml(n) {
     const brief = noteBriefMetaHtml(n, 'div');
     const summary = n.summary || n.keyPoint || noteHtmlToText(n.bodyHtml || '').slice(0, 120);
@@ -21212,6 +21254,8 @@ initApp();
     if (sectionLabel) {
       sectionLabel.innerHTML = `<div class="section-label-row"><span class="section-label-spacer">전체 개념·오답 노트 · ${rows.length}개</span><button class="inline-add-btn" onclick="openIntegratedNoteModal()">+ 노트 추가</button></div>`;
     }
+    const hasAnyNote = activeNotes().length > 0;
+    const filterActive = _noteTypeFilter !== 'all' || _noteLinkFilter !== 'all';
     if (!rows.length) {
       frame.innerHTML = `
         <section class="note-frame">
@@ -21219,10 +21263,11 @@ initApp();
             <strong>📘 개념·오답 노트 · 0개</strong>
             <span>개념노트와 오답노트를 용어·미생물·약물·공식과 연결합니다.</span>
           </div>
+          ${hasAnyNote ? noteFilterBarHtml() : ''}
           <div class="note-empty-card">
             <div class="icon">📘</div>
-            <h3>개념·오답 노트가 없습니다</h3>
-            <p>상단의 노트 추가 버튼으로 개념 흐름, 오답 함정, 연결 자료를 한 카드에 정리해보세요.</p>
+            <h3>${filterActive ? '이 필터에 해당하는 노트가 없습니다' : '개념·오답 노트가 없습니다'}</h3>
+            <p>${filterActive ? '위 필터를 전체로 바꾸면 모든 노트가 다시 보입니다.' : '상단의 노트 추가 버튼으로 개념 흐름, 오답 함정, 연결 자료를 한 카드에 정리해보세요.'}</p>
           </div>
         </section>`;
     } else {
@@ -21232,6 +21277,7 @@ initApp();
             <strong>📘 개념·오답 노트 · ${rows.length}개</strong>
             <span>목록은 제목만 보고, 클릭하면 넓은 팝업에서 내용을 확인합니다.</span>
           </div>
+          ${noteFilterBarHtml()}
           ${rows.map(n => `
             <article class="note-card note-list-card" id="note-card-${Number(n.id)}" onclick="openIntegratedNoteView(${Number(n.id)})">
               <div class="note-card-head">
@@ -22329,7 +22375,7 @@ initApp();
       const mainQuery = document.getElementById('searchInput')?.value || '';
       document.getElementById('searchClear')?.classList.toggle('visible', mainQuery.trim().length > 0);
       if (typeof updateSourceSearchUi === 'function') updateSourceSearchUi();
-      renderIntegratedNoteFrame(filterIntegratedNotes(mainQuery, getNoteSourceSearchQuery()));
+      renderIntegratedNoteFrame(applyNoteChipFilters(filterIntegratedNotes(mainQuery, getNoteSourceSearchQuery())));
       return;
     }
     return originalApplyFilters();
