@@ -14745,6 +14745,7 @@ function buildAIContentSpec(domain) {
     if (k === 'progression') return '[' + DISEASE_PROGRESSION_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
     if (k === 'contagious') return '[' + DISEASE_CONTAGIOUS_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
     if (k === 'usmle_yield') return 'High Yield / Moderate Yield / Low Yield';
+    if (k === 'usmle') return '[USMLE·KMLE 고득점 포인트 — 한국어로 서술]';
     if (k === 'microbe_type') return 'Bacteria / Virus / Fungus / Parasite (자유)';
     if (k === 'gram_stain') return 'Gram-positive / Gram-negative / 해당없음 (자유)';
     if (k === 'route') return '투여경로 PO, IV 등 (자유)';
@@ -14795,11 +14796,13 @@ function buildAIContentSpec(domain) {
   const header = [
     '너는 의학 학습 앱에 넣을 데이터를 만든다. 출력은 "두 부분"이다.',
     '',
-    '[1부 — 예쁜 정리(사람 검토용)] 먼저 사람이 검토하기 좋게 깔끔하게 정리해서 보여줘라.',
-    ' · 각 항목을 제목(한국어 / 영어) → 분류 → 정의(한/영/우즈벡) → USMLE·KMLE 포인트 → 발음 순으로, 굵게·줄바꿈 자유롭게 읽기 좋게.',
+    '[언어 규칙 — 중요] 설명·포인트·주의 등 모든 "자유 서술 텍스트"는 한국어를 기본으로 써라(예: usmle/USMLE·KMLE 고득점 포인트, drug_class 설명, 질환 임상 포인트, 1부 정리 글). 다음만 예외로 원어를 유지한다: ① 언어가 정해진 칸 — def_ko=한국어, def_en=영어, def_uz=우즈벡어 / ② 용어명·약물명(generic/brand)·학명(organism)·약어·발음기호(ipa) 같은 고유표기는 원어 그대로. 한국어 설명 안에 영어 용어를 괄호로 병기하는 건 좋다.',
+    '',
+    '[1부 — 예쁜 정리(사람 검토용)] 먼저 사람이 검토하기 좋게 한국어 중심으로 깔끔하게 정리해서 보여줘라.',
+    ' · 각 항목을 제목(한국어 / 영어) → 분류 → 정의(한/영/우즈벡) → USMLE·KMLE 포인트(한국어) → 발음 순으로, 굵게·줄바꿈 자유롭게 읽기 좋게.',
     ' · 의학적으로 정확하게. 모르는 내용은 비워라(지어내지 마라).',
     '',
-    '[2부 — 붙여넣기 블록(앱 가져오기용)] 그 다음 맨 마지막에, 앱에 그대로 붙여넣을 블록을 코드블록 하나로만 출력해라. 블록 뒤에는 아무 것도 쓰지 마라.',
+    '[2부 — 붙여넣기 블록(앱 가져오기용)] 그 다음 맨 마지막에, 앱에 그대로 붙여넣을 블록을 아래 [2부 형식]이 지정한 개수·형식대로 코드블록으로 출력해라. 맨 마지막 블록 뒤에는 아무 것도 쓰지 마라.',
     ' · "[ ...목록... ]" 으로 표시된 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 비워라.',
     ' · 모르는 칸은 비워라. 칸 이름(key)과 열 순서는 절대 바꾸거나 추가/삭제하지 마라.',
     ' · 각 항목 id는 서로 겹치지 않는 큰 숫자(8000000000001 부터 1씩). 내가 말한 개수만큼 채워라.',
@@ -14811,15 +14814,22 @@ function buildAIContentSpec(domain) {
   let blockSpec, importNote;
   if (domain === 'terms') {
     blockSpec = [
-      '[2부 형식 — TSV (탭으로 구분)]',
+      '[2부 형식 — 붙여넣기 블록 2개: TSV 와 JSON 을 둘 다 출력]',
+      '맨 끝에 아래 두 블록을 "각각 별도의 코드블록"으로 출력해라(같은 내용을 형식만 다르게). 사용자는 둘 중 하나만 골라 붙여넣는다.',
+      '',
+      '— 블록 A) TSV (탭으로 구분) —',
       '열 순서(11열, 각 열은 탭으로 구분): ' + TSV_COLS.join(', '),
       '첫 줄에 이 11개 머리글을 탭으로 구분해 그대로 넣고, 다음 줄부터 용어 한 줄씩(각 칸은 탭으로 구분). 빈 칸은 값만 비우고 탭은 유지.',
       ' · concept_category = [개념분류 목록 중 1개]',
       ' · category = [장기계 목록 중 1개]',
       ' · system_tags = 장기계 값(여러 개면 쉼표). 탭이 아니라 쉼표.',
-      ' · 나머지(ko/en/uz/def_ko/def_en/def_uz/usmle/ipa)는 자유 텍스트.',
+      ' · 나머지(ko/en/uz/def_ko/def_en/def_uz/usmle/ipa)는 자유 텍스트(usmle 등 설명은 한국어).',
+      '',
+      '— 블록 B) JSON (TSV와 동일한 항목들) —',
+      '아래 형식 그대로 채워라:',
+      jsonWrap(['terms']),
     ].join('\n');
-    importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 TSV 블록만 붙여넣고 "가져오기(신규만 추가)".';
+    importNote = '\n\n[가져오기] 둘 중 편한 것 하나만: 앱 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 TSV 또는 JSON 블록 하나를 붙여넣고 "가져오기"(TSV·JSON 자동 인식). 두 블록을 한꺼번에 붙이지는 마라.';
   } else if (domain === 'all') {
     blockSpec = '[2부 형식 — JSON · 5개 도메인 한 번에]\n아래 형식 그대로 채워라:\n' + jsonWrap(['terms', 'drugs', 'formulas', 'microbes', 'diseases']);
     importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 JSON 블록만 붙여넣고 "가져오기(신규만 추가)".';
@@ -14841,11 +14851,11 @@ function openAIContentTemplateMenu() {
   modal.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px;max-height:84vh;overflow:auto">
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">🤖 AI 콘텐츠 생성 양식 복사</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px"><b>① 양식 복사</b> → AI에 붙여넣고 <b>"○개 만들어줘"</b> → AI가 예쁘게 정리해 보여주고 <b>맨 끝에 붙여넣기 블록</b>(용어=TSV, 그 외=JSON)을 줍니다 → <b>② 그 블록을 아래 "AI 답변 붙여넣기"</b>에 붙여 한 번에 가져오기(신규만 추가). 드롭다운 값은 앱 설정에서 자동 생성됩니다.</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px"><b>① 양식 복사</b> → AI에 붙여넣고 <b>"○개 만들어줘"</b> → AI가 예쁘게 정리해 보여주고 <b>맨 끝에 붙여넣기 블록</b>(용어=TSV·JSON 둘 다, 그 외=JSON)을 줍니다 → <b>② 그 블록 하나를 아래 "AI 답변 붙여넣기"</b>에 붙여 한 번에 가져오기(신규만 추가). 설명·USMLE 포인트 등은 한국어로 생성됩니다. 드롭다운 값은 앱 설정에서 자동 생성됩니다.</div>
       <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px">① 양식 복사</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${domBtn('terms', '일반용어 (TSV·붙여넣기 쉬움)')}
-        ${domBtn('terms_json', '일반용어 (JSON)')}
+        ${domBtn('terms', '일반용어 (TSV·JSON 둘 다)')}
+        ${domBtn('terms_json', '일반용어 (JSON만)')}
         ${domBtn('drugs', '약물 (drugs)')}
         ${domBtn('formulas', '공식 (formulas)')}
         ${domBtn('microbes', '미생물 (microbes)')}
@@ -16700,7 +16710,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.02',
+  version: '1.03',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16709,7 +16719,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.02 — 노트 자동링크: 짧은 단독 동의어 누락 수정',
+    title: '최신 · v1.03 — AI 콘텐츠 양식: 설명 한국어화 + TSV·JSON 동시 출력',
+    items: [
+      'AI 콘텐츠 생성 양식에 "언어 규칙"을 추가했습니다: USMLE·KMLE 포인트, 약물 계열 설명, 질환 임상 포인트 등 자유 서술은 한국어로 생성됩니다(def_en=영어, def_uz=우즈벡어, 용어명·약물명·학명·약어·발음기호는 원어 유지).',
+      '일반용어 양식이 답변 끝에 TSV와 JSON 블록을 둘 다 제공하도록 바꿨습니다. 둘 중 편한 형식 하나를 골라 "AI 답변 붙여넣기"에 넣으면 됩니다(자동 인식).',
+    ]
+  },
+  {
+    title: 'v1.02 — 노트 자동링크: 짧은 단독 동의어 누락 수정',
     items: [
       '개념·오답 노트 자동링크 버그 수정: 한 용어에 한국어가 여러 개일 때(예: "빠른내성, 빠른면역화"), 합성 문자열 전체는 링크되는데 "빠른내성"처럼 단독 단어만 쓰면 링크가 안 되던 문제를 고쳤습니다.',
       '원인은 자동링크 대상 목록이 2000개를 넘으면 긴 라벨부터 남기고 짧은 라벨(단독 동의어)을 잘라내던 것. 이제 캡(4000)을 넘을 때 긴 문구부터 버려 짧은 단독 동의어가 보존됩니다.',
