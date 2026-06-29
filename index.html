@@ -6023,6 +6023,7 @@ function canonicalFormulaHashPayload(formulas) {
       memory_tip: f.memory_tip || '',
       usmle_trap: f.usmle_trap || '',
       variables: f.variables || '',
+      tags: Array.isArray(f.tags) ? f.tags : [],
     }));
 }
 
@@ -6048,6 +6049,7 @@ function canonicalMicrobeHashPayload(microbes) {
       organism: m.organism || '',
       ko_name: m.ko_name || '',
       latin_name: m.latin_name || '',
+      ipa: m.ipa || '',
       microbe_type: m.microbe_type || '',
       gram_stain: m.gram_stain || '',
       shape: m.shape || '',
@@ -7949,6 +7951,11 @@ function pruneOldLocalTombstones(days = TOMBSTONE_PRUNE_DAYS) {
     return !Number.isFinite(deletedAt) || deletedAt >= cutoff;
   });
   saveLocalMicrobeTombstones(microbeRows);
+  const diseaseRows = loadLocalDiseaseTombstones().filter(d => {
+    const deletedAt = Date.parse(d.deletedAt || d.updatedAt || '');
+    return !Number.isFinite(deletedAt) || deletedAt >= cutoff;
+  });
+  saveLocalDiseaseTombstones(diseaseRows);
   return rows.length;
 }
 
@@ -7967,13 +7974,14 @@ function getProtectedRecordCounts() {
     drugs: loadLocalDrugTombstones().length,
     formulas: loadLocalFormulaTombstones().length,
     microbes: loadLocalMicrobeTombstones().length,
+    diseases: loadLocalDiseaseTombstones().length,
     notes: typeof window.getIntegratedNoteTombstoneCount === 'function' ? window.getIntegratedNoteTombstoneCount() : 0,
   };
 }
 
 function confirmClearAllProtectedRecords() {
   const counts = getProtectedRecordCounts();
-  const total = counts.terms + counts.drugs + counts.formulas + counts.microbes + counts.notes;
+  const total = counts.terms + counts.drugs + counts.formulas + counts.microbes + counts.diseases + counts.notes;
   if (!total) { showToast('삭제 보호 기록이 비어 있습니다'); return; }
   showConfirm(`삭제 보호 기록 ${total}개를 완전히 지울까요?<br><span style="font-size:11px;color:var(--text3)">이 작업은 휴지통 목록 숨김이 아니라 tombstone 보호기록 자체를 삭제합니다. 오래된 기기나 클라우드에 남은 항목이 다시 나타날 수 있습니다.</span>`, async () => {
     const typed = window.prompt('정말 보호기록을 모두 삭제하려면 "보호기록 삭제"를 입력하세요.');
@@ -7986,6 +7994,7 @@ function confirmClearAllProtectedRecords() {
     saveLocalDrugTombstones([]);
     saveLocalFormulaTombstones([]);
     saveLocalMicrobeTombstones([]);
+    saveLocalDiseaseTombstones([]);
     showToast(`삭제 보호 기록 ${total}개를 정리했습니다`);
     showExportMenu();
   });
@@ -9332,10 +9341,13 @@ function diseaseSelectHtml(id, label, options, current, IS) {
 function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyle(true)) {
   const escVal = v => escapeHtml(String(v || '').replace(/"/g, '&quot;'));
   const body = (d && d.body && typeof d.body === 'object') ? d.body : {};
+  // seed(기본 골격 행)는 신규 추가 폼에서만 주입한다. 기존 질환(편집)에서 빈 섹션에도
+  // 주입하면 매 편집마다 유령 행이 누적된다(item이 select 실제값이라 빈 행 필터를 통과).
+  const isAddForm = !(d && d.id);
   const sectionHtml = sec => {
     if (sec.type === 'rows') {
       let initial = Array.isArray(body[sec.key]) ? body[sec.key] : [];
-      if (!initial.length && Array.isArray(sec.seed) && sec.seed.length) {
+      if (isAddForm && !initial.length && Array.isArray(sec.seed) && sec.seed.length) {
         const seedKey = (sec.rowFields[0] || {}).k;
         initial = sec.seed.map(s => ({ [seedKey]: s }));
       }
@@ -10340,12 +10352,16 @@ function medicalSymbolInputHelperHtml() {
 }
 
 function parseMarkdownTableLine(line) {
+  // 이스케이프된 파이프(\\|)를 split 전에 NUL 토큰으로 보호한다. split('|') 후에
+  // unescape하면 \\| 가 이미 두 셀로 쪼개진 뒤라 셀 내용에 |가 든 표가 깨진다.
+  const PIPE_PH = String.fromCharCode(0);
   return String(line || '')
     .trim()
+    .replace(/\\\|/g, PIPE_PH)
     .replace(/^\|/, '')
     .replace(/\|$/, '')
     .split('|')
-    .map(cell => cell.replace(/\\\|/g, '|').trim());
+    .map(cell => cell.split(PIPE_PH).join('|').trim());
 }
 
 function isMarkdownTableSeparator(line) {
@@ -10782,9 +10798,11 @@ function drugApiClassText(classes) {
 }
 
 function combineUniqueText(existing, incoming) {
+  // 항목 구분자는 `;`와 `·`만 사용한다. 콤마(,)는 ATC/RxClass 분류명 내부에
+  // 흔히 들어가므로("HMG CoA reductase inhibitors, plain") 분리자로 쓰지 않는다.
   const parts = [
-    ...String(existing || '').split(/[;,·]/),
-    ...String(incoming || '').split(/[;,·]/)
+    ...String(existing || '').split(/[;·]/),
+    ...String(incoming || '').split(/[;·]/)
   ].map(v => v.trim()).filter(Boolean);
   return [...new Set(parts)].join(' · ');
 }
@@ -13574,7 +13592,9 @@ function mergeDrugAiSuggestion(seed, enriched) {
 async function submitAddDrug() {
   const generic = document.getElementById('add_drug_generic')?.value.trim() || '';
   const koName = document.getElementById('add_drug_ko')?.value.trim() || '';
-  const brand = document.getElementById('add_drug_brand')?.value.trim() || '';
+  // 추가 폼에는 상품명(brand) 입력칸이 의도적으로 없다(편집 폼에만 존재). 저장/백업
+  // 호환을 위해 brand_name 필드 구조는 유지하되, 추가 시에는 빈 값으로 둔다.
+  const brand = '';
   if (!generic && !koName) {
     showToast('⚠️ 약물명(영어) 또는 약물명(한국어) 중 하나 이상 입력해주세요');
     return;
@@ -16377,7 +16397,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.75',
+  version: '4.76',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16386,7 +16406,18 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.75 동기화 데이터 유실 버그 수정 (삭제 부활·노트 링크 소실·노트 로드 레이스)',
+    title: '최신 · v4.76 동기화 전파 누락 + 표/약물 입력 결함 수정 (MEDIUM)',
+    items: [
+      '미생물 발음(ipa)·공식 태그(tags)만 수정해도 변경 감지가 안 돼 다른 기기로 전파되지 않던 문제 수정 — snapshot 해시 페이로드에 ipa·tags 포함',
+      '오래된 tombstone 정리·보호기록 개수·전체삭제에서 주요 질환 도메인이 빠져 질병 삭제기록이 영구히 정리/집계되지 않던 문제 수정 — 전 도메인(질병 포함) 처리',
+      '표 셀에 파이프(|)를 입력하면 표가 깨지던 문제 수정 — 마크다운 표 파싱이 split 전에 이스케이프를 보호',
+      '약물 API 보강에서 콤마가 든 분류명("HMG CoA reductase inhibitors, plain")이 쪼개지던 문제 수정 — 항목 구분자에서 콤마 제외',
+      '주요 질환 편집 시 빈 진단 섹션에 기본 골격 행이 매번 주입되던 문제 수정 — seed는 신규 추가에서만',
+      '약물 추가 제출이 존재하지 않는 상품명 입력칸을 읽던 dead code 정리(상품명은 편집 폼에만, 추가 시 빈 값 — 기존 동작 유지)',
+    ]
+  },
+  {
+    title: 'v4.75 동기화 데이터 유실 버그 수정 (삭제 부활·노트 링크 소실·노트 로드 레이스)',
     items: [
       '동기화 fence(filterLocalRowsAfterCanonicalFence)가 로컬 삭제기록(tombstone)을 버려, 기준본 이후 삭제한 항목이 다른 기기에서 되살아나던 문제 수정 — tombstone은 병합까지 통과시키고 활성/삭제 우선순위는 병합 로직(pickSyncWinner)이 판정한다',
       '노트 충돌 판정(noteContentDiffers)이 linkedTerms만 비교해, 약물·미생물·공식 링크만 바꾼 편집이 동기화 중 사라지던 문제 수정 — 링크 4종(용어·약물·미생물·공식) 모두 비교',
