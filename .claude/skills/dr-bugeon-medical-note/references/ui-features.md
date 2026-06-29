@@ -170,6 +170,7 @@ function resetLevel(id, ev) {
 - **반응형 grid에 전체폭 항목(`grid-column: 1 / -1`) 섞기 주의:** 2열 grid에 동적 주입 버튼 하나만 full-span이면 자동배치가 빈 셀을 남기고 정렬이 틀어진다(모바일 자료 모드 버튼에서 실제 발생). grid 항목을 더하거나 span을 줄 때 **열 수에 맞는지·span이 의도적인지** 확인한다. 동적 주입(`insertAdjacentHTML('beforeend', …)`) 요소도 컨테이너 grid 규칙을 그대로 상속한다.
 - 동적으로 같은 컨테이너에 버튼/탭을 주입할 때(예: 노트 모드 버튼, 추가-모달 JSON 탭)는 기존 항목과 **같은 클래스·같은 레이아웃 규칙**을 쓰게 하고, 데스크톱(flex)·모바일(grid) 양쪽에서 정렬을 확인한다.
 - **flex 버튼이 "너무 커" 보이면 `flex-grow`를 먼저 의심한다.** 헤더 버튼은 `.header-top`의 flex 자식이라, breakpoint에서 `flex: 1 1 132px`(grow=1)을 주면 행 폭을 억지로 채워 내용보다 크게 늘어난다(v1.01에서 수정). 내용 크기 유지가 목적이면 `flex: 0 1 auto`(grow=0, 좌측 정렬·자연 줄바꿈), **폭 균등 분할이 목적일 때만**(모바일 2열) `flex: 1 1 calc(50% - gap)`. 헤더 버튼 라벨은 `.wide-label`/`.mobile-label` 쌍으로 데스크톱 긴 라벨 ↔ 모바일 짧은 라벨을 전환하니, 새 헤더 버튼도 긴 라벨이면 같은 쌍을 둔다. breakpoint는 `≤1100px`(태블릿/창)·`≤600px`(모바일)을 따로 점검.
+- **긴 설정/모달은 네이티브 `<details>/<summary>` 아코디언으로 접는다(v1.05 설정 화면).** JS 없이 요약 클릭=토글이고, 자주 쓰는 섹션(예: Supabase·Cloudinary)을 위로 올려 `open`으로 두고 나머지는 접는다. 재배치 시 **인라인 컨트롤을 손으로 다시 쓰지 말고** 구획을 잘라 순서만 바꿔 감싼다(dev-workflow §2.5). `display`로 토글되는 박스(예: `onAIRouteChange`)는 **id 붙은 원본 마크업 그대로** 묶음 안에 둬야 콜백이 유지된다. 검증: input id 각 1회·섹션 제목 중복 0·`<details>/<summary>/<div>` 짝 균형·`node --check`.
 
 ---
 
