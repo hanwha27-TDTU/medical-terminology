@@ -1504,19 +1504,20 @@ function diseaseDetailLine(label, value, extraClass = '') {
   return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value">${escapeHtml(text)}</div></div>`;
 }
 // 쉼표 등으로 구분된 값을 칩(pill)으로 — '비슷한 질환 목록'과 같은 디자인.
-// clickable이면 클릭 시 그 주호소를 가진 질환을 모아보는 모달을 연다(질환명이 아니라
-// 주호소 토큰을 data-cc에 escape해 넣고 this.dataset.cc로 읽어 onclick 문자열 주입을 피함).
-function diseaseChipifyTokens(text, clickable = false) {
+// clickField가 있으면(주호소/증상/징후) 클릭 시 그 소견을 가진 질환을 모아보는 모달을 연다.
+// 토큰·필드를 data-* 에 escape해 넣고 this.dataset 로 읽어 onclick 문자열 주입을 피한다.
+function diseaseChipifyTokens(text, clickField = '') {
+  const tip = { chief_complaints: '이 주호소로 내원하는', symptoms: '이 증상을 보이는', signs: '이 징후가 나타나는' }[clickField] || '';
   return String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i)
     .map(t => t.trim()).filter(Boolean)
-    .map(tok => clickable
-      ? `<span class="disease-ddx-link" data-cc="${escapeHtml(tok)}" onclick="openComplaintDiseaseList(event, this.dataset.cc)" title="이 주호소를 가진 질환 모아보기 (감별진단)">${escapeHtml(tok)} 🔍</span>`
+    .map(tok => clickField
+      ? `<span class="disease-ddx-link" data-find="${escapeHtml(tok)}" data-field="${escapeHtml(clickField)}" onclick="openFindingDiseaseList(event, this.dataset.find, this.dataset.field)" title="${tip} 질환 모아보기 (감별진단)">${escapeHtml(tok)} 🔍</span>`
       : `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`).join('');
 }
-function diseaseChipLine(label, value, extraClass = '', clickable = false) {
+function diseaseChipLine(label, value, extraClass = '', clickField = '') {
   const text = String(value || '').trim();
   if (!text) return '';
-  return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value disease-ddx-links">${diseaseChipifyTokens(text, clickable)}</div></div>`;
+  return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value disease-ddx-links">${diseaseChipifyTokens(text, clickField)}</div></div>`;
 }
 
 function _renderDiseaseDrawerContent(d) {
@@ -1539,7 +1540,7 @@ function _renderDiseaseDrawerContent(d) {
     diseaseDetailLine('IPA English', d.ipa),
     diseaseDetailLine('System Tags', systemTags, 'microbe-card-wide'),
     ...(profileSec ? profileSec.fields.map(f => f.k === 'chief_complaints'
-      ? diseaseChipLine(f.label, d.body?.profile?.[f.k], '', true)
+      ? diseaseChipLine(f.label, d.body?.profile?.[f.k], '', 'chief_complaints')
       : diseaseDetailLine(f.label, d.body?.profile?.[f.k])) : []),
   ].filter(Boolean).join('');
   const accordion = DISEASE_SECTIONS.filter(s => s.key !== 'profile').map(sec => {
@@ -1566,6 +1567,20 @@ function _renderDiseaseDrawerContent(d) {
       <details class="disease-acc">
         <summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
         <div class="microbe-info-grid">${ddxRows}</div>
+      </details>`;
+    }
+    if (sec.key === 'symptoms') {
+      // 증상·징후는 칩으로(클릭 시 같은 소견 질환 모아보기), 나머지(vignette·무증상여부)는 일반 라인.
+      const rows = sec.fields.map(f =>
+        (f.k === 'symptoms' || f.k === 'signs')
+          ? diseaseChipLine(f.label, secObj[f.k], 'microbe-card-wide', f.k)
+          : diseaseDetailLine(f.label, secObj[f.k])
+      ).filter(Boolean).join('');
+      if (!rows) return '';
+      return `
+      <details class="disease-acc">
+        <summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
+        <div class="microbe-info-grid">${rows}</div>
       </details>`;
     }
     const rows = sec.fields.map(f => diseaseDetailLine(f.label, secObj[f.k])).filter(Boolean).join('');
@@ -9159,42 +9174,49 @@ function diseaseLinkifySimilar(text) {
     return `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`;
   }).join('');
 }
-// 주호소 칩 클릭 → 그 주호소를 가진 질환을 모아 보여주는 모달(감별진단 참고).
-function openComplaintDiseaseList(event, complaint) {
+// 주호소/증상/징후 칩 클릭 → 그 소견을 가진 질환을 모아 보여주는 모달(감별진단 참고).
+const FINDING_FIELDS = {
+  chief_complaints: { noun: '주호소', verb: '내원하는', path: d => d.body?.profile?.chief_complaints },
+  symptoms:         { noun: '증상',   verb: '보이는',   path: d => d.body?.symptoms?.symptoms },
+  signs:            { noun: '징후',   verb: '나타나는', path: d => d.body?.symptoms?.signs },
+};
+function openFindingDiseaseList(event, finding, field = 'chief_complaints') {
   if (event) event.stopPropagation?.();
+  const cfg = FINDING_FIELDS[field] || FINDING_FIELDS.chief_complaints;
   const norm = s => String(s || '').toLowerCase().replace(/\s/g, '');
-  const splitCC = s => String(s || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
-  const target = norm(complaint);
+  const splitF = s => String(s || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
+  const target = norm(finding);
   if (!target) return;
   const matches = getActiveDiseases().filter(d =>
-    splitCC(d.body?.profile?.chief_complaints).some(t => {
+    splitF(cfg.path(d)).some(t => {
       const n = norm(t);
       return n && (n === target || n.includes(target) || target.includes(n));
     })
   );
-  document.getElementById('complaintDiseaseModal')?.remove();
+  document.getElementById('findingDiseaseModal')?.remove();
   const overlay = document.createElement('div');
-  overlay.id = 'complaintDiseaseModal';
+  overlay.id = 'findingDiseaseModal';
   overlay.className = 'developer-modal-overlay';
   const list = matches.length
     ? matches.map(d => {
         const cur = Number(d.id) === Number(_drawerDiseaseId);
         const sub = [d.en_name, d.uz_name].filter(Boolean).join(' · ');
-        return `<button type="button" class="complaint-disease-item${cur ? ' current' : ''}" onclick="document.getElementById('complaintDiseaseModal').remove(); openDiseaseDrawer(null, ${Number(d.id)})">
+        const fieldVal = String(cfg.path(d) || '').trim();
+        return `<button type="button" class="complaint-disease-item${cur ? ' current' : ''}" onclick="document.getElementById('findingDiseaseModal').remove(); openDiseaseDrawer(null, ${Number(d.id)})">
           <div style="font-weight:800;color:var(--text)">${escapeHtml(diseaseDisplayName(d))}${cur ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">· 현재</span>' : ''}</div>
           ${sub ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${escapeHtml(sub)}</div>` : ''}
-          <div style="font-size:11px;color:var(--text2);margin-top:5px;line-height:1.5"><span style="color:var(--accent);font-weight:700">주호소</span> ${escapeHtml(d.body.profile.chief_complaints)}</div>
+          ${fieldVal ? `<div style="font-size:11px;color:var(--text2);margin-top:5px;line-height:1.5"><span style="color:var(--accent);font-weight:700">${escapeHtml(cfg.noun)}</span> ${escapeHtml(fieldVal)}</div>` : ''}
         </button>`;
       }).join('')
-    : `<div style="color:var(--text3);font-size:13px;padding:10px 2px">이 주호소를 가진 질환이 없습니다.</div>`;
+    : `<div style="color:var(--text3);font-size:13px;padding:10px 2px">이 ${escapeHtml(cfg.noun)}을(를) 가진 질환이 없습니다.</div>`;
   overlay.innerHTML = `
     <section class="developer-modal" role="dialog" aria-modal="true" style="width:min(560px,100%)">
       <div class="developer-modal-head">
         <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text)">🔍 "${escapeHtml(complaint)}" 주호소 질환</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">이 주호소로 내원할 수 있는 질환 ${matches.length}건 · 감별진단 참고</div>
+          <div style="font-size:16px;font-weight:900;color:var(--text)">🔍 "${escapeHtml(finding)}" ${escapeHtml(cfg.noun)} 질환</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">이 ${escapeHtml(cfg.noun)}이(가) ${escapeHtml(cfg.verb)} 질환 ${matches.length}건 · 감별진단 참고</div>
         </div>
-        <button onclick="document.getElementById('complaintDiseaseModal').remove()" aria-label="닫기" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
+        <button onclick="document.getElementById('findingDiseaseModal').remove()" aria-label="닫기" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
       </div>
       <div style="padding:14px 18px 20px;display:flex;flex-direction:column;gap:8px">${list}</div>
     </section>`;
@@ -17096,7 +17118,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.31',
+  version: '1.32',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17105,7 +17127,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.31 — 주호소·증상·징후 정의를 한 줄로 명확화',
+    title: '최신 · v1.32 — 증상·징후 칩도 클릭하면 같은 소견 질환 모아보기',
+    items: [
+      '질환 상세의 증상·징후도 칩(🔍)으로 표시되고, 클릭하면 그 증상/징후를 가진 질환들을 모아 보여줍니다(주호소에 이어 수평 전개). "이 증상을 보이는 질환", "이 징후가 나타나는 질환"을 각각 모아 감별진단에 활용할 수 있습니다.',
+    ]
+  },
+  {
+    title: 'v1.31 — 주호소·증상·징후 정의를 한 줄로 명확화',
     items: [
       '세 칸의 정의를 외우기 쉽게 라벨에 반영했습니다 — 주호소: 오늘 병원에 온 가장 큰 이유 · 증상: 환자가 느끼는 모든 것 · 징후: 의사가 확인한 모든 것. AI 콘텐츠 양식 지침도 같은 표현으로 통일했습니다.',
     ]
