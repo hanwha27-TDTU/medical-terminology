@@ -1575,9 +1575,10 @@ function _renderDiseaseDrawerContent(d) {
         </div>
         <div class="microbe-chip-row">
           ${emergencyChip}${otherChips}
-          ${d.ipa ? `<span class="drug-chip">IPA ${escapeHtml(d.ipa)}</span>` : ''}
         </div>
         ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
+        ${(d.body?.profile?.chief_complaints) ? `<div class="microbe-memory-line"><span>주호소</span>${escapeHtml(d.body.profile.chief_complaints)}</div>` : ''}
+        ${(d.body?.definition?.ko) ? `<div class="microbe-memory-line"><span>정의</span>${escapeHtml(d.body.definition.ko)}</div>` : ''}
         <div class="microbe-tts-row">
           <span class="tts-speed-label">속도</span>
           <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
@@ -16970,7 +16971,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.21',
+  version: '1.22',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16979,7 +16980,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.21 — 주요 질환 카드 이름 클릭 복사(한/영/우즈 각각)',
+    title: '최신 · v1.22 — 주요 질환 상세 개요: IPA 제거, 정의·주호소 표시',
+    items: [
+      '질환 상세 서랍의 개요(대시보드 영역)에서 IPA 표기를 빼고, 그 자리에 한 줄 핵심과 함께 주호소·정의를 보여줍니다. 첫 화면에서 바로 봐야 할 임상 핵심 정보를 우선 노출하도록 정리했습니다.',
+    ]
+  },
+  {
+    title: 'v1.21 — 주요 질환 카드 이름 클릭 복사(한/영/우즈 각각)',
     items: [
       '주요 질환 카드의 한국어명·영어명·우즈벡어명을 각각 클릭하면 클립보드에 복사됩니다(용어·약물·미생물·공식에 이미 있던 기능을 질환에도 수평 전개).',
     ]
