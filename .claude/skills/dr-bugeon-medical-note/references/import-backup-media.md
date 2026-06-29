@@ -25,7 +25,7 @@
 용어 같은 "명시적 컬럼" 도메인에 새 선택 필드 하나를 더하면 **아래를 한 번에 모두** 맞춘다(한 곳만 빠지면 그 경로에서 값이 증발):
 1. normalize(`normalizeTermForStorage`) — 기본값 + 입력 정규화 헬퍼.
 2. cloud row 양방향(`termToRow`/`rowToTerm`) — snake_case 컬럼명.
-3. **SQL 2곳**: `create table` 컬럼 + `alter ... add column if not exists`(idempotent). SQL 헤더 버전이 자동 갱신돼도 **"SQL 변경 있음"을 완료 보고에 명시**하고 재실행 안내.
+3. **SQL은 사실 4곳**: `create table` 컬럼 + `alter ... add column if not exists`(idempotent) + **`SUPABASE_SCHEMA_VERSION` 배지 + `SUPABASE_SCHEMA_UPDATED_AT` 날짜 + `-- Schema version:` 주석**. 앞 둘만 고치고 뒤 셋(이력 라벨)을 빠뜨리기 쉽다(v1.36에서 finding_type 컬럼은 넣고 배지/날짜/주석은 안 올려 v1.41에 정정). 컬럼/테이블 '구조'가 바뀌면 **배지(+0.01)·날짜·Schema version 주석을 반드시 함께 bump**하고 완료 보고에 "SQL 변경 있음 + 재실행 안내"를 남긴다. (App version 줄은 `v${APP_INFO.version}`로 자동 표기되니 그건 건드릴 필요 없음.)
 4. 입력 UI 2곳: 추가 폼 + 편집 모달, 각자 저장 읽기(`submitAddTerm`/`saveEdit`). ⚠️ 편집 저장은 `saveEdit`이지 `regenField`이 아니다(둘 다 `edit_*` id를 읽어 헷갈림 — 함수 경계 확인).
 5. 표시 2곳: 카드 meta + 드로어 배지(테마 토큰 색).
 6. 가져오기/내보내기: TSV 파서(COLS+ALIAS), AI 양식(TSV_COLS·hint·열 안내), `termExportRows`, 파일 업로드 row 매핑(친화 헤더명까지).
