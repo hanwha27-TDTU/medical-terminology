@@ -7528,7 +7528,7 @@ const DISEASE_ASYMPTOMATIC_OPTIONS = ['', '불가능 / 매우 드묾', '가능 (
 const DISEASE_REDFLAG_CATEGORIES = ['응급', '감염/패혈증', '출혈/허혈', '신경학적 위험', '암 의심', '소아/임신 위험', '즉시 검사 필요', '기타'];
 const DISEASE_SECTIONS = [
   { key: 'profile', title: '질환 기본 프로필', icon: '🧬', fields: [
-    { k: 'chief_complaints', label: '주호소 (Chief Complaint · 환자가 병원에 온 이유 — 증상/검사 이상/의뢰 목적 등 · 쉼표 구분 · 마인드맵 분기 기준)', area: true },
+    { k: 'chief_complaints', label: '주호소 (Chief Complaint · 오늘 병원에 온 가장 큰 이유 · 쉼표 구분 · 마인드맵 분기 기준)', area: true },
     { k: 'age_group', label: '주요 연령대' },
     { k: 'sex_tendency', label: '주요 성별 경향' },
     { k: 'risk_factors', label: '대표 위험인자', area: true },
@@ -7553,8 +7553,8 @@ const DISEASE_SECTIONS = [
     { k: 'step1_link', label: 'Step 1 연결 포인트', area: true },
   ]},
   { key: 'symptoms', title: '증상 · 징후', icon: '🩹', fields: [
-    { k: 'symptoms', label: '증상 (Symptom · 주관적 · 환자가 느끼고 호소하는 것 — 병력청취 · 쉼표 구분)', area: true },
-    { k: 'signs', label: '징후 (Sign · 객관적 · 진찰·활력징후·검사로 확인되는 것 — 신체진찰 소견 포함 · 쉼표 구분)', area: true },
+    { k: 'symptoms', label: '증상 (Symptom · 환자가 느끼는 모든 것 · 주관적 · 쉼표 구분)', area: true },
+    { k: 'signs', label: '징후 (Sign · 의사가 확인한 모든 것 · 객관적 · 쉼표 구분)', area: true },
     { k: 'vignette', label: '전형적 환자 vignette', area: true },
     { k: 'asymptomatic', label: '무증상 가능 여부', type: 'select', options: DISEASE_ASYMPTOMATIC_OPTIONS },
   ]},
@@ -15038,7 +15038,7 @@ function buildAIContentSpec(domain) {
   }
 
   const diseaseNote = (domain === 'diseases' || domain === 'all')
-    ? '\n\n[주요 질환 — 주호소 / 증상 / 징후 3단 구분] ① body.profile.chief_complaints(주호소, Chief Complaint)는 "환자가 병원에 온 이유"를 짧게 적어라(보통 1~몇 개). 증상일 수도 있고 검사 이상·의뢰 목적일 수도 있다(예: "흉통 30분", "건강검진상 폐결절", "혈압약 처방"). ② body.symptoms.symptoms(증상, Symptom)에는 "환자가 느끼고 호소하는 주관적인 것"만 적어라(병력청취로 알 수 있는 것 · 예: 흉통, 식은땀, 메스꺼움, 어지럼, 피로). ③ body.symptoms.signs(징후, Sign)에는 "의료진이 진찰·활력징후·검사로 확인하는 객관적인 것"을 적어라(예: 발열 38.8℃, ST 상승, 저혈압, 청진 crackles, 창백한 결막, 발한 관찰). 핵심 원칙: 증상=주관적(환자가 말해야 앎) · 징후=객관적(환자가 몰라도 발견). 같은 항목을 두 칸에 중복하지 말고 성격에 맞게 나눠라(혈뇨처럼 "환자가 붉다고 호소"=증상, "요검사 적혈구 확인"=징후로 상황에 따라 둘 다 가능).'
+    ? '\n\n[주요 질환 — 주호소 / 증상 / 징후 3단 구분] ① body.profile.chief_complaints(주호소, Chief Complaint)는 "오늘 병원에 온 가장 큰 이유"를 짧게 적어라(보통 1~몇 개). 대표 증상일 수도, 검사 이상·의뢰 목적일 수도 있다(예: "흉통 30분", "건강검진상 폐결절", "혈압약 처방"). ② body.symptoms.symptoms(증상, Symptom)에는 "환자가 느끼는 모든 것"(주관적·병력청취로 알 수 있는 것)을 적어라(예: 흉통, 식은땀, 메스꺼움, 어지럼, 피로). ③ body.symptoms.signs(징후, Sign)에는 "의사가 확인한 모든 것"(객관적·진찰·활력징후·검사로 확인되는 것)을 적어라(예: 발열 38.8℃, ST 상승, 저혈압, 청진 crackles, 창백한 결막, 발한 관찰). 핵심 원칙: 증상=환자가 느끼는 것(말해야 앎) · 징후=의사가 확인하는 것(환자가 몰라도 발견). 같은 항목을 두 칸에 중복하지 말고 성격에 맞게 나눠라(혈뇨처럼 "환자가 붉다고 호소"=증상, "요검사 적혈구 확인"=징후로 상황에 따라 둘 다 가능).'
     : '';
   return header + '\n\n' + blockSpec + importNote + diseaseNote;
 }
@@ -17096,7 +17096,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.30',
+  version: '1.31',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17105,7 +17105,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.30 — 질환 증상(주관적)·징후(객관적) 필드 분리',
+    title: '최신 · v1.31 — 주호소·증상·징후 정의를 한 줄로 명확화',
+    items: [
+      '세 칸의 정의를 외우기 쉽게 라벨에 반영했습니다 — 주호소: 오늘 병원에 온 가장 큰 이유 · 증상: 환자가 느끼는 모든 것 · 징후: 의사가 확인한 모든 것. AI 콘텐츠 양식 지침도 같은 표현으로 통일했습니다.',
+    ]
+  },
+  {
+    title: 'v1.30 — 질환 증상(주관적)·징후(객관적) 필드 분리',
     items: [
       '"주요 증상 및 징후" 한 칸을 의학적 정의대로 증상(Symptom · 환자가 느끼는 주관적)과 징후(Sign · 진찰·검사로 확인되는 객관적)로 분리했습니다. 기존 "신체진찰 소견"은 징후의 일부라 징후로 통합했습니다.',
       '기존에 입력된 내용은 자동 이관됩니다(옛 "증상 및 징후"→증상, 옛 "신체진찰 소견"→징후). 혼재돼 있던 항목은 직접 증상/징후로 옮겨 정리하면 됩니다. AI 콘텐츠 양식도 증상·징후를 구분해 생성하도록 갱신했습니다.',
