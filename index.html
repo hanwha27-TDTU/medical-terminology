@@ -1892,6 +1892,10 @@ document.addEventListener('keydown', e => {
     border-radius: 16px;
     box-shadow: 0 24px 80px rgba(0,0,0,0.55);
   }
+  /* 질환 편집은 원인·위험인자 행이 5칸이라 폭이 더 필요. 컴파운드 선택자로 미디어쿼리보다 우선. */
+  .developer-modal.disease-edit-wide {
+    width: min(1040px, 100%);
+  }
 
   .developer-modal-head {
     position: sticky;
@@ -7465,6 +7469,8 @@ const DISEASE_CAUSE_CATEGORY_MIGRATE = { '내분비/대사성': '내분비성' }
 const DISEASE_CAUSE_ORIGINS = ['', '내인성', '외인성', '혼합·불명'];
 const DISEASE_CAUSE_ROLES = ['직접 원인', '주요 위험인자', '악화·유발인자', '병태생리 축', '보호인자', '연관'];
 const DISEASE_YIELD_OPTIONS = ['', 'High-yield', 'Medium', 'Low'];
+// 원인·위험인자 행 자동 정렬용 중요도 우선순위(낮을수록 위). 빈칸은 맨 아래.
+const DISEASE_YIELD_RANK = { 'High-yield': 0, 'Medium': 1, 'Low': 2 };
 // 구버전 평면 원인 필드 → 행 분류 라벨 매핑 (하위호환 마이그레이션용)
 const DISEASE_OLD_CAUSE_LABEL = { congenital: '선천성', genetic: '유전성', infectious: '감염성', autoimmune: '자가면역성', metabolic: '대사성', vascular: '혈관성', neoplastic: '종양성', drug_toxic: '약물성/독성', idiopathic: '특발성' };
 const DISEASE_ASYMPTOMATIC_OPTIONS = ['', '불가능 / 매우 드묾', '가능 (우연히 발견)', '흔함 (상당수 무증상)', '초기 무증상', '선별검사로 발견', '우연 발견(영상 등)'];
@@ -7608,6 +7614,14 @@ function normalizeDiseaseBody(rawBody) {
       body[sec.key] = rows
         .map(r => normalizeDiseaseRow(sec, r))
         .filter(r => sec.rowFields.some(f => r[f.k]));
+      // 원인·위험인자는 중요도(yield)순으로 자동 재배치(High-yield→Medium→Low→빈칸).
+      // 같은 중요도면 입력 순서 유지(인덱스 보조키로 안정 정렬).
+      if (sec.key === 'cause') {
+        body[sec.key] = body[sec.key]
+          .map((r, i) => [r, i])
+          .sort((a, b) => ((DISEASE_YIELD_RANK[a[0].yield] ?? 3) - (DISEASE_YIELD_RANK[b[0].yield] ?? 3)) || (a[1] - b[1]))
+          .map(pair => pair[0]);
+      }
     } else {
       const secSrc = (src[sec.key] && typeof src[sec.key] === 'object') ? src[sec.key] : {};
       const out = {};
@@ -9485,7 +9499,7 @@ function openDiseaseEditModal(e, id) {
   overlay.id = 'diseaseEditModal';
   overlay.className = 'developer-modal-overlay';
   overlay.innerHTML = `
-    <section class="developer-modal" role="dialog" aria-modal="true">
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
         <div>
           <div style="font-size:17px;font-weight:900;color:var(--text)">🩺 주요 질환 편집</div>
@@ -16741,7 +16755,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.13',
+  version: '1.14',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16750,7 +16764,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.13 — Supabase SQL 헤더에 앱 버전 자동 표기',
+    title: '최신 · v1.14 — 질환 편집창 넓히기 + 원인·위험인자 중요도순 자동 정렬',
+    items: [
+      '주요 질환 편집창을 넓혔습니다(원인·위험인자 행이 5칸이라 더 넓은 폭이 필요). 좁은 화면에서는 화면 폭에 맞춰 자동 조정됩니다.',
+      '원인·위험인자 행이 저장·표시 시 중요도(High-yield → Medium → Low → 빈칸)순으로 자동 정렬됩니다. 같은 중요도는 입력 순서를 유지합니다.',
+    ]
+  },
+  {
+    title: 'v1.13 — Supabase SQL 헤더에 앱 버전 자동 표기',
     items: [
       '통합 SQL 헤더가 현재 앱 버전(App version)을 자동으로 표기하도록 했습니다. 앱을 업데이트할 때마다 SQL 헤더의 버전이 함께 바뀌어, 어느 버전 기준의 SQL인지 헷갈리지 않습니다(수동 갱신 불필요).',
       '테이블·컬럼 "구조"가 실제로 바뀔 때만 별도의 Schema version을 올립니다. SQL 본문은 동일.',
