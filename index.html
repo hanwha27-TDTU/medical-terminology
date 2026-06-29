@@ -7480,7 +7480,7 @@ const DISEASE_ASYMPTOMATIC_OPTIONS = ['', '불가능 / 매우 드묾', '가능 (
 const DISEASE_REDFLAG_CATEGORIES = ['응급', '감염/패혈증', '출혈/허혈', '신경학적 위험', '암 의심', '소아/임신 위험', '즉시 검사 필요', '기타'];
 const DISEASE_SECTIONS = [
   { key: 'profile', title: '질환 기본 프로필', icon: '🧬', fields: [
-    { k: 'chief_complaints', label: '주증상 (쉼표로 구분 · 마인드맵 분기 기준)', area: true },
+    { k: 'chief_complaints', label: '주증상 (핵심 3~5개 · 쉼표 구분 · 마인드맵 가지 · 아래 "주요 증상"과 같은 용어로)', area: true },
     { k: 'age_group', label: '주요 연령대' },
     { k: 'sex_tendency', label: '주요 성별 경향' },
     { k: 'risk_factors', label: '대표 위험인자', area: true },
@@ -7505,7 +7505,7 @@ const DISEASE_SECTIONS = [
     { k: 'step1_link', label: 'Step 1 연결 포인트', area: true },
   ]},
   { key: 'symptoms', title: '증상 · 징후', icon: '🩹', fields: [
-    { k: 'main_symptoms', label: '주요 증상', area: true },
+    { k: 'main_symptoms', label: '주요 증상 (전체 목록 · 위 "주증상"의 상위집합)', area: true },
     { k: 'exam_findings', label: '주요 신체진찰 소견', area: true },
     { k: 'vignette', label: '전형적 환자 vignette', area: true },
     { k: 'asymptomatic', label: '무증상 가능 여부', type: 'select', options: DISEASE_ASYMPTOMATIC_OPTIONS },
@@ -14884,7 +14884,10 @@ function buildAIContentSpec(domain) {
     importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 JSON 블록만 붙여넣고 "가져오기(신규만 추가 또는 중복 덮어쓰기 선택)".';
   }
 
-  return header + '\n\n' + blockSpec + importNote;
+  const diseaseNote = (domain === 'diseases' || domain === 'all')
+    ? '\n\n[주요 질환 — 증상 칸 일관성] body.symptoms.main_symptoms(주요 증상)에 전체 증상을 적고, body.profile.chief_complaints(주증상)에는 그중 핵심 3~5개를 "똑같은 용어"로 추린 부분집합을 적어라. 동의어로 바꾸지 마라(예: main_symptoms가 "운동 시 호흡곤란, 심계항진"이면 chief_complaints도 "운동 시 호흡곤란, 심계항진"; "운동불내성"·"두근거림"처럼 다르게 쓰지 말 것). chief_complaints는 마인드맵 가지로 쓰이므로 짧고 대표적인 증상만.'
+    : '';
+  return header + '\n\n' + blockSpec + importNote + diseaseNote;
 }
 function openAIContentTemplateMenu() {
   const existing = document.getElementById('aiTemplateModal');
@@ -16940,7 +16943,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.17',
+  version: '1.18',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16949,7 +16952,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.17 — 중복 검토를 "칸별 선택"으로 (일부 유지·일부 변경)',
+    title: '최신 · v1.18 — 질환 "주증상 vs 주요 증상" 역할 명확화',
+    items: [
+      '겹쳐 보이던 두 증상 칸의 역할을 라벨로 분명히 했습니다: 주증상 = 핵심 3~5개(마인드맵 가지) · 주요 증상 = 전체 목록(주증상의 상위집합). 두 칸은 원래 용도가 다른 별개 필드입니다.',
+      'AI 콘텐츠 양식이 주증상을 주요 증상의 핵심 부분집합으로 "같은 용어"로 생성하도록 지침을 추가했습니다(동의어로 갈라지지 않게).',
+    ]
+  },
+  {
+    title: 'v1.17 — 중복 검토를 "칸별 선택"으로 (일부 유지·일부 변경)',
     items: [
       '중복 비교 검토를 항목 통째 선택에서 "바뀌는 칸마다" 선택으로 바꿨습니다. 같은 항목 안에서도 어떤 칸은 기존을 유지하고 어떤 칸은 새것으로 덮어쓸 수 있습니다(예: 정의는 기존, 증상·부작용은 새것).',
       '주요 질환은 본문을 섹션별(정의/증상/원인/병태생리/검사/치료 등)로 골라 합칩니다. 항목마다 "새것 전체/기존 전체" 빠른 선택과 상단 "전부 새것/전부 기존" 도우미도 제공합니다.',
