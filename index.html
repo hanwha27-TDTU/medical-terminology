@@ -962,9 +962,9 @@ function drawerNavigate(dir) {
 function _updateDrawerNav() {
   const idx   = _drawerTermList.findIndex(x => String(x.id) === String(_drawerTermId));
   const total = _drawerTermList.length;
-  document.getElementById('drawerNavCount').textContent = total ? `${idx + 1} / ${total}` : '';
+  document.getElementById('drawerNavCount').textContent = (total && idx >= 0) ? `${idx + 1} / ${total}` : '';
   document.getElementById('drawerPrevBtn').disabled = idx <= 0;
-  document.getElementById('drawerNextBtn').disabled = idx >= total - 1;
+  document.getElementById('drawerNextBtn').disabled = idx < 0 || idx >= total - 1;
 }
 
 function drawerToggleBookmark() {
@@ -1030,8 +1030,8 @@ function _renderDrawerContent(t) {
   // 카테고리 배지
   const catHtml = `
     <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">${escapeHtml(conceptDisplay(t.concept_category))}</span>
-    <span style="font-size:11px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px;color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>
-    ${t.finding_type ? `<span style="font-size:11px;background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.4);border-radius:6px;padding:2px 8px;color:#5eead4">${escapeHtml(t.finding_type)}</span>` : ''}`;
+    <span style="font-size:11px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px;color:var(--accent)">${escapeHtml(categoryDisplay(t.category))}</span>
+    ${t.finding_type ? `<span style="font-size:11px;background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.4);border-radius:6px;padding:2px 8px;color:var(--accent2)">${escapeHtml(t.finding_type)}</span>` : ''}`;
 
   // 링크 버튼들
   const linksHtml = `
@@ -6029,6 +6029,7 @@ function canonicalTermHashPayload(terms) {
       def_uz: t.def_uz || '',
       usmle: t.usmle || '',
       ipa: t.ipa || '',
+      finding_type: t.finding_type || '',
       refs: Array.isArray(t.refs) ? t.refs : [],
       icd11: t.icd11 || null,
       fdaDrug: t.fdaDrug || null,
@@ -6155,6 +6156,7 @@ function canonicalMicrobeHashPayload(microbes) {
       memory_line: m.memory_line || '',
       category: m.category || '',
       system_tags: Array.isArray(m.system_tags) ? m.system_tags : [],
+      refs: Array.isArray(m.refs) ? m.refs : [],
     }));
 }
 
@@ -7862,6 +7864,7 @@ function canonicalDiseaseHashPayload(diseases) {
       contagious: d.contagious || '',
       system_tags: Array.isArray(d.system_tags) ? d.system_tags : [],
       body: d.body || {},
+      refs: Array.isArray(d.refs) ? d.refs : [],
     }));
 }
 
@@ -9253,10 +9256,13 @@ function _findingCandidates(matches, idx) {
   const active = new Set(_findingFilter.map(c => c.field + '|' + normFindingConcept(c.value)));
   const counts = new Map();
   matches.forEach(d => {
+    const seenInThisDisease = new Set(); // 한 질환 안에서 같은 (field|개념) 중복은 1회만 카운트
     Object.keys(FINDING_FIELDS).forEach(field => {
       _findingSplit(FINDING_FIELDS[field].path(d)).forEach(tok => {
-        const key = field + '|' + normFindingConcept(tok);
-        if (!key.split('|')[1] || active.has(key)) return;
+        const concept = normFindingConcept(tok);
+        const key = field + '|' + concept;
+        if (!concept || active.has(key) || seenInThisDisease.has(key)) return;
+        seenInThisDisease.add(key);
         if (!counts.has(key)) counts.set(key, { field, value: tok, count: 0 });
         counts.get(key).count++;
       });
@@ -9311,7 +9317,7 @@ function renderFindingWorkbench() {
     }).join('');
     const bodyRows = ROWS.map(r => {
       const tds = matches.map(d => `<td style="padding:8px 10px;font-size:12px;color:var(--text2);vertical-align:top;line-height:1.5;border-left:1px solid var(--border)">${escapeHtml(String(r.get(d) || '').trim()) || '<span style="color:var(--text3)">—</span>'}</td>`).join('');
-      return `<tr style="border-top:1px solid var(--border)"><th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);white-space:nowrap;position:sticky;left:0;background:var(--surface)">${escapeHtml(r.label)}</th>${tds}</tr>`;
+      return `<tr style="border-top:1px solid var(--border)"><th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);white-space:nowrap;position:sticky;left:0;background:var(--surface);z-index:1">${escapeHtml(r.label)}</th>${tds}</tr>`;
     }).join('');
     bodyHtml = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr><th style="position:sticky;left:0;background:var(--surface);z-index:1"></th>${headCols}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
   } else {
@@ -9720,7 +9726,7 @@ function upsertDiseaseFromForm(id = null) {
     en_name: diseaseFieldValue(`${prefix}_en_name`),
     uz_name: diseaseFieldValue(`${prefix}_uz_name`),
     ipa: diseaseFieldValue(`${prefix}_ipa`),
-    concept_category: diseaseFieldValue(`${prefix}_concept_category`) || 'Disease / Syndrome',
+    concept_category: diseaseFieldValue(`${prefix}_concept_category`) || 'Diseases',
     category: diseaseFieldValue(`${prefix}_category`) || 'General',
     system_tags: diseaseFieldValue(`${prefix}_system_tags`),
     one_line_summary: diseaseFieldValue(`${prefix}_one_line_summary`),
@@ -9937,8 +9943,8 @@ function renderTerms(terms, bookmarkDivider = 0) {
         </div>
         <div class="term-meta-row">
           <span class="term-category" title="개념분류">${escapeHtml(conceptDisplay(t.concept_category))}</span>
-          <span class="term-category" title="대표 장기계" style="border-color:rgba(88,166,255,0.35);color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>
-          ${t.finding_type ? `<span class="term-category" title="증상/징후" style="border-color:rgba(45,212,191,0.4);color:#5eead4">${escapeHtml(t.finding_type)}</span>` : ''}
+          <span class="term-category" title="대표 장기계" style="border-color:rgba(88,166,255,0.35);color:var(--accent)">${escapeHtml(categoryDisplay(t.category))}</span>
+          ${t.finding_type ? `<span class="term-category" title="증상/징후" style="border-color:rgba(45,212,191,0.45);color:var(--accent2)">${escapeHtml(t.finding_type)}</span>` : ''}
           ${(() => {
             const missing = [];
             if (!t.ko)     missing.push('KO');
@@ -12601,7 +12607,14 @@ async function pullFromCloud() {
     saveLocalDiseaseTombstones(cloudDiseases.filter(d => d.deletedAt));
   }
   saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
-  saveLocalSyncMeta({ canonicalVersion: meta.version });
+  // 모든 도메인이 로드됐을 때만 canonicalVersion을 전진시킨다. 한 도메인이라도 로드 실패 시
+  // 버전을 올리면, 그 도메인의 stale 로컬이 다음 동기화 fence를 통과해 재업로드(삭제 부활류)될 수 있다.
+  const allDomainsLoaded = cloudDrugs !== null && cloudFormulas !== null && cloudMicrobes !== null && cloudDiseases !== null;
+  if (allDomainsLoaded) {
+    saveLocalSyncMeta({ canonicalVersion: meta.version });
+  } else {
+    showToast('⚠️ 일부 도메인을 불러오지 못해 기준 버전을 보류합니다 · SQL 실행 후 다시 시도하세요');
+  }
   const learning = await sbLoadLearningStates();
   if (learning) applyLearningStates(learning, true);
   updateBookmarkCount();
@@ -15510,7 +15523,7 @@ async function applyDuplicateReview() {
 
 function createCompleteBackupObject() {
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     app: APP_INFO.name,
     appVersion: APP_INFO.version,
     exportedAt: new Date().toISOString(),
@@ -15537,7 +15550,7 @@ function exportCompleteJsonBackup() {
 
 function createDomainBackupObject(domain) {
   const base = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     app: APP_INFO.name,
     appVersion: APP_INFO.version,
     exportedAt: new Date().toISOString(),
@@ -16660,7 +16673,7 @@ async function applyPendingDataImport(options = {}) {
       if (hasDiseasePayload || pendingDataImport.hasDiseaseTombstonePayload) {
         saveLocalDiseaseTombstones([...(pendingDataImport.diseaseTombstones || []), ...removedDiseases]);
       }
-      if (hasTermPayload && hasDrugPayload && hasFormulaPayload && hasMicrobePayload && pendingDataImport.syncMeta?.canonicalVersion) saveLocalSyncMeta(pendingDataImport.syncMeta);
+      if (hasTermPayload && hasDrugPayload && hasFormulaPayload && hasMicrobePayload && hasDiseasePayload && pendingDataImport.syncMeta?.canonicalVersion) saveLocalSyncMeta(pendingDataImport.syncMeta);
     } else {
       if (hasTermPayload) saveLocalTombstones([...loadLocalTombstones(), ...removed]);
     }
@@ -16671,7 +16684,7 @@ async function applyPendingDataImport(options = {}) {
       incoming.forEach(term => {
         const existing = pendingDataImport.kind === 'json' ? byId.get(String(term.id)) : byName.get(termIdentityKey(term));
         if (!existing) {
-          TERMS.push(term);
+          if (!term.deletedAt) TERMS.push(term); // tombstone(deletedAt) 행은 active에 넣지 않는다(다른 4도메인과 동일)
         } else if (mode === 'merge' && (Date.parse(term.updatedAt) || Date.now()) >= (Date.parse(existing.updatedAt) || 0)) {
           const index = TERMS.findIndex(t => String(t.id) === String(existing.id));
           TERMS[index] = mergeDuplicateTerms(existing, normalizeTermForStorage({ ...term, id: existing.id }));
@@ -17277,7 +17290,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.36',
+  version: '1.37',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17286,7 +17299,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.36 — 일반 용어에 증상/징후 태그 추가 (⚠️ SQL 변경)',
+    title: '최신 · v1.37 — 전수점검 수정: 무결성·동기화·테마·가져오기 정합성',
+    items: [
+      '버전확인 정확도: 증상/징후 태그(finding_type)와 참고문헌(refs)이 스냅샷 해시에 빠져 있던 것을 보강(용어·미생물·질환), 오답노트 필드·이미지도 노트 해시에 포함 → "변경 없음/일치" 오판 해소. (저장본 해시가 한 번 재계산되어 "최종상태 저장 1회"가 보일 수 있습니다 — 정상.)',
+      '동기화 안전성: 클라우드 최종본 적용 시 일부 도메인이 로드 실패하면 기준 버전을 보류(삭제 부활 방지). 용어 가져오기에서 삭제표식 행이 목록에 섞이던 문제 수정(다른 도메인과 동일 처리).',
+      '가져오기 정합성: CSV/TSV 파일 업로드에서도 finding_type를 인식(내보내기↔가져오기 왕복 보존). 백업 복원 기준버전 채택 조건에 질환 포함.',
+      '테마: 증상/징후·장기계 칩 글자색을 테마 토큰으로 바꿔 라이트 모드에서도 또렷하게.',
+    ]
+  },
+  {
+    title: 'v1.36 — 일반 용어에 증상/징후 태그 추가 (⚠️ SQL 변경)',
     items: [
       '일반 용어에 개념분류·대표 장기계와 별도로 "증상/징후 여부"를 태그할 수 있습니다(체크박스 2개, 둘 다 가능). 추가·편집창 입력, 카드·상세 칩 표시, 검색, TSV/CSV·AI 양식까지 반영했습니다.',
       '⚠️ Supabase 사용 시: medical_terms에 finding_type 컬럼이 추가됐습니다. 설정 → "설정 SQL 복사"의 최신 SQL을 한 번 실행해 주세요(idempotent — 여러 번 실행해도 안전).',
@@ -19881,7 +19903,8 @@ async function handleFileUpload(e, mode = 'replace') {
                        def_ko:6, def_en:7, def_uz:8, usmle:9, ipa:10,
                        refs:11, refs_json:11, icd11:12, icd11_json:12,
                        fda_json:13, fda_drug:13, rxclass_json:14, rxclass_atc:14,
-                       trials:15, trials_json:15 };
+                       trials:15, trials_json:15,
+                       finding_type:16, findingtype:16, sign_symptom:16, '증상징후':16 };
       const firstCols = (lines[0] || '').split('\t').map(c => c.trim().toLowerCase());
       const hasHeader = firstCols.some(c => Object.prototype.hasOwnProperty.call(ALIAS2, c));
       const dataLines = hasHeader ? lines.slice(1) : lines;
@@ -19914,6 +19937,7 @@ async function handleFileUpload(e, mode = 'replace') {
                 def_uz:   cols[8]?.trim() || '',
                 usmle:    cols[9]?.trim() || '',
                 ipa:      cols[10]?.trim() || '',
+                finding_type: cols[11]?.trim() || '',
               }
             : {
                 id: 1000 + i,
@@ -19945,6 +19969,7 @@ async function handleFileUpload(e, mode = 'replace') {
           def_uz:   get(8),
           usmle:    get(9),
           ipa:      get(10),
+          finding_type: get(16),
           refs:     parseImportJson(get(11), []),
           icd11:    parseImportJson(get(12), null),
           fdaDrug:  parseImportJson(get(13), null),
@@ -22340,7 +22365,7 @@ initApp();
   createDomainBackupObject = function patchedCreateDomainBackupObject(domain) {
     if (domain === 'notes') {
       return {
-        schemaVersion: 7,
+        schemaVersion: 8,
         app: APP_INFO.name,
         appVersion: APP_INFO.version,
         exportedAt: new Date().toISOString(),
@@ -22871,6 +22896,13 @@ initApp();
         keyPoint: n.keyPoint || '',
         bodyHtml: n.bodyHtml || '',
         comparison: n.comparison || '',
+        wrongStem: n.wrongStem || '',
+        myAnswer: n.myAnswer || '',
+        correctAnswer: n.correctAnswer || '',
+        wrongReason: n.wrongReason || '',
+        trap: n.trap || '',
+        nextCue: n.nextCue || '',
+        images: Array.isArray(n.images) ? n.images : [],
         linkedTerms: Array.isArray(n.linkedTerms) ? n.linkedTerms : [],
         linkedDrugs: Array.isArray(n.linkedDrugs) ? n.linkedDrugs : [],
         linkedMicrobes: Array.isArray(n.linkedMicrobes) ? n.linkedMicrobes : [],
