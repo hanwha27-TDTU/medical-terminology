@@ -16700,7 +16700,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.01',
+  version: '1.02',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16709,7 +16709,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.01 — 헤더 버튼 컴팩트/정렬 정리',
+    title: '최신 · v1.02 — 노트 자동링크: 짧은 단독 동의어 누락 수정',
+    items: [
+      '개념·오답 노트 자동링크 버그 수정: 한 용어에 한국어가 여러 개일 때(예: "빠른내성, 빠른면역화"), 합성 문자열 전체는 링크되는데 "빠른내성"처럼 단독 단어만 쓰면 링크가 안 되던 문제를 고쳤습니다.',
+      '원인은 자동링크 대상 목록이 2000개를 넘으면 긴 라벨부터 남기고 짧은 라벨(단독 동의어)을 잘라내던 것. 이제 캡(4000)을 넘을 때 긴 문구부터 버려 짧은 단독 동의어가 보존됩니다.',
+    ]
+  },
+  {
+    title: 'v1.01 — 헤더 버튼 컴팩트/정렬 정리',
     items: [
       '헤더 버튼이 화면 폭을 억지로 채워 커지던 문제 수정: 태블릿·창 축소(≤1100px)에서 버튼이 내용 크기에 맞게 컴팩트하게 표시되고 좌측 정렬로 자연스럽게 줄바꿈됩니다.',
       '모바일(≤600px)에서 헤더 버튼을 2열로 균일하게 배치하고, "최종상태 저장 → 저장", "저장본 버전 확인 → 버전" 등 긴 라벨에 짧은 모바일 표기를 추가했습니다.',
@@ -19767,7 +19774,17 @@ initApp();
       const old = byKey.get(row.key);
       if (!old || row.label.length > old.label.length) byKey.set(row.key, row);
     });
-    return [...byKey.values()].sort((a, b) => b.label.length - a.label.length).slice(0, 2000);
+    const deduped = [...byKey.values()];
+    // 캡을 넘으면 '가장 긴' 라벨부터 버린다(긴 문구는 노트 본문에 그대로 등장할 확률이 낮음).
+    // 과거엔 length DESC로 정렬 후 앞 2000개만 남겨 '짧은' 라벨을 버렸는데, 그러면
+    // 다중값 한국어(예: "빠른내성, 빠른면역화")를 쉼표로 쪼갠 단독 동의어(짧음)가 잘려
+    // 단독 입력 시 자동링크가 안 되던 버그가 있었다(긴 합성 문자열만 살아남음).
+    const TARGET_CAP = 4000;
+    const capped = deduped.length > TARGET_CAP
+      ? [...deduped].sort((a, b) => a.label.length - b.label.length).slice(0, TARGET_CAP)
+      : deduped;
+    // 정규식 교체는 '긴 라벨 우선'으로 매칭돼야 하므로(예: 합성 라벨을 단독보다 먼저) length DESC로 반환.
+    return capped.sort((a, b) => b.label.length - a.label.length);
   }
   // ASCII 라벨은 단어경계를 요구해 'urea'가 'Ureaplasma' 안에서 잘못 링크되는 것을 막습니다. (비ASCII=한글/라틴은 그대로 허용)
   function noteKeyBoundaryHit(haystack, key) {
