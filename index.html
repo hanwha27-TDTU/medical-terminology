@@ -16397,7 +16397,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.76',
+  version: '4.77',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16406,7 +16406,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.76 동기화 전파 누락 + 표/약물 입력 결함 수정 (MEDIUM)',
+    title: '최신 · v4.77 퀴즈 복습 간격(SRS) 개선',
+    items: [
+      '복습 간격을 직전 간격 × 1.2~2.2배로 키워, 잘 외운 용어는 점점 긴 주기(최대 180일)로 복습하도록 개선 — 이전에는 16일에서 정체돼 마스터한 용어도 계속 짧게 재출제됐음',
+      '숙달(마스터) 판정을 누적 오답 수가 아니라 "도달한 복습 간격(21일 이상)"으로 변경 — 초반에 몇 번 틀려도 다시 간격을 키우면 마스터로 인정됨(이전에는 오답 3회면 영구히 마스터 불가)',
+      '복습 실패 시 간격을 초기화해 곧 다시 복습하도록 함. 기존 학습기록과 호환(스키마 변경 없음)',
+    ]
+  },
+  {
+    title: 'v4.76 동기화 전파 누락 + 표/약물 입력 결함 수정 (MEDIUM)',
     items: [
       '미생물 발음(ipa)·공식 태그(tags)만 수정해도 변경 감지가 안 돼 다른 기기로 전파되지 않던 문제 수정 — snapshot 해시 페이로드에 ipa·tags 포함',
       '오래된 tombstone 정리·보호기록 개수·전체삭제에서 주요 질환 도메인이 빠져 질병 삭제기록이 영구히 정리/집계되지 않던 문제 수정 — 전 도메인(질병 포함) 처리',
@@ -19556,14 +19564,27 @@ function quizNext(correct) {
   const state = getLearningStateMap()[String(quizTerm.id)] || {};
   const correctCount = (Number(state.correctCount) || 0) + (termPassed ? 1 : 0);
   const wrongCount = (Number(state.wrongCount) || 0) + (termPassed ? 0 : 1);
-  const intervalDays = termPassed ? Math.min(30, Math.max(1, Math.pow(2, Math.min(correctCount, 5) - 1))) : 0;
+  // 간격반복(SRS): 복습 간격을 직전 간격×ease로 성장시킨다(상한 180일). 직전 간격은
+  // 저장된 dueAt−lastReviewedAt에서 유도 → 스키마 변경 없이 기존 학습기록과 호환.
+  // 숙달 판정은 lifetime 오답 누적이 아니라 "도달한 간격"으로 한다(한 번 틀려도 다시
+  // 간격을 키우면 숙달 가능). 실패는 간격 0(곧 다시 복습)으로 리셋.
+  const SRS_EASE = 2.2, SRS_CAP_DAYS = 180, SRS_MASTER_DAYS = 21;
+  const prevDue = Date.parse(state.dueAt || '');
+  const prevReviewed = Date.parse(state.lastReviewedAt || '');
+  const prevInterval = (Number.isFinite(prevDue) && Number.isFinite(prevReviewed))
+    ? Math.max(0, Math.round((prevDue - prevReviewed) / 86400000)) : 0;
+  let intervalDays;
+  if (!termPassed) intervalDays = 0;
+  else if (prevInterval < 1) intervalDays = 1;
+  else intervalDays = Math.min(SRS_CAP_DAYS, Math.max(prevInterval + 1, Math.round(prevInterval * SRS_EASE)));
   const dueAt = new Date(Date.now() + intervalDays * 86400000).toISOString();
+  const studyStatus = intervalDays >= SRS_MASTER_DAYS ? 'mastered' : (termPassed ? 'review' : 'learning');
   updateLearningState(quizTerm.id, {
     correctCount,
     wrongCount,
     lastReviewedAt: new Date().toISOString(),
     dueAt,
-    studyStatus: correctCount >= 5 && wrongCount <= 2 ? 'mastered' : (termPassed ? 'review' : 'learning'),
+    studyStatus,
     bookmarked: bookmarks.has(quizTerm.id),
   });
   quizStep = 0;
