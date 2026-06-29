@@ -13277,8 +13277,8 @@ function previewTsvPaste() {
   preview.style.display = 'block';
 }
 
-async function importTsvPaste(mode = 'merge') {
-  const raw = document.getElementById('tsvPasteArea')?.value || '';
+async function importTsvPaste(mode = 'merge', rawText = null) {
+  const raw = rawText != null ? rawText : (document.getElementById('tsvPasteArea')?.value || '');
   const rows = parseTsvPaste(raw);
   if (!rows.length) { showToast(parseTsvPaste.lastError || '⚠️ 파싱할 데이터가 없습니다'); return; }
 
@@ -14692,28 +14692,13 @@ function _aiCopyToClipboard(text, okMsg) {
   } else { _aiCopyFallback(text, done); }
 }
 function buildAIContentSpec(domain) {
-  // 양식을 앱의 실제 스키마에서 동적 생성한다 → 필드(칸)는 normalize 함수의 키에서,
-  // 질환 body는 DISEASE_SECTIONS에서, 드롭다운 값은 각 옵션 상수에서. 스키마가 바뀌면
-  // (필드 추가/섹션 추가/선택값 변경) 이 양식이 자동으로 따라온다. (스킬 §0.6)
+  // 양식을 앱의 실제 스키마에서 동적 생성한다(필드=normalize 키, 질환 body=DISEASE_SECTIONS,
+  // 드롭다운=옵션 상수). 출력은 "예쁜 검토용 정리 + 맨 끝 붙여넣기 블록(용어=TSV, 그 외=JSON)".
   const cats = VALID_CATS.join(', ');
   const concepts = CONCEPT_CATEGORIES.join(', ');
-  const rules = [
-    '너는 의학 학습 앱에 넣을 데이터를 만든다. 아래 규칙을 반드시 지켜라.',
-    '1) 출력은 JSON 객체 하나만. 코드블록으로 감싸고, 그 외 설명·인사·주석은 절대 쓰지 마라.',
-    '2) "[ ...목록... ]" 으로 표시된 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 "".',
-    '3) 모르거나 불확실한 칸은 지어내지 말고 "". 모르는 행(row) 배열은 [].',
-    '4) 각 항목의 id는 서로 겹치지 않는 큰 숫자. 8000000000001 부터 1씩 올려라.',
-    '5) 의학적으로 정확하게, USMLE/KMLE 관점으로. 모르는 언어 칸은 비워라.',
-    '6) 내가 말한 개수만큼 배열 안에 항목을 채워라.',
-    '7) 위 형식의 칸 이름(key)은 절대 바꾸거나 추가/삭제하지 마라. 값만 채워라.',
-    '',
-    '[공통 선택목록] 장기계(category/system/system_tags): ' + cats,
-    '[공통 선택목록] 개념분류(concept_category): ' + concepts,
-  ].join('\n');
+  const TSV_COLS = ['ko', 'en', 'uz', 'concept_category', 'category', 'system_tags', 'def_ko', 'def_en', 'def_uz', 'usmle', 'ipa'];
 
   const NORM = { terms: normalizeTermForStorage, drugs: normalizeDrugForStorage, formulas: normalizeFormulaForStorage, microbes: normalizeMicrobeForStorage, diseases: normalizeDiseaseForStorage };
-  const REQUIRED = { terms: 'ko/en/uz 중 1개 이상', drugs: 'generic_name 또는 ko_name', formulas: '(name 또는 short_name) + formula', microbes: 'organism 또는 ko_name', diseases: 'ko_name 또는 en_name' };
-  // 저장 메타/타임스탬프/외부 API 캐시 칸은 양식에서 제외(사용자가 채울 칸 아님)
   const EXCLUDE = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'hiddenAt', 'conceptCategory', 'icd11', 'fdaDrug', 'rxclassATC', 'trials', 'refs']);
   const EXTRA = { drugs: new Set(['concept_category']), diseases: new Set(['body']) };
 
@@ -14767,17 +14752,49 @@ function buildAIContentSpec(domain) {
     if (d === 'diseases') out.body = diseaseBody();
     return out;
   }
+  function jsonWrap(domains) {
+    const w = {};
+    domains.forEach(d => { w[d] = [skeleton(d)]; });
+    return JSON.stringify(w, null, 2);
+  }
 
-  const order = ['terms', 'drugs', 'formulas', 'microbes', 'diseases'];
-  const pick = domain === 'all' ? order : [order.includes(domain) ? domain : 'terms'];
-  const blocks = pick.map(d => {
-    const wrap = {};
-    wrap[d] = [skeleton(d)];
-    return '=== ' + d + ' — 필수: ' + REQUIRED[d] + ' ===\n' + JSON.stringify(wrap, null, 2);
-  }).join('\n\n');
+  const header = [
+    '너는 의학 학습 앱에 넣을 데이터를 만든다. 출력은 "두 부분"이다.',
+    '',
+    '[1부 — 예쁜 정리(사람 검토용)] 먼저 사람이 검토하기 좋게 깔끔하게 정리해서 보여줘라.',
+    ' · 각 항목을 제목(한국어 / 영어) → 분류 → 정의(한/영/우즈벡) → USMLE·KMLE 포인트 → 발음 순으로, 굵게·줄바꿈 자유롭게 읽기 좋게.',
+    ' · 의학적으로 정확하게. 모르는 내용은 비워라(지어내지 마라).',
+    '',
+    '[2부 — 붙여넣기 블록(앱 가져오기용)] 그 다음 맨 마지막에, 앱에 그대로 붙여넣을 블록을 코드블록 하나로만 출력해라. 블록 뒤에는 아무 것도 쓰지 마라.',
+    ' · "[ ...목록... ]" 으로 표시된 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 비워라.',
+    ' · 모르는 칸은 비워라. 칸 이름(key)과 열 순서는 절대 바꾸거나 추가/삭제하지 마라.',
+    ' · 각 항목 id는 서로 겹치지 않는 큰 숫자(8000000000001 부터 1씩). 내가 말한 개수만큼 채워라.',
+    '',
+    '[공통 선택목록] 장기계(category/system/system_tags): ' + cats,
+    '[공통 선택목록] 개념분류(concept_category): ' + concepts,
+  ].join('\n');
 
-  const tail = '\n\n[가져오기] 출력한 JSON을 .json 파일로 저장 → 앱: 데이터 관리 → "JSON 백업 복원" → 파일 선택 → 가져오기 방식 "신규만 추가". (용어는 TSV 붙여넣기도 가능)';
-  return rules + '\n\n' + blocks + tail;
+  let blockSpec, importNote;
+  if (domain === 'terms') {
+    blockSpec = [
+      '[2부 형식 — TSV (탭으로 구분)]',
+      '열 순서(11열, 각 열은 탭으로 구분): ' + TSV_COLS.join(', '),
+      '첫 줄에 이 11개 머리글을 탭으로 구분해 그대로 넣고, 다음 줄부터 용어 한 줄씩(각 칸은 탭으로 구분). 빈 칸은 값만 비우고 탭은 유지.',
+      ' · concept_category = [개념분류 목록 중 1개]',
+      ' · category = [장기계 목록 중 1개]',
+      ' · system_tags = 장기계 값(여러 개면 쉼표). 탭이 아니라 쉼표.',
+      ' · 나머지(ko/en/uz/def_ko/def_en/def_uz/usmle/ipa)는 자유 텍스트.',
+    ].join('\n');
+    importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 TSV 블록만 붙여넣고 "가져오기(신규만 추가)".';
+  } else if (domain === 'all') {
+    blockSpec = '[2부 형식 — JSON · 5개 도메인 한 번에]\n아래 형식 그대로 채워라:\n' + jsonWrap(['terms', 'drugs', 'formulas', 'microbes', 'diseases']);
+    importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 JSON 블록만 붙여넣고 "가져오기(신규만 추가)".';
+  } else {
+    blockSpec = '[2부 형식 — JSON]\n아래 형식 그대로 채워라:\n' + jsonWrap([domain]);
+    importNote = '\n\n[가져오기] 앱: 데이터 관리 → 🤖 AI 콘텐츠 양식 → "📥 AI 답변 붙여넣기" 에 위 JSON 블록만 붙여넣고 "가져오기(신규만 추가)".';
+  }
+
+  return header + '\n\n' + blockSpec + importNote;
 }
 function openAIContentTemplateMenu() {
   const existing = document.getElementById('aiTemplateModal');
@@ -14789,20 +14806,70 @@ function openAIContentTemplateMenu() {
   modal.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px;max-height:84vh;overflow:auto">
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">🤖 AI 콘텐츠 생성 양식 복사</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:16px">아무 AI(ChatGPT·Claude·Gemini 등)에 붙여넣을 양식을 복사합니다. <b>드롭다운 값은 이 앱의 현재 설정에서 자동 생성</b>되어 항상 정확합니다.<br>복사 → AI 채팅에 붙여넣기 → <b>"○개 만들어줘"</b> → 받은 JSON을 .json 파일로 저장 → JSON 백업 복원(신규만 추가).</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px"><b>① 양식 복사</b> → AI에 붙여넣고 <b>"○개 만들어줘"</b> → AI가 예쁘게 정리해 보여주고 <b>맨 끝에 붙여넣기 블록</b>(용어=TSV, 그 외=JSON)을 줍니다 → <b>② 그 블록을 아래 "AI 답변 붙여넣기"</b>에 붙여 한 번에 가져오기(신규만 추가). 드롭다운 값은 앱 설정에서 자동 생성됩니다.</div>
+      <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px">① 양식 복사</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${domBtn('terms', '일반용어 (terms)')}
         ${domBtn('drugs', '약물 (drugs)')}
         ${domBtn('formulas', '공식 (formulas)')}
         ${domBtn('microbes', '미생물 (microbes)')}
         ${domBtn('diseases', '주요 질환 (diseases)')}
-        <button onclick="_aiCopyToClipboard(buildAIContentSpec('all'), '📋 전체 양식 복사됨')" style="background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:11px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 전체 (5개 도메인 모두)</button>
+        <button onclick="_aiCopyToClipboard(buildAIContentSpec('all'), '📋 전체 양식 복사됨')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-align:left">📋 전체 (5개 도메인 모두)</button>
+        <div style="height:1px;background:var(--border);margin:6px 0"></div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:2px">② 받은 답변 가져오기</div>
+        <button onclick="openAIPasteImport()" style="background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:12px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📥 AI 답변 붙여넣기 (TSV·JSON 자동인식)</button>
         <button onclick="document.getElementById('aiTemplateModal')?.remove()" style="background:transparent;border:none;padding:8px;color:var(--text3);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
       </div>
     </div>`;
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
 }
+function openAIPasteImport() {
+  const existing = document.getElementById('aiPasteModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'aiPasteModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:1001;backdrop-filter:blur(6px);padding:24px;';
+  modal.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:460px">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">📥 AI 답변 붙여넣기</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:12px">AI가 준 <b>맨 끝 블록</b>(용어=TSV, 그 외=JSON)만 붙여넣으세요. 형식은 자동 인식하고 <b>신규만 추가</b>로 가져옵니다(기존 데이터는 안 건드림). 코드블록 표시(\`\`\`)가 같이 붙어도 괜찮습니다.</div>
+      <textarea id="aiPasteArea" placeholder="여기에 TSV 또는 JSON 붙여넣기" style="width:100%;min-height:170px;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:12px;font-family:monospace;resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="document.getElementById('aiPasteModal')?.remove()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text3);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
+        <button onclick="importAIPasteText()" style="flex:2;background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:11px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">가져오기 (신규만 추가)</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('aiPasteArea')?.focus(), 60);
+}
+async function importAIPasteText() {
+  const ta = document.getElementById('aiPasteArea');
+  let text = (ta?.value || '').trim();
+  // 코드블록 펜스(```json ... ```)가 붙어 와도 제거
+  text = text.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+  if (!text) { showToast('⚠️ 붙여넣은 내용이 없습니다'); return; }
+  try {
+    if (/^[\[{]/.test(text)) {
+      // JSON: 단일/다중 도메인 모두 신규만 추가
+      const file = new File([text], 'AI_paste.json', { type: 'application/json' });
+      pendingDataImport = await readDataImportFile(file, 'json');
+      document.getElementById('aiPasteModal')?.remove();
+      document.getElementById('aiTemplateModal')?.remove();
+      await applyPendingDataImport({ mode: 'append' });
+    } else {
+      // TSV (용어) 신규만 추가
+      document.getElementById('aiPasteModal')?.remove();
+      document.getElementById('aiTemplateModal')?.remove();
+      await importTsvPaste('add_only', text);
+    }
+  } catch (e) {
+    console.warn('AI paste import failed', e);
+    showToast('⚠️ 가져오기 실패 · 형식(JSON/TSV)을 확인하세요' + (e && e.message ? ' · ' + String(e.message).slice(0, 60) : ''));
+  }
+}
+
 
 function createCompleteBackupObject() {
   return {
@@ -16568,7 +16635,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.81',
+  version: '4.82',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16577,7 +16644,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.81 AI 콘텐츠 양식 = 스키마 완전 자동 연동',
+    title: '최신 · v4.82 AI 답변 붙여넣기(한 번에 가져오기) + 양식 2부 구성',
+    items: [
+      'AI 콘텐츠 양식을 "① 사람이 검토하기 좋은 예쁜 정리 + ② 맨 끝 붙여넣기 블록"의 2부 구성으로 변경 — raw 데이터 덩어리 대신 읽기 좋은 답을 먼저 보고 붙여넣을 수 있음',
+      '데이터 관리 → AI 콘텐츠 양식에 "📥 AI 답변 붙여넣기" 박스 추가 — 파일 저장 없이 붙여넣기 한 번으로 가져오기(신규만 추가). 용어=TSV, 약물·공식·미생물·질환=JSON을 자동 인식(코드블록 ``` 표시도 자동 처리)',
+      '용어 양식은 앱의 TSV 붙여넣기와 호환되는 11열 TSV로, 나머지 도메인은 JSON으로 출력하도록 안내',
+    ]
+  },
+  {
+    title: 'v4.81 AI 콘텐츠 양식 = 스키마 완전 자동 연동',
     items: [
       'AI 콘텐츠 양식을 앱의 실제 스키마에서 완전 자동 생성하도록 개선 — 각 도메인 필드는 저장 정규화 함수에서, 주요 질환 body는 DISEASE_SECTIONS에서, 드롭다운 값은 옵션 상수에서 그 자리에서 생성',
       '이제 칸(필드)이 새로 추가되거나 질환 섹션·선택값이 바뀌면 양식이 자동으로 따라옴(이전에는 드롭다운 값만 자동, 필드 목록은 수동이었음)',
