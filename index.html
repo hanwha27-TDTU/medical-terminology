@@ -7461,6 +7461,8 @@ const DISEASE_CONTAGIOUS_OPTIONS = ['', '전염성 있음', '전염성 없음', 
 const DISEASE_CAUSE_CATEGORIES = ['선천성', '유전성', '감염성', '자가면역성', '대사성', '내분비성', '혈관성', '종양성', '퇴행성', '구조적/기계적', '약물성/독성', '의인성', '생활습관', '영양', '생리/스트레스', '환경/직업', '특발성', '기타'];
 // 분류 라벨 변경 하위호환(구 옵션 → 현 옵션). 기존 질환 데이터의 category 값을 보존.
 const DISEASE_CAUSE_CATEGORY_MIGRATE = { '내분비/대사성': '내분비성' };
+// 상위분류(축): 상세 분류 18개와 별개 축. 양다리·특발성은 '혼합·불명'이 받는다(완전성). 선택(빈칸 허용).
+const DISEASE_CAUSE_ORIGINS = ['', '내인성', '외인성', '혼합·불명'];
 const DISEASE_CAUSE_ROLES = ['직접 원인', '주요 위험인자', '악화·유발인자', '병태생리 축', '보호인자', '연관'];
 const DISEASE_YIELD_OPTIONS = ['', 'High-yield', 'Medium', 'Low'];
 // 구버전 평면 원인 필드 → 행 분류 라벨 매핑 (하위호환 마이그레이션용)
@@ -7480,6 +7482,7 @@ const DISEASE_SECTIONS = [
     { k: 'uz', label: 'Oʻzbekcha definition', area: true },
   ]},
   { key: 'cause', title: '원인 · 위험인자', icon: '🧩', type: 'rows', addLabel: '원인 · 위험인자 추가', rowFields: [
+    { k: 'origin', label: '상위분류', type: 'select', options: DISEASE_CAUSE_ORIGINS },
     { k: 'category', label: '분류', type: 'select', options: DISEASE_CAUSE_CATEGORIES },
     { k: 'role', label: '역할', type: 'select', options: DISEASE_CAUSE_ROLES },
     { k: 'item', label: '세부 항목', type: 'text' },
@@ -16738,7 +16741,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.10',
+  version: '1.11',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16747,7 +16750,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.10 — 주요 질환 "원인·위험인자 분류" 옵션 정비(MECE)',
+    title: '최신 · v1.11 — 주요 질환 원인에 "상위분류(내인성/외인성)" 추가',
+    items: [
+      '원인·위험인자 행에 상위분류 선택을 추가했습니다: 내인성 · 외인성 · 혼합·불명(선택, 빈칸 허용). 상세 분류 18개와는 다른 축이라, 같은 분류라도 행마다 내/외인성을 따로 달 수 있습니다(예: 유전성 종양=내인성, 흡연 유발 종양=외인성). 양다리·원인불명은 "혼합·불명"으로.',
+    ]
+  },
+  {
+    title: 'v1.10 — 주요 질환 "원인·위험인자 분류" 옵션 정비(MECE)',
     items: [
       '질환의 원인·위험인자 분류 드롭다운을 정리했습니다. 퇴행성·구조적/기계적을 추가하고, 의미가 겹치던 "내분비/대사성"을 "내분비성"으로 분리(대사성과 구분), 장기계 축이라 중복되던 "신경학적"은 제외했습니다(장기계는 별도 "대표 장기계" 필드 사용).',
       '기존 데이터의 "내분비/대사성" 값은 자동으로 "내분비성"으로 이관되어 보존됩니다. AI 콘텐츠 양식의 질환 분류 목록도 자동으로 갱신됩니다.',
