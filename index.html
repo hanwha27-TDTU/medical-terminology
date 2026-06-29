@@ -11962,41 +11962,58 @@ function showAISettings() {
 
   main.innerHTML = `
     <div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px">🤖 AI · Supabase 설정</div>
-
-      <div style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
-        <div style="font-size:13px;color:#f87171;font-weight:700;margin-bottom:5px">⚠️ 개인용 로컬 모드</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.7">
-          이 방식은 OpenAI/Anthropic API 키를 이 브라우저의 localStorage에 저장합니다.<br>
-          혼자 쓰는 로컬 파일에는 편리하지만, 공유용 앱은 서버리스 백엔드 방식이 안전합니다.<br>
-          ChatGPT 앱의 표시명과 API 모델 ID가 다를 수 있으므로, 실패하면 직접 입력에 공식 모델 ID를 넣어주세요.
+      <div style="font-size:11px;color:var(--text3);margin-bottom:14px;text-transform:uppercase;letter-spacing:1px">🤖 AI · Supabase 설정</div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">자주 쓰는 항목을 위로 올리고, 모든 항목을 접기/펼치기로 정리했습니다. 제목 줄을 누르면 열고 닫힙니다.</div>
+      <details open style="background:var(--surface);border:1px solid rgba(34,197,94,0.4);border-radius:12px;margin-bottom:10px">
+        <summary style="cursor:pointer;list-style:revert;padding:13px 16px;font-size:13px;font-weight:700;color:#4ade80;user-select:none">☁️ Supabase 기기간 동기화 — ${getSupabaseConfig() ? '<span style=\'color:#4ade80\'>✅ 연결됨</span>' : '<span style=\'color:var(--text3)\'>❌ 미설정</span>'}</summary>
+        <div style="padding:2px 16px 16px">
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+          클라우드 최종본을 모든 기기에서 불러오는 방식입니다.<br>
+          덮어쓰기는 현재 기기 데이터를 클라우드 최종본으로 저장하며, 이 기기에 없는 항목은 다른 기기에 있어도 제외될 수 있습니다.<br>
+          현재 상태: <span id="sbStatus" style="color:var(--accent2)">${getSupabaseConfig() ? '✅ 연결됨' : '❌ 미설정'}</span>
         </div>
-      </div>
-
-      <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
-        <div style="font-size:13px;color:#74b0ff;font-weight:700;margin-bottom:5px">💡 ChatGPT Pro 안내</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.7">
-          ChatGPT Pro 구독과 OpenAI API 키는 별도입니다.<br>
-          이 HTML 앱의 AI 자동완성 기능을 직접 쓰려면 OpenAI · Anthropic · Gemini API 키 중 하나를 등록해야 합니다.
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Supabase URL</label>
+        <input id="sb_url" type="text" placeholder="https://xxxx.supabase.co" value="${getSupabaseConfig()?.url || ''}" style="${inputStyle()}">
+        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">anon public 키</label>
+        <input id="sb_key" type="password" placeholder="eyJ..." value="${getSupabaseConfig()?.key || ''}" style="${inputStyle()}">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="saveSupabaseFromForm()" style="flex:1;background:#166534;border:none;border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💾 저장</button>
+          <button onclick="testAndSyncSupabase()" style="flex:1;background:var(--surface2);border:1px solid #4ade80;border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔄 연결 테스트</button>
         </div>
-      </div>
-
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
-        <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:12px">현재 상태</div>
-        <div style="font-size:12px;color:var(--text3);line-height:1.8">
-          사용 방식: <span style="color:var(--accent)">${AI_ROUTE_LABELS[cfg.route] || cfg.route}</span><br>
-          OpenAI Key: <span style="color:var(--accent2)">${maskApiKey(cfg.openaiKey)}</span><br>
-          OpenAI 모델: <span style="color:var(--text2)">${cfg.modelOpenAI}</span><br>
-          Anthropic Key: <span style="color:var(--accent2)">${maskApiKey(cfg.anthropicKey)}</span><br>
-          Anthropic 모델: <span style="color:var(--text2)">${cfg.modelAnthropic}</span><br>
-          Gemini Key: <span style="color:var(--accent2)">${maskApiKey(cfg.geminiKey||'')}</span><br>
-          Gemini 모델: <span style="color:var(--text2)">${cfg.modelGemini||'gemini-2.0-flash'}</span><br>
-          로컬 LLM: <span style="color:var(--text2)">Ollama · ${LOCAL_LLM_MODEL_LABEL} (${LOCAL_LLM_MODEL_FIXED}) · ${cfg.localUrl}</span><br>
-          UMLS Key: <span style="color:var(--accent2)">${maskApiKey(cfg.umlsKey||localStorage.getItem('kma_umls_key')||'')}</span><br>
-          저장 시각: <span style="color:var(--text2)">${savedText}</span>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="pullFromCloud()" style="flex:1;background:var(--surface2);border:1px solid var(--accent3);border-radius:8px;padding:10px;color:var(--accent3);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬇️ 클라우드→로컬</button>
         </div>
-      </div>
-
+        ${getSupabaseConfig() ? `
+        <button onclick="disconnectSupabase()" style="width:100%;background:rgba(248,81,73,0.1);border:1px solid #f85149;border-radius:8px;padding:10px;color:#f85149;font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
+          🔌 동기화 연결 해제
+        </button>` : ''}
+        </div>
+      </details>
+      <details open style="background:var(--surface);border:1px solid rgba(59,130,246,0.4);border-radius:12px;margin-bottom:10px">
+        <summary style="cursor:pointer;list-style:revert;padding:13px 16px;font-size:13px;font-weight:700;color:#60a5fa;user-select:none">🖼️ Cloudinary 이미지 저장 — ${getCloudinaryConfig() ? '<span style=\'color:#60a5fa\'>✅ 설정됨</span>' : '<span style=\'color:var(--text3)\'>❌ 미설정</span>'}</summary>
+        <div style="padding:2px 16px 16px">
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+          노트 이미지는 Cloudinary에 저장되고, URL만 Supabase 노트에 동기화됩니다.<br>
+          Cloudinary → Settings → Upload → <b>Unsigned</b> upload preset을 먼저 만들어 주세요.<br>
+          현재 상태: <span id="cldStatus" style="color:var(--accent2)">${getCloudinaryConfig() ? '✅ 설정됨' : '❌ 미설정'}</span>
+        </div>
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Cloud name</label>
+        <input id="cld_name" type="text" placeholder="예: dxxxxxx" value="${getCloudinaryConfig()?.cloudName || ''}" style="${inputStyle()}">
+        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">Unsigned upload preset</label>
+        <input id="cld_preset" type="text" placeholder="예: drbugeon_unsigned" value="${getCloudinaryConfig()?.uploadPreset || ''}" style="${inputStyle()}">
+        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">폴더(선택)</label>
+        <input id="cld_folder" type="text" placeholder="drbugeon_notes" value="${getCloudinaryConfig()?.folder || 'drbugeon_notes'}" style="${inputStyle()}">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="saveCloudinaryFromForm()" style="flex:1;background:#1e3a8a;border:none;border-radius:8px;padding:10px;color:#93c5fd;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💾 저장</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:8px">
+          ※ 이미지 <b>완전 삭제</b>는 Supabase Edge Function(<code>delete-cloudinary-image</code>) 배포가 필요합니다. 동봉한 배포 가이드를 참고하세요.
+        </div>
+        </div>
+      </details>
+      <details style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px">
+        <summary style="cursor:pointer;list-style:revert;padding:13px 16px;font-size:13px;font-weight:700;color:var(--text);user-select:none">🤖 AI 자동완성 설정 · OpenAI · Anthropic · Gemini · 로컬 LLM · UMLS</summary>
+        <div style="padding:2px 16px 16px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
         <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:12px">호출 방식</div>
         <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">AI Route</label>
@@ -12110,7 +12127,43 @@ function showAISettings() {
         <button onclick="testAIConnection()" style="flex:1;background:var(--surface2);border:1px solid var(--accent2);border-radius:8px;padding:12px;color:var(--accent2);font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🧪 전체 테스트</button>
       </div>
       <button onclick="clearAIConfig()" style="width:100%;background:var(--surface2);border:1px solid var(--red);border-radius:8px;padding:10px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">API 설정 삭제</button>
-
+        </div>
+      </details>
+      <details style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px">
+        <summary style="cursor:pointer;list-style:revert;padding:13px 16px;font-size:13px;font-weight:700;color:var(--text);user-select:none">📊 현재 상태</summary>
+        <div style="padding:2px 16px 16px">
+        <div style="font-size:12px;color:var(--text3);line-height:1.8">
+          사용 방식: <span style="color:var(--accent)">${AI_ROUTE_LABELS[cfg.route] || cfg.route}</span><br>
+          OpenAI Key: <span style="color:var(--accent2)">${maskApiKey(cfg.openaiKey)}</span><br>
+          OpenAI 모델: <span style="color:var(--text2)">${cfg.modelOpenAI}</span><br>
+          Anthropic Key: <span style="color:var(--accent2)">${maskApiKey(cfg.anthropicKey)}</span><br>
+          Anthropic 모델: <span style="color:var(--text2)">${cfg.modelAnthropic}</span><br>
+          Gemini Key: <span style="color:var(--accent2)">${maskApiKey(cfg.geminiKey||'')}</span><br>
+          Gemini 모델: <span style="color:var(--text2)">${cfg.modelGemini||'gemini-2.0-flash'}</span><br>
+          로컬 LLM: <span style="color:var(--text2)">Ollama · ${LOCAL_LLM_MODEL_LABEL} (${LOCAL_LLM_MODEL_FIXED}) · ${cfg.localUrl}</span><br>
+          UMLS Key: <span style="color:var(--accent2)">${maskApiKey(cfg.umlsKey||localStorage.getItem('kma_umls_key')||'')}</span><br>
+          저장 시각: <span style="color:var(--text2)">${savedText}</span>
+        </div>
+        </div>
+      </details>
+      <details style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px">
+        <summary style="cursor:pointer;list-style:revert;padding:13px 16px;font-size:13px;font-weight:700;color:var(--text);user-select:none">ℹ️ 안내 · 도움말</summary>
+        <div style="padding:2px 16px 16px">
+      <div style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;color:#f87171;font-weight:700;margin-bottom:5px">⚠️ 개인용 로컬 모드</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">
+          이 방식은 OpenAI/Anthropic API 키를 이 브라우저의 localStorage에 저장합니다.<br>
+          혼자 쓰는 로컬 파일에는 편리하지만, 공유용 앱은 서버리스 백엔드 방식이 안전합니다.<br>
+          ChatGPT 앱의 표시명과 API 모델 ID가 다를 수 있으므로, 실패하면 직접 입력에 공식 모델 ID를 넣어주세요.
+        </div>
+      </div>
+      <div style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.35);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;color:#74b0ff;font-weight:700;margin-bottom:5px">💡 ChatGPT Pro 안내</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">
+          ChatGPT Pro 구독과 OpenAI API 키는 별도입니다.<br>
+          이 HTML 앱의 AI 자동완성 기능을 직접 쓰려면 OpenAI · Anthropic · Gemini API 키 중 하나를 등록해야 합니다.
+        </div>
+      </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
         <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px">자동 선택 기준</div>
         <div style="font-size:12px;color:var(--text3);line-height:1.8">
@@ -12120,54 +12173,8 @@ function showAISettings() {
           4. 원하는 경우 호출 방식을 OpenAI만/Anthropic만으로 고정 가능
         </div>
       </div>
-
-      <!-- Supabase 동기화 설정 -->
-      <div style="background:var(--surface);border:1px solid rgba(34,197,94,0.4);border-radius:12px;padding:16px;margin-bottom:10px">
-        <div style="font-size:13px;color:#4ade80;font-weight:600;margin-bottom:4px">☁️ Supabase 기기간 동기화</div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">
-          클라우드 최종본을 모든 기기에서 불러오는 방식입니다.<br>
-          덮어쓰기는 현재 기기 데이터를 클라우드 최종본으로 저장하며, 이 기기에 없는 항목은 다른 기기에 있어도 제외될 수 있습니다.<br>
-          현재 상태: <span id="sbStatus" style="color:var(--accent2)">${getSupabaseConfig() ? '✅ 연결됨' : '❌ 미설정'}</span>
         </div>
-        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Supabase URL</label>
-        <input id="sb_url" type="text" placeholder="https://xxxx.supabase.co" value="${getSupabaseConfig()?.url || ''}" style="${inputStyle()}">
-        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">anon public 키</label>
-        <input id="sb_key" type="password" placeholder="eyJ..." value="${getSupabaseConfig()?.key || ''}" style="${inputStyle()}">
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button onclick="saveSupabaseFromForm()" style="flex:1;background:#166534;border:none;border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💾 저장</button>
-          <button onclick="testAndSyncSupabase()" style="flex:1;background:var(--surface2);border:1px solid #4ade80;border-radius:8px;padding:10px;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔄 연결 테스트</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button onclick="pullFromCloud()" style="flex:1;background:var(--surface2);border:1px solid var(--accent3);border-radius:8px;padding:10px;color:var(--accent3);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬇️ 클라우드→로컬</button>
-        </div>
-        ${getSupabaseConfig() ? `
-        <button onclick="disconnectSupabase()" style="width:100%;background:rgba(248,81,73,0.1);border:1px solid #f85149;border-radius:8px;padding:10px;color:#f85149;font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:8px">
-          🔌 동기화 연결 해제
-        </button>` : ''}
-      </div>
-
-      <!-- Cloudinary 이미지 저장 설정 -->
-      <div style="background:var(--surface);border:1px solid rgba(59,130,246,0.4);border-radius:12px;padding:16px;margin-bottom:10px">
-        <div style="font-size:13px;color:#60a5fa;font-weight:600;margin-bottom:4px">🖼️ Cloudinary 이미지 저장</div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">
-          노트 이미지는 Cloudinary에 저장되고, URL만 Supabase 노트에 동기화됩니다.<br>
-          Cloudinary → Settings → Upload → <b>Unsigned</b> upload preset을 먼저 만들어 주세요.<br>
-          현재 상태: <span id="cldStatus" style="color:var(--accent2)">${getCloudinaryConfig() ? '✅ 설정됨' : '❌ 미설정'}</span>
-        </div>
-        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Cloud name</label>
-        <input id="cld_name" type="text" placeholder="예: dxxxxxx" value="${getCloudinaryConfig()?.cloudName || ''}" style="${inputStyle()}">
-        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">Unsigned upload preset</label>
-        <input id="cld_preset" type="text" placeholder="예: drbugeon_unsigned" value="${getCloudinaryConfig()?.uploadPreset || ''}" style="${inputStyle()}">
-        <label style="font-size:11px;color:var(--text3);display:block;margin:10px 0 5px">폴더(선택)</label>
-        <input id="cld_folder" type="text" placeholder="drbugeon_notes" value="${getCloudinaryConfig()?.folder || 'drbugeon_notes'}" style="${inputStyle()}">
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button onclick="saveCloudinaryFromForm()" style="flex:1;background:#1e3a8a;border:none;border-radius:8px;padding:10px;color:#93c5fd;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💾 저장</button>
-        </div>
-        <div style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:8px">
-          ※ 이미지 <b>완전 삭제</b>는 Supabase Edge Function(<code>delete-cloudinary-image</code>) 배포가 필요합니다. 동봉한 배포 가이드를 참고하세요.
-        </div>
-      </div>
-
+      </details>
       <button onclick="closeSettingsModal()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
     </div>`;
   setTimeout(() => { onModelPresetChange('openai'); onModelPresetChange('anthropic'); onAIRouteChange(); }, 0);
@@ -16710,7 +16717,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.04',
+  version: '1.05',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16719,7 +16726,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.04 — 노트 동기화: 불필요한 "충돌 사본" 양산 방지',
+    title: '최신 · v1.05 — 설정 화면 정리: 접기/펼치기 + 자주 쓰는 항목 위로',
+    items: [
+      'AI · Supabase 설정 화면이 너무 길고 복잡해, 모든 항목을 접기/펼치기(아코디언)로 정리했습니다. 제목 줄을 누르면 열고 닫힙니다.',
+      '자주 쓰는 Supabase · Cloudinary를 맨 위로 올리고 기본 펼침으로 두었습니다. AI 자동완성(OpenAI·Anthropic·Gemini·로컬·UMLS)·현재 상태·안내는 접힌 상태가 기본입니다.',
+    ]
+  },
+  {
+    title: 'v1.04 — 노트 동기화: 불필요한 "충돌 사본" 양산 방지',
     items: [
       '노트 충돌 판단에서 자동 계산 링크(관련 용어·약물·미생물·공식)를 제외했습니다. 이 링크들은 본문에서 자동 파생되어 용어 수정·앱 버전·여러 탭 동시 사용 때 텍스트가 같아도 달라질 수 있는데, 이를 충돌로 보아 "충돌 사본"이 불필요하게 생기던 문제를 고쳤습니다.',
       '대신 동기화 병합 때 양쪽 링크를 합집합으로 보존하여, 수동으로 추가한 링크를 포함해 어느 쪽 링크도 사라지지 않습니다.',
