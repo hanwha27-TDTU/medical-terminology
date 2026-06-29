@@ -18,6 +18,19 @@
 - ⚠️AUDIT(tombstone 섞인 페이로드): merge 가져오기 입력에 `deletedAt`이 설정된 행(tombstone)이 섞여 있으면, 활성 배열에 그 행을 그대로 넣지 않는다. 정규화/저장 경로에서 `deletedAt` 행은 활성 목록에서 걸러 tombstone으로만 반영한다(저장 직전까지 활성 배열에 삭제 레코드가 남지 않게).
 - **중복 해결은 "필드(칸)/섹션 단위 선택"까지 본다(v1.15→v1.17).** 전부 건너뛰기/전부 덮어쓰기(all-or-nothing)는 "어떤 칸은 기존 유지, 어떤 칸은 새것"이라는 흔한 요구를 못 채운다. 사용자가 "중복 검토/선택"을 말하면 **처음부터 granularity(항목 단위 vs 필드 단위)를 확정**한다 — 항목 단위로 먼저 만들었다가 필드 단위로 다시 만든 적이 있다(요구의 본질을 먼저 못 짚음). 구현 패턴: ① raw parsed에서 도메인별 식별키로 incoming↔existing 짝짓기 → ② 정규화본끼리 칸별 diff(플랫 키는 칸별, `body jsonb`는 **섹션별**로 비교) → ③ 바뀌는 칸/섹션마다 체크박스(체크=새것, 해제=기존) → ④ 선택대로 `merged = 기존(normalized)` 위에 **선택 칸/섹션만 incoming으로 덮어** 구성(전부 해제면 원본 보존·생략), `id=기존·updatedAt=now` 후 **기존 merge 코어**(`readDataImportFile`+`applyPendingDataImport('merge')`)로 적용 — 검증된 코어를 안 건드린다. 모달 상태(groups)는 적용 시 재사용해 인덱스 매칭이 어긋나지 않게 한다.
 
+### 8.1.1 도메인에 선택 필드(컬럼) 추가 시 parity 체크리스트 (v1.36 finding_type 사례)
+
+용어 같은 "명시적 컬럼" 도메인에 새 선택 필드 하나를 더하면 **아래를 한 번에 모두** 맞춘다(한 곳만 빠지면 그 경로에서 값이 증발):
+1. normalize(`normalizeTermForStorage`) — 기본값 + 입력 정규화 헬퍼.
+2. cloud row 양방향(`termToRow`/`rowToTerm`) — snake_case 컬럼명.
+3. **SQL 2곳**: `create table` 컬럼 + `alter ... add column if not exists`(idempotent). SQL 헤더 버전이 자동 갱신돼도 **"SQL 변경 있음"을 완료 보고에 명시**하고 재실행 안내.
+4. 입력 UI 2곳: 추가 폼 + 편집 모달, 각자 저장 읽기(`submitAddTerm`/`saveEdit`). ⚠️ 편집 저장은 `saveEdit`이지 `regenField`이 아니다(둘 다 `edit_*` id를 읽어 헷갈림 — 함수 경계 확인).
+5. 표시 2곳: 카드 meta + 드로어 배지(테마 토큰 색).
+6. 가져오기/내보내기: TSV 파서(COLS+ALIAS), AI 양식(TSV_COLS·hint·열 안내), `termExportRows`, 파일 업로드 row 매핑(친화 헤더명까지).
+7. 검색 인덱스 포함(원하면).
+8. completeness 점수(`termCompletenessScore`/`termCompletionPercent`)에는 **선택 태그를 넣지 않는다**(대부분 비어 penalty).
+- **TSV/CSV에 열을 "추가"할 때 헤더 없는 입력 하위호환을 깨지 마라.** 헤더없음 검증·매핑이 `COLS.length`를 기준으로 하면, 열을 늘리는 순간 **기존 N열 파일이 전부 거부/오매핑**된다. 직전 표준 열 수를 상수로 고정(`STD_LEN=11`)해 검증은 `count >= STD_LEN || count === LEGACY`, 매핑 schema는 새 COLS(말미에 새 열)로 — 11열은 새 열이 빈칸, 12열은 인식. **새 열은 반드시 말미에 append**(중간 삽입 금지).
+
 ### 8.2 ID 처리
 
 - 가져온 ID는 UUID 또는 앱이 정한 정상 id 형식만 보존한다.
