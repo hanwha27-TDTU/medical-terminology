@@ -8344,9 +8344,12 @@ async function loadAuxiliaryLocalCaches() {
   _localDiseaseTombstonesCache = Array.isArray(diseaseTombstones)
     ? dedupeDiseasesById(diseaseTombstones).filter(d => d.deletedAt)
     : [];
-  _learningStateCache = learning && typeof learning === 'object' && !Array.isArray(learning)
-    ? learning
-    : {};
+  // IndexedDB 값을 기준으로 삼되, 시작 로더가 끝나기 전에 이미 메모리에 쓰인 학습상태가
+  // 있으면(동기 getLearningStateMap 후 updateLearningState 등) 그 키를 덮어쓰지 않고 보존한다.
+  // (읽기=localStorage/쓰기=IndexedDB 백엔드 불일치로 인한 학습기록 유실 방지)
+  const _idbLearning = learning && typeof learning === 'object' && !Array.isArray(learning) ? learning : {};
+  const _priorLearning = _learningStateCache && typeof _learningStateCache === 'object' && !Array.isArray(_learningStateCache) ? _learningStateCache : {};
+  _learningStateCache = { ..._idbLearning, ..._priorLearning };
   return {
     tombstones: _localTombstonesCache.length,
     drugTombstones: _localDrugTombstonesCache.length,
@@ -15325,6 +15328,8 @@ async function recordThisDeviceSyncStatus() {
       terms: computeSnapshotHash(dedupeTermsById(TERMS).filter(t => !t.deletedAt)),
       drugs: computeDrugSnapshotHash(dedupeDrugsById(DRUGS).filter(d => !d.deletedAt)),
       formulas: computeFormulaSnapshotHash(dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt)),
+      microbes: computeMicrobeSnapshotHash(dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt)),
+      diseases: computeDiseaseSnapshotHash(dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt)),
     };
     await sbSetSyncMetaRows([{ key: DEVICE_STATUS_META_PREFIX + getDeviceId(), value: JSON.stringify(payload), updated_at: now }]);
   } catch (e) { console.warn('device sync status 기록 실패', e); }
@@ -15356,7 +15361,10 @@ function deviceSyncListHtml(devices, cloud, currentId) {
     .slice()
     .sort((a, b) => (Date.parse(b.at || '') || 0) - (Date.parse(a.at || '') || 0))
     .map(d => {
-      const ok = d.terms === cloud.terms && d.drugs === cloud.drugs && d.formulas === cloud.formulas;
+      // 미생물·질병은 하위호환: 기기 기록(d)에 해당 필드가 없거나 클라우드 해시를 못 구했으면 비교에서 제외.
+      const ok = d.terms === cloud.terms && d.drugs === cloud.drugs && d.formulas === cloud.formulas
+        && (d.microbes === undefined || !cloud.microbes || d.microbes === cloud.microbes)
+        && (d.diseases === undefined || !cloud.diseases || d.diseases === cloud.diseases);
       const isCurrent = d.id === currentId;
       return `<div style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--border)">
         <span style="font-size:18px">${ok ? '✅' : '⚠️'}</span>
@@ -15375,12 +15383,13 @@ async function showSavedVersionInfo() {
     return;
   }
   showToast('🔎 저장본 버전 확인 중...');
-  let cloudTerms, cloudDrugs, cloudFormulas, cloudDiseases, canonicalMeta, metaMap;
+  let cloudTerms, cloudDrugs, cloudFormulas, cloudMicrobes, cloudDiseases, canonicalMeta, metaMap;
   try {
-    [cloudTerms, cloudDrugs, cloudFormulas, cloudDiseases, canonicalMeta, metaMap] = await Promise.all([
+    [cloudTerms, cloudDrugs, cloudFormulas, cloudMicrobes, cloudDiseases, canonicalMeta, metaMap] = await Promise.all([
       sbLoadAll(),
       sbLoadAllDrugs(),
       sbLoadAllFormulas(),
+      sbLoadAllMicrobes(),
       sbLoadAllDiseases(),
       sbLoadCanonicalMeta(),
       sbLoadSyncMetaMap()
@@ -15408,6 +15417,12 @@ async function showSavedVersionInfo() {
   const localActiveFormulas = dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt);
   const cloudActiveDiseases = cloudDiseases ? dedupeDiseasesById(cloudDiseases).filter(d => !d.deletedAt) : null;
   const localActiveDiseases = dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt);
+  const cloudActiveMicrobes = cloudMicrobes ? dedupeMicrobesById(cloudMicrobes).filter(m => !m.deletedAt) : null;
+  const localActiveMicrobes = dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt);
+  const cloudMicrobeSnapshotHash = cloudActiveMicrobes ? computeMicrobeSnapshotHash(cloudActiveMicrobes) : '';
+  const localMicrobeSnapshotHash = computeMicrobeSnapshotHash(localActiveMicrobes);
+  const cloudDiseaseSnapshotHash = cloudActiveDiseases ? computeDiseaseSnapshotHash(cloudActiveDiseases) : '';
+  const localDiseaseSnapshotHash = computeDiseaseSnapshotHash(localActiveDiseases);
   const localDiseasesMatchCloud = cloudActiveDiseases !== null
     && localActiveDiseases.length === cloudActiveDiseases.length
     && computeDiseaseSnapshotHash(localActiveDiseases) === computeDiseaseSnapshotHash(cloudActiveDiseases);
@@ -15453,8 +15468,8 @@ async function showSavedVersionInfo() {
   const storedFormulaDeletedCount = metaMap[FORMULA_CANONICAL_DELETED_COUNT_META_KEY]?.value || String(cloudDeletedFormulas.length);
 
   const overallOk = localMatchesCloud && localDrugsMatchCloud && localFormulasMatchCloud && (cloudActiveDiseases === null || localDiseasesMatchCloud);
-  const cloudCoreHashes = { terms: cloudSnapshotHash, drugs: cloudDrugSnapshotHash, formulas: cloudFormulaSnapshotHash };
-  const liveCurrentDevice = { id: currentDeviceId, label: getDeviceReadableLabel(), at: new Date().toISOString(), terms: localSnapshotHash, drugs: localDrugSnapshotHash, formulas: localFormulaSnapshotHash };
+  const cloudCoreHashes = { terms: cloudSnapshotHash, drugs: cloudDrugSnapshotHash, formulas: cloudFormulaSnapshotHash, microbes: cloudMicrobeSnapshotHash, diseases: cloudDiseaseSnapshotHash };
+  const liveCurrentDevice = { id: currentDeviceId, label: getDeviceReadableLabel(), at: new Date().toISOString(), terms: localSnapshotHash, drugs: localDrugSnapshotHash, formulas: localFormulaSnapshotHash, microbes: localMicrobeSnapshotHash, diseases: localDiseaseSnapshotHash };
   const mergedDeviceList = [liveCurrentDevice, ...parseDeviceSyncStatuses(metaMap).filter(d => d.id !== currentDeviceId)];
   recordThisDeviceSyncStatus();
 
@@ -16424,7 +16439,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.78',
+  version: '4.79',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16433,7 +16448,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.78 데이터 관리에 "개발 저장소(GitHub)" 받기 버튼 추가',
+    title: '최신 · v4.79 노트 이미지 보호·학습기록·기기 비교 마무리 수정',
+    items: [
+      '노트 저장 시 본문에 삽입된 이미지의 publicId도 삭제 보호집합에 포함 — 첨부 트레이에서만 빠지고 본문엔 남은 이미지의 원본이 삭제돼 깨지던 문제 방지',
+      '학습기록(복습 상태) 읽기/쓰기 저장소 불일치로 시작 직후 일부 기록이 빈 값으로 덮일 수 있던 잠재 문제 보강 — 시작 로더가 메모리에 먼저 쓰인 기록을 보존하도록 병합',
+      '저장본 확인의 "내 기기들" 일치 비교에 미생물·주요 질환을 포함 — 이전에는 미생물/질환만 다른 기기도 "일치"로 잘못 표시(구버전 기기 기록과 하위호환 유지)',
+    ]
+  },
+  {
+    title: 'v4.78 데이터 관리에 "개발 저장소(GitHub)" 받기 버튼 추가',
     items: [
       '데이터 관리 화면의 저장본 확인 버튼 아래에 "📦 개발 저장소(GitHub)" 버튼 추가 — 데스크탑에서 이어 작업할 때 최신 앱 HTML과 개발 스킬 문서 전체를 GitHub 저장소 ZIP으로 한 번에 받거나 저장소를 열 수 있음',
       '용어·노트 같은 데이터는 파일이 아니라 Supabase 동기화/JSON 백업으로 옮긴다는 안내를 버튼 설명에 포함',
@@ -22492,6 +22515,9 @@ initApp();
     });
     if (!next.title) { showToast('⚠️ 개념·오답 노트 제목을 입력해주세요'); return; }
     const keptIds = new Set((next.images || []).map(im => im.publicId).filter(Boolean));
+    // 본문(bodyHtml)에 임베드된 이미지 publicId도 보호집합에 포함한다. 트레이 배열에서만
+    // 빠지고 본문엔 남아 있는 이미지를 삭제하면 표시 중인 원본이 깨진다(데이터 유실).
+    noteBodyImagePublicIds(next.bodyHtml || '').forEach(pid => keptIds.add(pid));
     const removedImages = (old?.images || []).filter(im => im.publicId && !keptIds.has(im.publicId));
     const uploadedIds = window._noteDraftUploadedPublicIds instanceof Set ? [...window._noteDraftUploadedPublicIds] : [];
     const abandonedUploadIds = uploadedIds.filter(publicId => !keptIds.has(publicId));
