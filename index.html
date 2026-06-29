@@ -8896,7 +8896,10 @@ function renderMicrobeFrame(microbes = []) {
           <div class="drug-head">
             <div>
               <div class="drug-name"><span class="copyable-text" onclick="copyMicrobeDisplay(event, ${Number(m.id)}, 'title')" title="클릭하여 복사">${escapeHtml(m.organism || m.ko_name || m.latin_name || '이름 없음')}</span></div>
-              <div class="drug-sub"><span class="copyable-text" onclick="copyMicrobeDisplay(event, ${Number(m.id)}, 'subtitle')" title="클릭하여 복사">${escapeHtml([m.ko_name, m.latin_name].filter(Boolean).join(' · '))}</span></div>
+              <div class="drug-sub">${[
+                m.ko_name ? `<span class="copyable-text" onclick="copyMicrobeDisplay(event, ${Number(m.id)}, 'ko')" title="클릭하여 복사">${escapeHtml(m.ko_name)}</span>` : '',
+                m.latin_name ? `<span class="copyable-text" onclick="copyMicrobeDisplay(event, ${Number(m.id)}, 'latin')" title="클릭하여 복사">${escapeHtml(m.latin_name)}</span>` : ''
+              ].filter(Boolean).join(' · ')}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
               <button class="speak-btn compact" id="speak-microbe-card-${Number(m.id)}" onclick="speakMicrobeName(event, ${Number(m.id)}, 'microbe-card')" title="미생물명 영어 발음 듣기" aria-label="미생물명 영어 발음 듣기">
@@ -9886,7 +9889,10 @@ function renderDrugFrame(drugs = []) {
           <div class="drug-head">
             <div>
               <div class="drug-name"><span class="copyable-text" onclick="copyDrugDisplay(event, ${Number(d.id)}, 'title')" title="클릭하여 복사">${escapeHtml(d.generic_name || d.ko_name || d.brand_name || '이름 없음')}</span></div>
-              <div class="drug-sub"><span class="copyable-text" onclick="copyDrugDisplay(event, ${Number(d.id)}, 'subtitle')" title="클릭하여 복사">${escapeHtml([d.ko_name, d.brand_name].filter(Boolean).join(' · '))}</span></div>
+              <div class="drug-sub">${[
+                d.ko_name ? `<span class="copyable-text" onclick="copyDrugDisplay(event, ${Number(d.id)}, 'ko')" title="클릭하여 복사">${escapeHtml(d.ko_name)}</span>` : '',
+                d.brand_name ? `<span class="copyable-text" onclick="copyDrugDisplay(event, ${Number(d.id)}, 'brand')" title="클릭하여 복사">${escapeHtml(d.brand_name)}</span>` : ''
+              ].filter(Boolean).join(' · ')}</div>
             </div>
             <div class="drug-head-actions">
               <button class="speak-btn drug-speak-btn" id="speak-drug-card-${Number(d.id)}" onclick="speakDrugName(event,${Number(d.id)},'drug-card')" title="약물명(영어) 발음 듣기" aria-label="약물명 영어 발음 듣기">
@@ -9961,7 +9967,10 @@ function renderFormulaFrame(formulas = []) {
           <div class="formula-head">
             <div>
               <div class="formula-name"><span class="copyable-text" onclick="copyFormulaDisplay(event, ${Number(f.id)}, 'title')" title="클릭하여 복사">${escapeHtml(f.name || f.short_name || '이름 없음')}</span></div>
-              <div class="formula-sub"><span class="copyable-text" onclick="copyFormulaDisplay(event, ${Number(f.id)}, 'subtitle')" title="클릭하여 복사">${escapeHtml([f.short_name, f.use_case].filter(Boolean).join(' · '))}</span></div>
+              <div class="formula-sub">${[
+                f.short_name ? `<span class="copyable-text" onclick="copyFormulaDisplay(event, ${Number(f.id)}, 'short')" title="클릭하여 복사">${escapeHtml(f.short_name)}</span>` : '',
+                f.use_case ? `<span class="copyable-text" onclick="copyFormulaDisplay(event, ${Number(f.id)}, 'use')" title="클릭하여 복사">${escapeHtml(f.use_case)}</span>` : ''
+              ].filter(Boolean).join(' · ')}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
               <button class="bookmark-btn ${isDomainFavorite('formulas', f.id) ? 'saved' : ''}" onclick="toggleDomainFavorite(event,'formulas',${Number(f.id)})" title="공식 즐겨찾기" aria-label="공식 즐겨찾기">${isDomainFavorite('formulas', f.id) ? '★' : '☆'}</button>
@@ -11143,28 +11152,39 @@ function copyTermField(event, id, field, lang) {
 
 function copyDrugDisplay(event, id, part = 'title') {
   const d = DRUGS.find(x => Number(x.id) === Number(id));
-  const text = part === 'subtitle'
-    ? [d?.ko_name, d?.brand_name].filter(Boolean).join(' · ')
+  const text = part === 'ko' ? (d?.ko_name || '')
+    : part === 'brand' ? (d?.brand_name || '')
+    : part === 'subtitle' ? [d?.ko_name, d?.brand_name].filter(Boolean).join(' · ')
     : (d?.generic_name || d?.ko_name || d?.brand_name || '');
-  copyTermText(event, text, part === 'subtitle' ? '약물명 보조 정보' : '약물명');
+  const label = part === 'ko' ? '약물 한국어명'
+    : part === 'brand' ? '상품명'
+    : part === 'subtitle' ? '약물명 보조 정보' : '약물명';
+  copyTermText(event, text, label);
 }
 
 function copyMicrobeDisplay(event, id, part = 'title') {
   const m = MICROBES.find(x => Number(x.id) === Number(id));
-  const text = part === 'subtitle'
-    ? [m?.ko_name, m?.latin_name].filter(Boolean).join(' · ')
+  const text = part === 'ko' ? (m?.ko_name || '')
+    : part === 'latin' ? (m?.latin_name || '')
+    : part === 'subtitle' ? [m?.ko_name, m?.latin_name].filter(Boolean).join(' · ')
     : (m?.organism || m?.latin_name || m?.ko_name || '');
-  copyTermText(event, text, part === 'subtitle' ? '미생물명 보조 정보' : '미생물명');
+  const label = part === 'ko' ? '미생물 한국어명'
+    : part === 'latin' ? '라틴명'
+    : part === 'subtitle' ? '미생물명 보조 정보' : '미생물명';
+  copyTermText(event, text, label);
 }
 
 function copyFormulaDisplay(event, id, part = 'title') {
   const f = FORMULAS.find(x => Number(x.id) === Number(id));
-  const text = part === 'expression'
-    ? f?.formula
-    : (part === 'subtitle'
-      ? [f?.short_name, f?.use_case].filter(Boolean).join(' · ')
-      : (f?.name || f?.short_name || ''));
-  const label = part === 'expression' ? '계산식' : (part === 'subtitle' ? '공식 보조 정보' : '공식명');
+  const text = part === 'expression' ? (f?.formula || '')
+    : part === 'short' ? (f?.short_name || '')
+    : part === 'use' ? (f?.use_case || '')
+    : part === 'subtitle' ? [f?.short_name, f?.use_case].filter(Boolean).join(' · ')
+    : (f?.name || f?.short_name || '');
+  const label = part === 'expression' ? '계산식'
+    : part === 'short' ? '공식 약어'
+    : part === 'use' ? '용도'
+    : part === 'subtitle' ? '공식 보조 정보' : '공식명';
   copyTermText(event, text, label);
 }
 
@@ -16971,7 +16991,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.22',
+  version: '1.23',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16980,7 +17000,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.22 — 주요 질환 상세 개요: IPA 제거, 정의·주호소 표시',
+    title: '최신 · v1.23 — 약물·미생물·공식 부제 토큰별(언어별) 분리 복사',
+    items: [
+      '약물(한국어명·상품명)·미생물(한국어명·라틴명)·공식(약어·용도) 카드 부제를 각 토큰을 따로 클릭해 복사할 수 있게 통일했습니다. 이전에는 부제를 클릭하면 묶음 전체가 복사됐지만, 이제 질환 카드처럼 클릭한 항목만 복사됩니다.',
+    ]
+  },
+  {
+    title: 'v1.22 — 주요 질환 상세 개요: IPA 제거, 정의·주호소 표시',
     items: [
       '질환 상세 서랍의 개요(대시보드 영역)에서 IPA 표기를 빼고, 그 자리에 한 줄 핵심과 함께 주호소·정의를 보여줍니다. 첫 화면에서 바로 봐야 할 임상 핵심 정보를 우선 노출하도록 정리했습니다.',
     ]
