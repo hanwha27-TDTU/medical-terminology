@@ -1,0 +1,781 @@
+# 개발 워크플로 — 원칙 / 수정 방법론 / 배포 / 검증
+
+> `dr-bugeon-medical-note` 스킬 참고 문서. 진입점은 상위 폴더의 SKILL.md다.
+
+## 0. 최상위 원칙
+
+### 0.1 클라우드 기준 앱의 원칙
+
+Dr. Bugeon 어학학습 앱처럼 여러 기기에서 같은 데이터를 보는 앱은 Supabase를 기준 원본으로 본다.
+
+- 클라우드가 기준 원본이다.
+- 로컬 저장소는 빠른 화면 복원과 임시 캐시다.
+- 클라우드 기준본을 불러오지 못한 상태에서는 추가·수정·삭제·복원·녹음 연결을 확정하지 않는다.
+- 인터넷 연결, Supabase 설정, 배포 주소 실행, 클라우드 기준본 로드가 확인된 뒤에만 저장 기능을 활성화한다.
+- 저장 완료 표시는 클라우드 저장 성공이 확인된 뒤에만 보여준다.
+- 실패하면 마지막 클라우드 기준본 또는 안전한 백업 상태로 되돌린다.
+
+### 0.2 로컬 전용 앱의 예외
+
+Supabase를 쓰지 않는 순수 로컬 앱은 localStorage 또는 IndexedDB를 원본으로 볼 수 있다. 단, 저장 실패는 절대 조용히 넘기지 않는다.
+
+- 데이터가 많아질 가능성이 있으면 처음부터 IndexedDB를 사용한다.
+- localStorage를 계속 쓰면 QuotaExceededError를 토스트가 아니라 조치 가능한 모달로 보여준다.
+- JSON 백업과 복원 기능을 반드시 제공한다.
+
+### 0.3 단일 HTML 유지 원칙
+
+코드가 길다고 무조건 파일을 쪼개지 않는다.
+
+- 단일 HTML 구조는 유지한다.
+- 내부를 `동기화`, `가져오기/복원`, `녹음`, `복습`, `렌더링`, `YouTube/API`, `검증` 섹션으로 나눈다.
+- 위험 함수는 작게 분리하되 배포 파일은 하나로 유지한다.
+
+### 0.4 보안 검토 범위 제한
+
+이 앱은 개인용 학습 앱이므로 일반적인 보안 최적화보다 기능 안정성, 데이터 보존, 동기화 혼선 방지를 우선한다.
+
+원칙:
+
+- 보안은 아주 심각한 위험이 있을 때만 우선 검토한다.
+- 일반적인 보안 권고, 과도한 방어 코드, 기업용 보안 아키텍처 제안은 기본 작업 범위에 넣지 않는다.
+- 사용자가 명시적으로 보안 점검을 요청하지 않으면 보안 중심 리팩토링을 먼저 제안하지 않는다.
+- 단, 아래 수준의 치명적 위험은 예외적으로 반드시 지적한다.
+
+치명적 위험 예시:
+
+- 공개 GitHub 저장소나 HTML 파일에 Supabase service_role key, OpenAI API key, RapidAPI key 같은 비밀 키가 하드코딩된 경우
+- 다른 사용자의 데이터를 읽거나 삭제할 수 있는 Supabase RLS 비활성화 상태가 확인된 경우
+- 사용자가 입력한 HTML/JS가 그대로 실행되어 저장 데이터 전체가 삭제되거나 외부로 전송될 수 있는 경우
+- 백업·복원·가져오기 과정에서 파일 내용이 외부 서버로 전송되는데 사용자가 이를 알 수 없는 경우
+
+치명적이지 않은 보안 항목은 “참고” 수준으로만 다루고, 데이터 유실 방지 작업을 방해하지 않는다.
+
+### 0.5 AGENTS.md와 스킬 파일 구분
+
+앱개발 중 새 지침을 남길 때는 전역 규칙과 앱 전용 절차를 구분한다.
+
+- 모든 앱개발에 반복 적용할 짧은 필수 규칙은 `AGENTS.md`에 둔다.
+- Dr. Bugeon 단일 HTML 앱의 구조, 함수, Supabase 테이블, 화면, 검증 시나리오, 배포 규칙은 이 스킬 파일에 둔다.
+- 같은 내용이 양쪽에 필요하면 `AGENTS.md`에는 원칙만, 이 스킬에는 실제 작업 절차와 점검 항목만 적는다.
+- 일회성 작업 기록이나 장황한 대화 요약은 이 스킬에 추가하지 않는다.
+
+### 0.6 AI 생성 전략 — in-app 생성보다 외부 생성→가져오기
+
+사용자는 토큰 비용 때문에 **앱 내 AI 자동완성/보강을 쓰지 않는다.** 콘텐츠는 **Claude 구독(외부 대화)에서 생성**해 앱에 **붙여넣기/JSON 가져오기로 축적**한다.
+
+- in-app AI 생성 기능을 새로 제안·추가하지 않는다. (기존 약물 AI 보강은 유지하되 확장하지 않음)
+- 입력 부담은 AI가 아니라 **드롭다운/행 구조(`type:'rows'`)/정적 유형 템플릿/붙여넣기·가져오기**로 줄인다.
+- 그래서 **ingestion을 1급으로** 설계한다: 도메인별 JSON 가져오기(merge/append/replace), 안정·문서화된 단일 스키마(`DISEASE_SECTIONS` 등)로 외부(Claude) 생성물이 깨끗이 import되게 한다.
+- 유용한 다리: "Claude용 JSON 사양/예시 복사" 버튼(클립보드) → 외부에서 채워와 import(토큰 0).
+
+### 0.7 UI · 입력 설계 원칙 (이번 세션 일반화)
+
+- **구조화는 "열거 가능 + 재사용 명확"한 것만.** 드롭다운/행/정적 템플릿으로. 서술형(증상 서사·전형 vignette·진찰 소견·진단/치료 알고리즘)은 **자유입력 유지**가 빠르고 풍부함. 모든 칸을 큰 빈칸으로 두지도, 모든 칸을 빌더로 만들지도 않는다.
+- **입력 부담 < 작성률.** 1인용 학습 앱이라 과도한 구조화(증상 패턴 빌더·검사 칩·if/then 빌더 등)는 클릭만 늘려 카드를 안 채우게 만든다. 빈칸 줄이기는 AI가 아니라 드롭다운 / `type:'rows'` 행 / 정적 유형 템플릿 / 붙여넣기·가져오기로.
+- **섹션 타입 3종**(질환 도메인 기준): `type:'fields'`(평면 필드맵) · 그 안의 개별 필드는 `type:'select'` 가능(예: 무증상 가능 여부) · `type:'rows'`(반복 행 배열, 예: 원인=분류·역할·세부·중요도, Red flags=신호·분류·즉시행동). rows 소비처 6곳(normalize·검색텍스트·드로어 표·폼·저장·CSV)을 모두 분기해야 하고, 구버전 평면값은 normalize에서 행으로 마이그레이션한다.
+- **정적 유형 템플릿(비-AI 스캐폴딩):** 유형 선택 → 빈 칸에만 출발 항목 채움(기존 입력 보존), 사용자는 검수·수정. 일반 골격만 주므로 한계 명시. **컨트롤은 자신이 작용하는 섹션 내부 맨 위에 배치**(폼 최상단에 두면 전역 기능처럼 오해됨) + 가능하면 축소.
+- **도구는 인앱 모달로.** `window.open` 별도 팝업창(about:blank, 앱 CSS 분리, 팝업 차단 위험) 대신 앱 내부 모달(`developer-modal` 등) + 앱 디자인 토큰(`--bg/--surface/--text/--accent`)·폰트·다크/라이트·반응형 그대로. (예: TXT 변환도구를 팝업→모달로 이식)
+- **"편집 중 참고용 통합검색":** 도메인 추가/편집 폼에 노트의 인라인 통합검색(`renderNoteInlineSearchResults`/`openNoteSearchResource`, 전역)을 그대로 재사용해 넣을 수 있다. 결과 클릭 시 상세 드로어가 모달 위로 뜬다(`note-linked-resource-front` → `.term-drawer.open` z-index 1801 > 노트모달 900·추가모달 999·`developer-modal-overlay` 1600). **이건 "참고 열람"이지 "연결/링크"가 아니다**(아래 0.8 참고).
+
+### 0.8 사용자 의사소통 해석 규칙 (오해 방지 — 중요)
+
+이번 세션에서 같은 의도를 여러 번 왕복한 끝에 정리한 규칙. 다음부터 처음부터 적용한다.
+
+- **스크린샷 + 빨간 박스/지시:** 대개 (a) "이 요소/위치를 이렇게 바꿔달라"는 구체 지시이거나 (b) "이 동작이 내가 원하는 목표"라는 **예시**다. 버그 신고로 단정하지 말고, 이미지가 가리키는 요소·동작을 목표로 삼는다. (예: 기존 용어 드로어가 열리는 화면 = "질환도 이렇게 열리게 해줘"라는 목표였음.)
+- **편집 맥락의 "검색"은 두 가지를 구분:** ① **연결/링크**(노트·카드에 자료를 *연결*) vs ② **참고 열람**(편집 중 다른 카드를 띄워 *보기만*). 헷갈리면 어느 쪽인지 먼저 확인한다. (이번에 ②를 ①로 오해해 여러 번 왕복함.)
+- **"로딩하게 / 다른 버튼처럼":** 보통 "**앱 내부에서 다른 버튼들처럼 열리게**"(인앱 모달/패널)라는 뜻. 로딩 스피너 요구가 아닐 수 있다.
+- **컨트롤 배치 지적("~안 맨 위로, 축소해서"):** 기능이 작용하는 영역 안에 두고 작게. 문자 그대로 반영.
+- **"니 생각은?"은 동의 요청이 아니라 솔직한 판단 요청.** 사용자/친구의 제안도 맹목 동의하지 말고 1인용 학습 앱 관점에서 취사선택해 의견을 내고, 필요하면 근거를 들어 반대한다(예: 과도한 구조화·in-app AI 반대).
+- **한 번에 못 알아들었을 때:** 사용자가 다시 좁혀주면 **이전 가정을 버리고** 새 단서("내가 말한 포인트는~", 스크린샷)에 맞춰 재정렬한다. 이미 한 작업을 방어하지 말 것.
+
+### 0.9 외부 감사·조언(친구/다른 AI) 대응 원칙
+
+사용자가 다른 곳에서 받은 리포트·조언을 가져올 때는 **맹목 적용 금지**. "니 생각은?"과 같은 맥락이다.
+
+- **실제 코드에 먼저 대조한다.** 리포트가 가리키는 함수/필드/문구를 grep으로 확인해 (a) 진짜 버그인지, (b) 이미 고쳤는지, (c) 그 버전 기준 stale인지 구분한다. 확인 전 수정하지 않는다.
+- **진짜 버그(P0/P1)는 고친다.** 특히 "호출되지만 정의 없는 함수"(ReferenceError), 도메인 간 함수 재사용 시 필드명 불일치(예: `row.gram` vs `gram_stain`), 카운트/확인문구의 도메인 누락은 실제로 잘 나오는 유형.
+- **단일 HTML·1인용 성격과 충돌하는 권고는 근거를 들어 보류한다.** 예: 파일 모듈 분리(§0.3 단일 HTML 원칙 위배), 전 저장경로 async 대공사(효용<리스크), 외부 라이브러리 인라인 번들(파일 비대) 등은 일반론으론 맞아도 이 앱엔 미적용이 맞을 수 있다. 보류 시 이유를 사용자에게 명확히 말한다.
+- 완료 보고에 **수정한 것 / 보류한 것(이유)** 을 나눠 적는다.
+
+### 0.10 데이터 유실 결함 우선 (2026-06 전수감사)
+
+전수 로직감사로 확인된 데이터 유실/동기화 결함은 단일 HTML·1인용 성격과 무관하게 **우선 수정 대상**이다(§0.4 보안과 달리 보류하지 않는다). 코드 수정 시 다음을 항상 점검하고, 상세 불변조건은 `references/reconstruction-spec.md` §10(9~17번)을 따른다.
+
+- **동기화 fence가 로컬 tombstone을 버리지 않는가**(`filterLocalRowsAfterCanonicalFence`의 `deletedAt` 조기 return → 삭제 부활). 활성 행에만 fence, tombstone은 병합 통과.
+- **노트/레코드 충돌판정이 모든 내용 필드를 비교하는가**(`noteContentDiffers`가 `linkedDrugs/Microbes/Formulas`까지 비교 — 누락 시 링크 편집 유실). 해시 페이로드와 필드셋 일치.
+- **snapshot 해시 페이로드에 편집 가능 필드가 전부 들어가는가**(미생물 `ipa`·공식 `tags` 누락 → 단독 수정 전파 안 됨).
+- **tombstone 정리/집계/전체삭제·기기 일치 비교·로더가 질병 포함 전 도메인을 처리하는가**(복붙 누락 점검).
+- **이미지 삭제 보호집합 = 트레이 ∪ 본문 임베드 publicId인가**(`noteBodyImagePublicIds` 합집합).
+- **질병 폼 seed가 add 전용인가**, **약물 add 폼이 없는 `add_drug_brand`를 읽지 않는가**, **표 파이프 unescape가 split보다 먼저인가**, **SRS 간격이 직전 간격 기반인가**, **읽기/쓰기 저장 백엔드가 일치하는가**.
+
+수정은 §3.2 점진적 패치 + §16.1 `node --check`로 검증하고, 완료 보고에 SQL 변경 필요 여부를 명시한다(대부분 이 결함들은 코드 로직 수정이라 SQL 변경 없음).
+
+---
+
+
+## 1. 작업 시작 전 필수 절차
+
+기능을 추가하거나 버그를 고치기 전에 반드시 실제 코드를 먼저 읽는다.
+
+```bash
+# 수정 대상 함수 존재 여부와 정확한 위치 확인
+grep -n "함수명\|관련키워드" 파일.html | head -30
+
+# 연관 함수 호출 체인 확인
+grep -n "renderAll\|renderAllViews\|updateStats\|setDB\|getDB\|sync" 파일.html | head -30
+
+# 수정할 HTML 요소 id 확인
+grep -n 'id="targetId"' 파일.html
+
+# 테이블 컬럼 수정 전 nth-child 잔존 확인
+grep -n "nth-child" 파일.html
+```
+
+수정 전에는 아래를 확인한다.
+
+- 지금 문제는 UI 문제인가, 저장 문제인가, 동기화 문제인가, 배포 캐시 문제인가?
+- 화면의 개수는 로컬 개수인가, 클라우드 활성 개수인가?
+- PC와 태블릿이 같은 앱 버전 파일을 열고 있는가?
+- Supabase SQL 스키마가 현재 코드와 맞는가?
+- `canonical_version`을 읽고 쓸 수 있는가?
+- pending 상태가 남아 일반 동기화를 막고 있지 않은가?
+
+### 1.1 Playwright 자동 감지와 브라우저 검증
+
+브라우저 렌더링 검증이 필요한 작업에서는 사용자가 루트 이동, 패키지 설치, Chromium 설치 명령을 하나씩 실행하게 하지 않는다.
+
+기본 절차:
+
+- 먼저 `ensure_playwright_chromium.ps1 -CheckOnly`로 현재 폴더가 Node/Playwright 프로젝트인지, 단일 HTML 폴더인지 확인한다.
+- `package.json` 또는 `playwright.config.*`가 현재 폴더에 없으면 상위/하위 4단계 안에서 실제 프로젝트 루트를 찾는다.
+- `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json` 순서로 패키지 매니저를 판단한다.
+- 프로젝트 루트가 있으면 의존성을 설치하고 `@playwright/test` 또는 `playwright` 존재를 확인한다.
+- Playwright 패키지가 없으면 해당 패키지 매니저로 `@playwright/test`를 개발 의존성에 추가한다.
+- Chromium 실행 파일은 `ensure_playwright_chromium.ps1` 또는 `npx playwright install chromium`으로 보장한다.
+- Linux/CI에서 시스템 의존성이 필요하면 `ensure_playwright_chromium.ps1 -WithDeps` 또는 `npx playwright install --with-deps chromium`을 사용한다.
+- `package.json`이 없는 단일 HTML 앱에서는 무조건 `npm init`을 하지 말고, 먼저 Codex 번들 Playwright로 지정/최신 HTML을 headless smoke test한다.
+- 단일 HTML 폴더를 Playwright 프로젝트로 고정해야 할 때만 `ensure_playwright_chromium.ps1 -InitSingleHtml`을 사용한다.
+- 같은 프로젝트 안에 브라우저 캐시를 고정해야 할 때만 `ensure_playwright_chromium.ps1 -ProjectCache`를 사용한다.
+
+오류 구분:
+
+- Playwright 패키지가 안 잡히면 프로젝트 루트 오류인지 의존성 설치 누락인지 먼저 구분한다.
+- `Chromium executable does not exist`는 앱 코드 버그로 단정하지 말고 브라우저 바이너리 설치 문제로 처리한다.
+- 네트워크 다운로드가 막히면 설치 명령과 실패 사유를 숨기지 말고, setup 단계 또는 승인 실행으로 옮긴다.
+- `DISPLAY` 오류가 나면 headed 실행 여부를 확인하고 기본은 `headless: true`로 둔다.
+
+완료 보고에는 아래 항목을 포함한다.
+
+```text
+Playwright 점검 결과
+- 실제 프로젝트 루트:
+- 패키지 매니저:
+- Playwright 패키지:
+- Chromium 바이너리:
+- 실행한 설치 명령:
+- 실행한 테스트 명령:
+- 결과:
+- 남은 문제:
+```
+
+---
+
+
+## 2. 파일명·제공·배포 규칙
+
+### 2.1 출력 파일명
+
+업데이트된 HTML 파일을 제공할 때는 반드시 아래 형식을 사용한다.
+
+```text
+YYMMDD_HH.MM 앱이름_업데이트내역.html
+```
+
+규칙:
+
+- 날짜는 `YYMMDD` 형식으로 쓴다. 예: 2026년 6월 9일 → `260609`
+- 시간은 `HH.MM` 형식으로 쓴다. 예: 오후 6시 30분 → `18.30`
+- 날짜와 시간 뒤에 한 칸을 띄운 뒤 앱 이름을 쓴다.
+- 앱 이름 뒤에는 `_`를 붙이고 업데이트내역을 간결하게 쓴다.
+- 확장자는 `.html`로 끝낸다.
+- HTML 파일을 새로 제공하는 모든 업데이트는 개발자 정보 모달 또는 앱 안의 업데이트 이력 영역에 버전/수정 시각/핵심 변경 내역을 함께 추가한다.
+
+예시:
+
+```text
+260609_18.30 Dr. 김부건의 언어 마스터를 위한 여정_동기화안전수정.html
+260609_18.30 Dr. 김부건의 언어 마스터를 위한 여정_IndexedDB교체.html
+260609_18.30 Dr. 김부건의 언어 마스터를 위한 여정_녹음필터추가.html
+```
+
+주의:
+
+- 기존의 `Dr_Bugeon 어학학습 앱_업데이트내역_YYYY.MM.DD_HH.MM.html` 형식은 사용하지 않는다.
+- 서버 `date` 명령은 UTC일 수 있으므로 한국 시간과 다를 수 있다.
+- 사용자가 대화에서 언급한 현재 시간을 우선 사용한다.
+- 현재 시간이 필요하면 사용자에게 확인하거나, 시스템/사용자 시간대 기준을 명시한다.
+
+### 2.2 HTML 파일 제공 방식
+
+Claude/ChatGPT 아티팩트 뷰어에서 `파일 콘텐츠 로드에 실패했습니다`가 나와도 파일 자체가 깨졌다고 단정하지 않는다.
+
+원인 가능성:
+
+- Supabase API, JSZip, xlsx, YouTube IFrame 같은 외부 리소스가 샌드박스에서 차단됨
+- GitHub Pages 배포용 구조가 아티팩트 미리보기 환경과 맞지 않음
+
+안내:
+
+- 다운로드 후 Google Chrome에서 직접 연다.
+- GitHub Pages에 배포해서 테스트한다.
+- 미리보기 실패와 실제 파일 손상은 구분한다.
+
+### 2.3 GitHub Pages 배포
+
+- 배포 파일명은 필요한 경우 `index.html`로 맞춘다.
+- 사용자가 날짜가 붙은 HTML 수정파일만 받겠다고 한 경우에는 `index.html`을 매번 별도 제공하지 않는다. 단, GitHub Pages 루트 주소를 배포 대상으로 쓰는 경우에는 날짜 파일과 `index.html`의 앱 버전, 파서 버전, hash가 같은지 확인한다.
+- 커밋 후 반영까지 1~2분 걸릴 수 있다.
+- 사용자는 `Ctrl+Shift+R`로 강력 새로고침한다.
+- 로컬 `file://` 또는 `content://` 실행에서 YouTube IFrame 오류가 나면 서버 배포 환경에서 재검증한다.
+- 검사결과 자동판독처럼 파서 변경이 핵심인 업데이트는 자동판독 확인창에 앱 버전/파서 버전을 눈에 보이게 표시한다. 사용자가 보는 화면의 버전 배지가 최신 파일과 다르면 파서 문제가 아니라 배포·캐시·구버전 파일 실행 문제로 먼저 분리한다.
+- 사용자가 최신 GitHub Pages를 실행했다고 말하면 그 판단을 존중한다. 바로 사용자 실수로 돌리지 말고 실행 HTML 버전, 브라우저 파일 캐시, 앱 로컬 저장 캐시, 원격에 이미 저장된 과거 오판독값, 실제 PDF.js 추출 흐름 차이를 순서대로 점검한다.
+- GitHub Pages용 단일 HTML 앱에는 가능하면 실행/캐시 진단과 강력 새로고침 기능을 둔다. 강력 새로고침은 데이터 삭제가 아니라 URL 버전 파라미터, CacheStorage/Service Worker 정리처럼 실행 파일 캐시 우회를 담당한다.
+- 로컬 캐시 완전 초기화 기능은 Supabase 원격 삭제와 분리하고, 실행 전 JSON 백업을 자동으로 받게 한다. IndexedDB, localStorage 설정, localStorage full backup 중 무엇을 지우고 무엇을 보존하는지 UI에 명시한다.
+
+---
+
+
+## 3. 수정 방법론
+
+### 3.0 기능 생명주기 전체 점검
+
+기능을 추가하거나 삭제할 때는 화면에 보이는 버튼 하나만 수정하지 않는다. 관련 도메인의 전체 생명주기를 함께 점검한다.
+
+예: 약물명 및 정보 도메인에 기능을 추가했다면 아래를 동시에 확인한다.
+
+- 추가, 편집, 개별 삭제, 일괄 삭제
+- 삭제 tombstone, 휴지통 표시, 복원, 휴지통 목록 숨김
+- 로컬 저장, Supabase upsert/soft delete, 일반 동기화, 최종본 저장
+- 전체 JSON 백업, 복원 replace/merge/append, Excel/CSV 내보내기
+- 저장본 버전 확인, 항목 수/hash, 업데이트 이력, 도움말 문구
+- **단권화 노트 연동: 노트 본문 자동링크 + 통합검색에 새 도메인 등록**(이게 빠지면 "수평전개"가 미완성). 점검 함수: `noteAutoLinkTargetList`(타깃), `detectNoteResourceLinksFromText`의 `found` 키, `noteResourceRows`/`noteResourceLabels`(조회), `noteInlineSearchRows`/`noteSearchRow*`(검색), `openNoteLinkedResource`(클릭→드로어). ← `found`에 새 kind 키를 안 넣으면 매칭 시 TypeError.
+
+> **새 도메인은 미생물(medical_microbes)을 1:1 템플릿으로 복제**하는 게 가장 안전하다(데이터모델·toRow/rowTo·sb CRUD·드로어·동기화·백업이 전부 대칭). 필드가 많은 도메인(주요 질환=약 80필드)은 **컬럼 1:1 대신 핵심만 플랫 컬럼 + 나머지는 `body jsonb`**, 그리고 **섹션/필드 스키마 상수 1곳**(예: `DISEASE_SECTIONS`)으로 normalize·폼·드로어·CSV·검색을 공유하면 유지보수가 쉽다.
+
+어떤 기능을 없앨 때도 관련 버튼, 호출 함수, 백업/복원 필드, SQL 컬럼, 업데이트 이력, 도움말 문구, **노트 자동링크/통합검색 등록**에 고아 참조가 남지 않았는지 확인한다.
+
+추가로, 새 도메인/필드를 넣을 때 아래 "전역 동기화 지점"도 빠짐없이 갱신한다(이번에 실제로 누락됐던 곳):
+
+- **모든 "용어·미생물·약물·공식" 나열 문자열**(저장/동기화 confirm·toast, 백업 완료 토스트 등)에 새 도메인 개수 포함. 예: `saveCurrentStateToCloud()` 확인문구, sbPushAll/pullFromCloud/syncWithCloud 토스트.
+- **`AppState.counts`** 등 상태 집계 getter에 새 도메인·노트 포함.
+- **분류 필드는 자유입력 대신 일반용어 목록 재사용**: Concept Category=`CONCEPT_CATEGORIES`(=`CONCEPTS`), 대표 장기계=`VALID_CATS`(=`CATEGORIES`) 드롭다운. (오타로 필터·그룹 깨짐 방지)
+
+**상세 드로어 공통 골격(일관성):** 새 도메인 상세 드로어는 미생물 드로어 패턴을 따른다 — 각 섹션을 `.drawer-section`(여백+구분선)으로 감싸고, 상단 `.microbe-overview-card`(도메인 색 `.drawer-lang-badge` + 제목/부제 + 발음 버튼 + `.microbe-chip-row` + `.microbe-tts-row` 속도 슬라이더)를 둔다. **제목/칩에 이미 나온 정보(이름·분류·장기계 등)를 정보 그리드에서 다시 반복하지 않는다**(중복=조잡해 보임).
+
+### 3.1 수정 레이어 순서
+
+단일 HTML 앱에서 기능을 추가할 때는 아래 순서를 지킨다.
+
+```text
+① CSS 추가
+② HTML 추가
+③ JS 상태 변수 추가
+④ JS 함수 추가
+⑤ 기존 함수에 호출 1줄 추가
+⑥ 검증
+```
+
+한 번에 CSS, HTML, JS를 모두 크게 바꾸지 않는다.
+
+### 3.2 점진적 수정 원칙
+
+기존 함수 전체를 갈아엎기보다 조건 1줄, 호출 1줄, 보조 함수 1개씩 추가한다.
+
+```javascript
+// 좋음
+if (_noRecFilter.general === 'none') all = all.filter(r => !r.audio_url);
+
+// 나쁨
+function renderList(){
+  // 기존 함수 전체 재작성
+}
+```
+
+### 3.3 str_replace 또는 패치 실패 시 규칙
+
+- 수정 직전에 grep으로 라인 확인 후 해당 라인 주변을 다시 본다.
+- old string은 파일 안에서 1회만 등장하는 최소 문자열로 잡는다.
+- 한 번에 하나의 논리 단위만 바꾼다.
+- 같은 지점에서 3회 이상 실패하면 패치 집착을 멈추고 해당 섹션 또는 전체 파일을 재작성한다.
+- 재작성 후 반드시 JS 구문 검사를 한다.
+
+### 3.4 표시 이름(라벨) 일괄 변경 규칙 (이름만 바꾸고 데이터는 보존)
+
+화면에 보이는 명칭만 바꿀 때(예: "단권화 노트" → "개념·오답 노트", v4.72):
+
+- **내부 식별자는 절대 건드리지 않는다.** mode 키(`notes` 등)·localStorage/IndexedDB 키·Supabase 테이블·컬럼명·함수/요소 id. 이걸 바꾸면 기존 데이터·동기화가 깨진다. → 바꾸는 건 **사람이 읽는 표시 문자열뿐**(탭/버튼/모달/토스트/안내문구/드롭다운/개발자정보/SQL 주석 중 현재 설명).
+- **과거 이력은 보존한다.** `UPDATE_HISTORY` 항목 텍스트와 스키마 버전ID(예: `v4.13 · …스키마`)는 그 버전이 실제 그 이름으로 배포된 기록이므로 그대로 둔다.
+- **방법:** 먼저 옛 이름을 grep해 전체 건수를 센다(이번엔 141곳). **보호 라인 범위**(UPDATE_HISTORY 배열 + 버전ID 줄)를 정한 뒤, 그 범위를 제외하고 표시 문자열만 스크립트로 치환한다. 치환 후 다시 grep해 **남은 건이 전부 보호 대상인지** 확인한다. (단순 전역 replace_all 금지 — 이력/식별자까지 오염됨.)
+- 끝에 `node --check` + 버전/이력 항목 추가.
+
+---
+
+
+## 16. 작업 후 검증 체크리스트
+
+### 16.1 JS 구문 검사
+
+**데스크톱(로컬 node 있음):** 인라인 `<script>`를 추출해 `node --check`. (esprima는 `?.`/`??` 미지원이라 금지 — node 사용. Windows에서 node 경로는 사용자 메모리 참조.)
+
+```bash
+python3 - <<'PY'
+import re
+html=open('파일.html', encoding='utf-8').read()
+scripts=re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL)
+open('/tmp/check.js','w', encoding='utf-8').write('\n;\n'.join(s for s in scripts if s.strip()))
+PY
+node --check /tmp/check.js
+```
+
+**모바일/웹(로컬 node·셸 없음):** `node --check`를 실행할 수 없다. 대신 ① 바꾼 코드 범위를 **수동으로 괄호·따옴표·템플릿 리터럴 짝**을 검토하고, ② 변경을 작은 단위로 나눠 위험을 줄이며, ③ 완료 보고에 **"node 구문검사 미실행(모바일) — 데스크톱에서 재검증 권장"**을 명시한다. 절대 "구문 검사 통과"라고 적지 않는다(안 했으므로).
+
+### 16.2 함수와 id 확인
+
+```bash
+# 신규 함수 호출 수 확인
+grep -c "function 함수명\|함수명(" 파일.html
+
+# 신규 id 존재 확인
+grep -n 'id="newId"' 파일.html
+
+# JS가 참조하는 id가 HTML에 있는지 확인
+grep -oE '\$\("[a-zA-Z0-9_-]+"\)' 파일.html | sort -u
+```
+
+발음 듣기/TTS 기능을 수정했다면 아래도 확인한다.
+
+```bash
+rg -n "speakText|speakTermField|speakDrugName|speechSynthesis|ttsSpeed|speak-drug|speak-btn" 파일.html
+```
+
+- 일반 용어 카드/드로어와 약물명 및 정보 카드/드로어에서 발음 버튼 id가 중복 없이 생성된다.
+- 버튼 클릭이 카드 열기나 드로어 닫기 이벤트와 섞이지 않는다.
+- 읽을 영어 텍스트가 없거나 TTS 미지원 브라우저일 때 토스트가 뜬다.
+- 저장 구조 변경이 없다면 기존 SQL 블록과 새 파일 SQL 블록이 동일하다.
+
+로컬 캐시를 IndexedDB로 전환했다면 아래도 확인한다.
+
+```bash
+rg -n "indexedDB|LOCAL_CACHE_DB_NAME|scheduleLargeCacheWrite|readLargeCacheValue|loadLocalCacheForStartup|loadAuxiliaryLocalCaches|localStorage.removeItem" 파일.html
+rg -n "saveTermsToLocalStorage|saveDrugsToLocalStorage|saveLocalTombstones|saveLearningStateMap|getLearningStateMap" 파일.html
+```
+
+- `loadTermsFromLocalStorage()`와 `loadDrugsFromLocalStorage()`가 async라면 `initApp()`에서 `await`되고 다른 동기 호출부가 남아 있지 않다.
+- 용어, 약물, tombstone, 학습상태는 IndexedDB 또는 메모리 캐시를 통해 읽고 쓴다.
+- Supabase 설정, device id, 작은 sync/meta 값만 localStorage에 남긴다.
+- 기존 localStorage 대용량 캐시를 IndexedDB로 이관한 뒤 제거하는 경로가 있다.
+- 앱 시작 토스트나 데이터 관리 화면에서 로컬 캐시가 기준본이 아니라 임시 캐시임을 구분한다.
+- 로컬 캐시 전환만 했다면 Supabase SQL 블록은 기존 파일과 동일해야 한다.
+
+### 16.3 테이블 확인
+
+```bash
+grep -n "nth-child" 파일.html
+```
+
+테이블 수정 시 colgroup, thead, td, colspan, nth-child를 함께 점검한다.
+
+### 16.4 Supabase 요청 확인
+
+- fetch 성공만 보지 말고 `res.ok`를 확인한다.
+- batch upsert 실패를 성공처럼 표시하지 않는다.
+- 실패한 레코드 수와 id를 로그 또는 진단 UI에서 확인할 수 있게 한다.
+
+### 16.5 대규모 변경 전수 점검
+
+구조, 저장, 동기화가 함께 바뀐 작업은 아래 항목을 모두 확인한다.
+
+```bash
+rg -n "약물명 및 정보|주요 질환|medical_drugs|medical_diseases|drugTombstones|diseaseTombstones|DRUG_TOMBSTONE|schemaVersion|deleted_at|hash|saved version|저장본" 파일.html
+rg -n "open.*Modal|close.*Modal|onclick|addEventListener|중복|duplicate|already" 파일.html
+```
+
+- 새 도메인의 목록 카드에서 세부 보기와 편집 모달이 실제로 열린다.
+- 삭제 후 일반 동기화와 최종본 저장에서 다른 기기에 항목이 되살아나지 않는다.
+- 전체 JSON 백업을 만들면 새 도메인과 tombstone이 들어 있다.
+- JSON replace/merge/append 복원 후 새 도메인 목록, 상세, 편집이 모두 정상이다.
+- 저장본 버전 확인에서 새 도메인의 항목 수와 hash 검증이 표시된다.
+- 모바일 폭에서 카드 텍스트가 세로로 찢어지거나 버튼이 내용을 가리지 않는다.
+- 새 사용자 표시명이 제목, 버튼, 토스트, 빈 상태, 업데이트 이력에 일관되게 쓰인다.
+- 하단 `가이드` 탭은 최신 기능 기준으로 유지한다. 새 기능을 추가하면 검색/추가/약물/데이터/동기화/백업/복원 흐름 중 관련 항목을 함께 갱신한다.
+
+### 16.5b 호출-미정의 함수(ReferenceError) 점검
+
+리팩토링·함수명 변경 후에는 "호출되지만 정의되지 않은 함수"를 반드시 확인한다(이번에 `_updateDrawerBookmarkButton()`가 정의 없이 호출돼 즐겨찾기 토글 시 ReferenceError가 날 뻔했다).
+
+```bash
+# 의심 함수가 정의돼 있는지(0이면 정의 없음 → 호출부 수정 필요)
+rg -n "function 의심함수명|의심함수명 *=" 파일.html
+```
+
+- 도메인 간 렌더/검색 함수를 재사용할 때 **필드명이 각 도메인 모델과 맞는지** 확인한다(예: 미생물은 `gram_stain`/`usmle_clues`인데 `row.gram`/`row.usmle`로 잘못 참조 → 검색 누락).
+
+### 16.5c 다크/라이트 양테마 점검
+
+기능을 추가/수정하면 **다크·라이트 두 테마 모두** 확인한다. 앱 색은 CSS 변수(`--bg/--surface/--text/--text2/--text3/--border/--accent`) 기반이라 변수만 쓰면 자동으로 양테마 정상이다. **하드코딩 hex가 라이트에서 대비를 깨는 게 주된 위험.**
+
+- 새로 넣은 인라인/CSS에서 하드코딩 색을 찾고, 라이트에서 흐린지 본다: `rg -n "color:#|background:#|#[0-9a-fA-F]{6}" 파일.html` 중 이번 추가분.
+- 색이 의미를 가지면(상태 배지·종류 배지·응급도 등) **CSS 클래스 + `html[data-theme="light"]` 오버라이드**로 만들어 테마 전환 시 자동 반영되게 한다. 동적 색이 함수 반환이면 `document.documentElement.dataset.theme === 'light'` 분기.
+- 가능하면 라이트로 토글해 배지/칩/모달 글자 대비를 눈으로 확인한다.
+
+### 16.6 Medical Note 노트 검색·자동링크 검증
+
+단권화 노트 보기/편집 모달 안에서 용어·미생물·약물·공식·주요 질환 통합검색, 본문 자동링크, 관련 자료 칩을 수정했다면 아래를 별도 점검한다. (주요 질환은 v4.56부터 본문 자동링크·통합검색 대상에 포함됨.)
+
+- 검색 결과 버튼은 데스크톱 click, 태블릿 tap, 모바일 tap에서 모두 같은 상세 drawer/bottom sheet를 연다.
+- 검색 결과를 누른 뒤 노트 모달은 닫히지 않고, 상세 drawer/bottom sheet가 노트 모달보다 앞에 표시된다.
+- 모바일에서는 검색 결과를 터치한 직후 새 overlay가 즉시 닫히지 않는다. `pointerdown`에서 열고 `click`이 overlay에 전달되는 구조가 아닌지 확인한다.
+- 검색 입력칸은 상세 열기 직전 `blur()`되거나 키보드가 bottom sheet 표시를 방해하지 않도록 처리된다.
+- 용어 id는 숫자/문자열이 섞여도 열린다. JSON/import/localStorage/Supabase 경로를 거친 id는 `String(id)` 비교 또는 정규화 경로로 확인한다.
+- Playwright 검증 시 빈 데이터로 끝내지 말고 최소 샘플 용어를 주입해 실제 검색 결과 버튼을 `tap()`한 뒤 `drawerOpen`, `overlayOpen`, `bodyFront`, `getBoundingClientRect()`가 viewport 안인지 확인한다.
+- z-index 검증은 CSS 선언만 보지 말고 열린 상태에서 `getComputedStyle(drawer).zIndex > getComputedStyle(modalOverlay).zIndex`처럼 계산값으로 확인한다.
+- 검증용 임시 스크립트나 샘플 주입 파일은 작업 후 삭제하고, 완료 보고에는 데스크톱/태블릿/모바일 중 실제 확인한 폭과 터치 여부를 남긴다.
+
+### 16.7 검사결과·수치 단위 파서 검증
+
+검사결과 분석노트처럼 검사값, 참고치, 단위 변환, AI/OCR 자동판독을 함께 쓰는 앱은 아래를 별도 점검한다.
+
+#### 재발 금지 원칙
+
+- 검사결과 자동판독에서 한 번이라도 틀린 항목·양식·단위·참고치 패턴은 반드시 회귀 테스트 세트에 남긴다.
+- 새 PDF 양식이나 OCR 보정을 추가할 때는 기존 실패 예문을 모두 다시 돌린다. 새 항목 수가 늘어도 과거 실패값 중 하나라도 틀리면 완료하지 않는다.
+- 수정 후 완료 보고에는 단순 JS 구문 검사뿐 아니라 어떤 파서 회귀 예문 또는 실제 PDF 샘플을 통과했는지 남긴다.
+- 실제 PDF 샘플은 앱과 같은 PDF.js 행 재구성 방식으로 추출해 `parseLabText()`까지 통과시킨다. 함수 테스트 결과와 사용자 화면의 `입력 가능` 개수가 다르면 최신 파일이 실제 실행 중인지 버전 배지, `index.html`, GitHub Pages 캐시 순서로 확인한다.
+- "참고치 최대값을 결과로 저장", "단위 숫자를 결과로 저장", "검사명 안 글자를 단위로 오인", "한글 항목명 줄분리 누락", "reference-only 행 저장"은 모두 재발 금지 유형으로 본다.
+
+#### 단위 변환 원칙
+
+- 저장값은 표시용 반올림값이 아니라 변환 후 원 수치에 가까운 값을 저장한다. 표시 자리수는 렌더링에서만 조정한다.
+- `unitCompatible()`은 값 스케일이 실제로 같은 경우에만 `true`를 반환한다. `/mm3 -> 10^3/uL`처럼 1000배 변환이 필요한 경우 early return으로 처리하지 말고 `convertLabUnit()` 변환 분기를 통과시킨다.
+- 단위 힌트는 긴/구체 단위를 짧은/범용 단위보다 먼저 둔다.
+  - `μIU/mL`, `uIU/mL`은 `IU/mL`보다 먼저 판정한다.
+  - `ng/dL`, `ng/mL`은 `g/dL`, `g/L`보다 먼저 판정한다.
+  - `g/L`처럼 짧은 단위는 `Glucose`/`Glocose`의 `Gl` 같은 검사명 조각을 단위로 오인하지 않게 slash가 있는 실제 단위 표기만 매칭한다.
+  - `mmol/mol`은 `mmol/L`보다 먼저 판정한다.
+  - `million/mm3`은 `/mm3`보다 먼저 판정한다.
+- `10^3/uL`, `10^6/uL`, `10^9/L`, `10^12/L`, `/mm3`, `million/mm3`은 CBC에서 자주 섞이므로 WBC/RBC/PLT별 기대 스케일을 함수 테스트로 확인한다.
+- TSH는 `μIU/mL`, `uIU/mL`, `mIU/L`이 같은 숫자값으로 쓰이는 경로를 지원한다. `mIU/mL` 표기는 물리적으로는 애매하므로 TSH에서만 관행적 표기 또는 OCR 오인식으로 받아들이고 note를 남긴다.
+- HbA1c IFCC `mmol/mol`은 NGSP `%`로 변환한다. 예: `42 mmol/mol -> 약 6.0%`, `48 mmol/mol -> 약 6.5%`.
+
+#### 자동판독 파서 원칙
+
+- AI 프롬프트와 OCR 파서는 숫자만 추출하지 말고 `{value, unit}` 구조 또는 동등한 구조로 단위를 보존한다.
+- PDF.js 텍스트 추출은 `items.map(str).join(" ")`처럼 페이지 전체를 한 줄로 붙이지 않는다. `transform`의 y좌표로 같은 행을 묶고 x좌표 순서로 정렬해 표의 검사명-결과값 관계를 보존한다.
+- PDF.js 행 재구성 후에도 일부 병원 PDF는 브라우저 환경에서 `칼 륨`, `3 . 8`, `( P )`처럼 글자 단위 공백이 끼어 들어갈 수 있다. 병원별 템플릿 파서 전에 한글 음절 연속, 괄호 안 약어, 소수점 숫자를 제한적으로 복원하는 전처리를 두고 회귀 테스트에 포함한다.
+- 서울성모/CMC 간염 표처럼 라틴 문자와 한글이 섞인 라벨은 `B 형간염 S 항원`, `B 형간염 S 항체`, `C 형간염 항체`, `A 형간염 항체`처럼 `pdf.js`에서 라틴-한글 경계 공백이 남을 수 있다. 한글-한글 결합만으로 충분하다고 가정하지 말고, 해당 섹션 파서는 글자 사이 공백을 허용하는 라벨 패턴으로 작성한다.
+- 정성검사 섹션 파서는 `Negative (1.0 미만)` 같은 참고치 판정/숫자를 현재 결과로 잡지 않게 `미만`, `이하`, `참고`, `reference` 토큰을 먼저 제외한다. 신뢰 가능한 병원별 정성검사 섹션 파서가 값을 찾으면 일반 alias scan보다 먼저 authoritative하게 `seen` 처리한다.
+- 같은 PDF라도 숫자가 `1 0 . 8`, `1 5 . 6`, `2 . 6 5 7`처럼 자릿수까지 분리될 수 있다. 소수점 복원은 범위 숫자 `7.91~11.79`와 실제 결과 `10.8`을 섞지 않도록 토큰 단위로 보정하고, 참고범위 숫자를 결과로 끌고 오지 않는지 같이 테스트한다.
+- 서울성모/CMC 다중연도 PDF에서 `요산 3.4~7 4.9 9.8`, `단핵구 2~9 9.0 7.6`, `호산구 0~5 1.5 1.0` 같은 행은 참고범위 상한 정수와 현재값 소수를 절대 붙이지 않는다. `glueDecimalTokens`처럼 앞쪽 한 자리 정수를 탐욕적으로 흡수하는 전처리는 금지하고, 필요하면 참고범위 토큰을 먼저 보호한 뒤 결과값 영역에만 제한 적용한다.
+- AI 결과도 수동/OCR 결과와 같은 `convertLabUnit()` 경로를 통과시킨다.
+- 판독 우선순위는 병원별 템플릿 파서 -> 같은 행 결과 라벨 -> 단위 포함 결과 후보 -> 제한적 OCR fallback -> 사용자 확인 입력 순서로 둔다. 일반 alias scan은 전용 파서가 감지한 항목을 덮어쓰지 않는다.
+- 결과값 후보는 `result`, `value`, `measured`, `결과`, `검사결과`, `측정값`, `현재` 같은 결과 라벨을 참고범위보다 우선한다.
+- 참고범위 숫자는 결과값으로 저장하지 않는다. `0-40`, `136-146`, `(0-40)` 같은 범위의 첫 번째/두 번째 숫자를 모두 후보에서 제외한다.
+- `0-3 /HPF`, `0-1 /HPF`처럼 참고범위만 있는 소변현미경 줄은 결과값 대표값으로 자동 저장하지 않는다. 실제 결과값이 따로 없으면 확인 필요로 남긴다.
+- OCR 잡음으로 단위 근처에 비현실적인 큰 숫자가 붙는 경우가 있으므로, 자동입력 전 항목별 보수적 plausibility check를 통과시킨다. 실패한 항목은 체크 불가 `확인 필요`로 남기고 자동 저장값에 넣지 않는다.
+- 검사값 뒤에 참고범위가 오는 양식과 참고범위 뒤에 검사값이 오는 양식을 모두 테스트한다.
+- 자동판독 결과 확인 모달은 기존 입력 패널을 대체해 열리므로, `체크 항목 입력 반영` 후에는 반드시 입력 패널을 다시 열어 사용자가 `이 검사일 저장`까지 이어갈 수 있게 한다.
+- 자동판독 확인 모달에는 앱 기준값 입력칸을 제공해 사용자가 OCR 오류를 그 자리에서 수정할 수 있게 한다. 적용 시에는 체크된 행의 수정 입력값을 우선 반영한다.
+- 검사명은 같은 행에서 발견됐지만 결과값 토큰이 OCR 깨짐으로 신뢰 불가하면 다른 행의 참고치 숫자로 보정하지 않는다. 해당 항목은 확인 필요로 남긴다.
+
+#### 병원별 PDF 파서 원칙
+
+- 특정 검사실 PDF에서 반복되는 OCR 깨짐은 항목 행에 한정해 보정한다. 예: 씨젠 CBC `Lymphocyte ?.0/시.0`은 감별합계와 원문 맥락상 `41.0`으로 보정하되, Lymphocyte 행 외부에는 적용하지 않는다.
+- 지질검사처럼 특정 PDF에서 `Cholester이.total`, `Triglyceride iqi`, `HDL 4n`, `?ucose`처럼 반복되는 텍스트 깨짐은 항목 행에 한정해 보정하고, PDF 샘플 전수 테스트로 기대값을 확인한다.
+- SCL 등 다른 검사실 PDF는 검사명·단위가 `ASl`, `AIk.phosphatase`, `Bi I i rubin total`, `Thous/uL`, `Mil/uL`, `mol/L`, `Microsco이c examination`처럼 깨질 수 있으므로 검사실 샘플별 alias와 단위 alias를 회귀 테스트로 고정한다.
+- 서울성모/CMC 종합검진처럼 `항목 / 참고기준치 / 검사일자` 구조와 한글 항목명을 쓰는 PDF는 일반 alias scan만으로 처리하지 말고 병원별 템플릿 파서를 우선 적용한다. 참고기준치 숫자가 아니라 마지막 결과값을 저장하는지 테스트한다.
+- 서울성모/CMC 다중연도 표처럼 `항목 참고기준치 현재검사일 과거검사일` 구조이면 첫 번째 날짜를 검사일로, 참고기준치 다음 첫 결과열을 현재값으로 저장한다. 마지막 숫자는 과거값일 수 있으므로 기본 선택값으로 쓰지 않는다.
+- 서울성모/CMC 단일연도 표처럼 PDF.js 배열이 `라벨 / 단위 / 참고치 / 결과`로 줄 분리되면, 참고치에서 끝나는 짧은 후보가 `<200`, `10 미만`, `Negative(1.0 미만)`을 결과로 잡지 않는지 확인한다. 2021 단일연도와 2025 다중연도 샘플은 항상 함께 회귀 테스트한다.
+- KMI/한국의학연구소 종합검진은 브라우저 PDF.js에서 `검사명 참고치 (이전검사일) 이전값 현재값 *`이 한 행으로 합쳐질 수 있다. PyMuPDF에서 줄 단위로 분리되어 보이더라도 앱 파서는 행 기반 현재결과 추출을 지원해야 하며, `10*3/uL` 같은 단위 안 별표를 결과 종료 `*`로 오인하지 않는다.
+- KMI 현재결과 회귀 예문은 `적혈구수 420~580만/uL (2020-12-10) 5.37 559 * -> rbc=5.59`, `혈소판수 14~36.5만/uL ... 27.3 * -> plt=273`, `류마티스인자(RF) 음성 음성 (4.6) * -> rf=4.6`을 포함한다.
+- 병원별 템플릿 파서가 문서와 항목 행을 감지했으면, 그 항목은 일반 alias fallback으로 다시 추정하지 않는다. 전용 파서가 결과값을 못 찾은 항목은 확인 필요로 남기고, 참고기준치나 단위 숫자를 임의 결과로 저장하지 않는다.
+- 한글 검진표에서 `검사항목명 / 단위 / 참고범위 / 결과값`이 줄마다 쪼개질 수 있다. 후보를 만들 때는 다음 검사항목명이 나오기 전까지만 합치되, 짧은 후보부터 검사하고 참고범위만 있는 후보처럼 결과값이 부족할 때만 다음 줄을 덧붙인다.
+- 서울성모/CMC 지질표에서 `저밀도 콜레스테롤(LDL-` / `mg/dl <100 124 167` / `C)`와 `고밀도 콜레스테롤(HDL-` / `mg/dl >40 38 34` / `C)`처럼 약어 suffix가 별도 줄로 떨어질 수 있다. 현재 항목은 다음 줄 후보를 먼저 검사하고, 이전 orphan 숫자줄 fallback은 마지막 수단으로만 쓰며 `C)` 같은 약어 suffix를 넘어 이전 행 숫자를 가져오지 않는다.
+- 고아값 또는 라벨 줄바꿈을 보정하는 역방향 스캔은 값 후보를 보기 전에 `항목`, `참고기준치`, `검사일`, `2025-07-16 2021-12-03` 같은 표 머리글·날짜행·설명문을 먼저 제외한다. r21 회귀 예문은 CRP 라벨이 줄바꿈된 상태에서 머리글/날짜행 숫자를 CRP 결과로 저장하지 않는지 직접 확인한다.
+- 위 지질표 회귀에서는 HDL-C가 LDL-C 현재값 `124`를 먹지 않고 `38`을 저장하는지 반드시 확인한다. 다중행 후보 순서를 바꿀 때는 self/backward/forward 각각의 샘플을 다시 돌려 `ldl=124`, `hdl=38`이 동시에 유지되는지 검증한다.
+- 서울성모/CMC 간염 표에서 `B형간염 S항원 S/CO Negative(1.0 미만) Negative (0.34)`, `B형간염 S항체 IU/mL 10 미만 184.01`, `C형간염 항체 S/CO Negative (0.08)`, `A형간염 항체(IgG) S/CO Positive (5.65)`는 각각 `hbsag=0.34`, `antihbs=184.01`, `hcvab=0.08`, `havigg=5.65`로 저장한다. 설명문에 나오는 `음성/정상` 문장을 검사 결과로 먼저 잡지 않도록 설명문 차단 규칙도 함께 테스트한다.
+- 줄결합 보정은 다음 비매핑 행의 숫자를 오염시킬 수 있다. `혈소판 분포계수 ... 15.5` 다음 줄 `ANC ... 2.91`이 있을 때 PDW가 2.91로 바뀌지 않는지, `체질량지수 ... 30.5` 아래 체지방량 27.4가 있을 때 BMI가 27.4로 바뀌지 않는지 회귀 테스트에 포함한다.
+- 서울성모/CMC 2021 심장·혈관 및 화학 표 회귀 예문은 `고감도 C 반응성 단백질 (hs-CRP) 0~0.5 0.14 -> crp=0.14`, `ANC 10^9/L 2.91 -> anc=2.91`, `알부민/글로부린 비율 1.2~2.2 1.8 -> ag=1.8`을 직접 대조한다.
+- 서울성모/CMC 2025 다중연도 심장·혈관 표 회귀 예문은 `고감도 C 반응성 단백질 (hs-CRP) 0~0.5 0.03 이하 0.14 -> crp=0.029`, `ANC 10^9/L 2.19 2.91 -> anc=2.19`를 직접 대조한다. 과거열 2021 값 `0.14`, `2.91`을 현재 검사값으로 저장하지 않는다.
+- 한글 검진표 회귀 예문에는 실제 스크린샷에서 틀렸던 항목별 정답을 명시한다. 최소한 `칼륨 4.4`, `단핵구 7.6`, `혈소판용적율 0.33`, `MPV 11.8`, `PDW 15.5`, `Free T4 1.11`, `TSH 2.192`, `PSA 0.505`, `BMI 30.5`를 직접 대조한다.
+- 서울성모/CMC PDF.js 추출에서 한글 CBC 항목명이 약어 없이 들어올 수 있다. 일반 alias fallback도 `혈색소`, `적혈구용적율`, `평균적혈구용적`, `평균적혈구혈색소량`, `평균혈구내헤모글로빈농도`, `적혈구분포계수`를 처리하되, 소변현미경 RBC/WBC와 충돌하지 않게 제한한다.
+- 청주성모 종합건강진단처럼 `검사항목 / 정상치 / 단위 / 현재결과(연도)` 구조를 쓰는 PDF도 병원별 템플릿 파서를 우선 적용한다. `C01|YYYYMMDD|` 헤더를 검사일 후보로 보고, 정상치 숫자나 단위 안 숫자가 아니라 마지막 현재결과 값을 저장하는지 실제 샘플로 테스트한다.
+- PDF 텍스트 추출에서 항목명이 `혈` / `구 혈구혈색소량`, `모` / `양 혈구혈색소농도`처럼 머리글 조각과 붙을 수 있다. MCV/MCH/MCHC 같은 적혈구 지표 alias는 실제 샘플의 줄분리와 띄어쓰기 변형을 회귀 테스트로 고정한다.
+- 한글 검진표 항목명 뒤의 영문 약어는 없어도 매칭되어야 한다. 예: `갑상선자극호르몬 0.27~4.2 uIU/mL 3.15`는 TSH로 저장한다.
+- 구조화된 서울성모/CMC 결과지에서 특정 검사 행으로 확인되지 않은 약어는 설명문에서 일반 alias fallback하지 않는다. 예: 갑상선 설명문 `T3, T4, free T4`는 T3 결과가 아니다.
+- SCL PSA 결과지는 실제 결과 행 아래에 연령별 PSA 참고치 표가 붙을 수 있다. `PSA 참고치 40-49세 50-59세 60-69세 70세 이상` 같은 reference-only 행의 `70`을 PSA 결과로 저장하지 않도록 회귀 테스트를 둔다.
+- PDF/OCR text extraction이 PSA 실제값과 연령별 참고치 표를 한 줄로 붙일 수 있다. `PSA 0.905 ng/mL 참고치 <4.000 40-49세 ...`처럼 참고치 키워드 앞에 실제값이 있으면 PSA 결과로 보존하고, 실제값 없는 참고표-only 행만 차단한다.
+- SCL 전해질 행은 `Chloride (Cl)` 또는 OCR상 `Chloride (CI)`로 들어올 수 있다. Chloride는 검사명 뒤 실제 결과값을 우선하고, 짧은 `Cl` alias는 괄호/결과값 문맥으로 제한한다.
+- 씨젠 CBC WBC 행은 결과 `4.84`와 참고치 `4.00-10.00 x 10(3)/uL`이 같은 행에 올 수 있다. 결과값이 빠지고 참고치만 남은 `WBC 4.00-10.00 x 10(3)/uL` 또는 `WBC 4.00 10.00 x 10(3)/uL`에서는 4나 10을 자동 저장하지 않는다.
+- 씨젠 보험코드 행처럼 `D1830004Z Bilirubin, total .7 ≤ 1.3 mg/dL`, `D3710064Z Testosterone 3.970` 형태로 들어오는 문서는 일반 alias scan보다 보험코드+검사항목명 전용 row parser를 먼저 실행한다. 소수점 앞 0이 분리된 `.7`, `0 . 7`은 0.7로 복원하고, Testosterone처럼 결과 행과 다음 줄 나이대 참고범위 단위가 분리되면 다음 줄의 `ng/mL` 단위를 보강한다.
+- CRP처럼 결과가 `<0.1` 또는 `≤0.1`로 표기되는 항목은 참고치 최대값을 결과로 저장하지 않는다. `<0.1`은 추이 표시용 대체값 `0.09`로 저장하고, `CRP 0.12 <0.5`처럼 정확한 결과값이 앞에 있으면 0.12를 우선한다.
+- 참고치가 앞에 있고 실제 결과가 뒤에 오는 표 구조도 따로 테스트한다. 예: `CRP <0.5 mg/dL 0.12`, `AST <40 U/L 18`, `WBC 4.00-10.00 x 10(3)/uL 4.84`, `Glucose 70-99 mg/dL 109`는 마지막 실제 결과를 저장해야 한다.
+- 반대로 `CRP <0.5 mg/dL`, `AST <40 U/L`처럼 앱 참고상한과 같은 bounded 참고치만 남은 줄은 최대치 대체값으로 자동 저장하지 않는다. 검출한계 결과 `<0.1`과 참고상한 `<0.5`는 구분한다.
+- Platelet처럼 핵심 CBC 항목이 PDF 텍스트 레이어에서 행 자체가 누락될 수 있다. PDF 텍스트 판독 후 핵심 항목이 비어 있으면 AI가 아니라 PDF 페이지 렌더링 OCR fallback을 제한적으로 실행해 병합한다.
+- 자동판독 진행 상태 문구는 사용자에게 필요한 수준으로만 짧게 표시한다. `Platelet 누락 가능성`, `AI 토큰 미사용`처럼 개발·비용·항목별 보정 세부사항은 기본 진행 문구에 노출하지 말고, 필요한 경우 결과 확인창의 note나 개발자 진단에만 남긴다.
+- 자동판독 결과 확인창은 모바일에서 데스크톱용 다열 그리드를 그대로 줄이지 않는다. 체크박스와 항목명만 첫 줄에 두고 원본, 기존값, 입력값, 상태, 참고치는 전체폭 블록으로 내려 카드형 단일 컬럼에 가깝게 배치한다.
+- 스캔 PDF처럼 PDF 텍스트 추출 결과가 0건이면 AI fallback을 제안하기 전에 PDF 페이지 렌더링 OCR을 먼저 시도한다.
+- 백혈구 감별계산은 추출층에서 소수점이 사라질 수 있다. 이미지 원본과 대조했고 5-part differential 합계가 100%에서 제한적으로 빠지는 경우에만 해당 행의 소수점 보정을 적용하고 note를 남긴다.
+
+#### 항목별 alias·분류 원칙
+
+- 소변현미경 RBC/WBC는 CBC의 RBC/WBC와 같은 ID로 처리하지 않는다. `urine_rbc`, `urine_wbc`처럼 별도 항목으로 두고 `0-1 /HPF` 같은 범위 결과는 대표값 기준을 명확히 한다.
+- 소변현미경 range 결과는 microscopy block 안에서만 실제 관찰 범위로 인정한다. 일반 줄의 `0-3 /HPF`는 reference-only로 차단하고, `Microscopic examination` 아래 `RBC 1-3 /HPF`는 정해둔 대표값 기준으로 저장한다.
+- 소변검사는 `special`에 섞지 말고 `urine` 같은 별도 분류로 둔다. 비중, 요 pH, 요단백, 요당, 케톤, 빌리루빈, 유로빌리노겐, 아질산염, 잠혈, 소변 백혈구, 소변현미경을 같은 그룹에서 확인하게 한다.
+- 소변 정성 결과는 `Neg=0`, `Trace=0.5`, `1+=1`처럼 등급값으로 저장하고 원문 결과를 자동판독 확인창에 남긴다. 참고기준치의 `Negative`, `Trace`가 아니라 마지막 결과값 토큰을 저장하는지 테스트한다.
+- `PCT`는 plateletcrit 문맥 또는 `%` 단위가 있을 때만 plateletcrit로 매칭하고, procalcitonin 문맥의 `PCT`는 자동 매칭하지 않는다.
+- 혈소판 계열 한글명은 짧은 `혈소판` alias보다 구체 한글명을 먼저 둔다. `혈소판수`는 PLT, `혈소판용적율`은 PCT, `평균 혈소판 용적(MPV)`은 MPV, `혈소판 분포계수`는 PDW로 고정하고, PDW가 PLT로 들어가지 않는지 테스트한다.
+- Growth hormone은 fasting GH와 stimulation GH를 구분한다. `arginine stimulation`, `GH stim`, `stimulation growth hormone`은 `gh_stim`으로 우선 매칭한다.
+- HbA1c처럼 같은 검사에서 NGSP %, IFCC mmol/mol, eAG mg/dL 보조 결과가 함께 나오는 경우는 PDF 재현성과 추이 확인을 위해 별도 항목으로 둘 수 있다. 단, eAG는 환산 평균혈당이므로 판정 라벨에 추정값임을 드러낸다.
+- 정성검사는 집계에서 단순히 항목 수를 정상으로 더하지 말고 `qualStatus()` 같은 판정 함수의 boolean 결과를 사용한다.
+- 추이 보조 화면을 추가할 때는 단순 목록으로 끝내지 말고, 클릭 시 해당 검사 항목의 추이 화면으로 이동하게 연결한다. 예: 한 번이라도 이상이 있었던 항목 목록 -> 해당 항목 추이.
+- 자동판독 확인 모달에는 앱 기준 수치뿐 아니라 씨젠/USMLE 참고치를 함께 보여줘 사용자가 그 자리에서 수정 여부를 판단할 수 있게 한다.
+- 대시보드와 이상 이력처럼 요약 배지에 숫자를 표시하는 경우, 사용자가 배지를 눌러 해당 항목명, 값, 날짜를 빠르게 확인할 수 있는 상세창을 제공한다. 상세창 항목은 가능하면 해당 대시보드 row 또는 검사 추이 화면으로 바로 연결한다.
+
+#### 모바일 헤더·도구 버튼 원칙
+
+- 프로필/개발자 옆 운영 도구 버튼은 모바일에서 독립 가로 스크롤 영역으로 두지 않는다. 버튼이 숨기거나 따로 스크롤되면 저장·입력·참고치 흐름을 놓치기 쉽다.
+- 모바일 폭에서는 운영 버튼을 짧은 라벨과 wrap/grid 배치로 보여주고, 텍스트가 넘치면 ellipsis 처리한다.
+- 태블릿 폭에서는 모바일 3분할 하단바가 과하게 늘어질 수 있다. 상단 quickbar용 `.qbtn{width:100%}` 같은 규칙이 하단 `utility-dock`까지 먹지 않게 dock 전용 override를 둔다.
+- 태블릿은 compact dock, 아주 좁은 모바일은 3열 하단바처럼 breakpoint별 의도가 다를 수 있으므로 `min-width:561px and max-width:980px`, `max-width:560px`를 따로 검증한다.
+- 다크/라이트 테마를 추가할 때는 검사 데이터나 Supabase 설정과 섞지 말고 기기별 localStorage 선호값으로 둔다. 그래프 SVG, 자동판독 확인창, 검사항목 검색 결과, 참고치 편집, 병원명 pill, 모달, 입력창, 상태 배지, 고정 하단 dock까지 라이트 모드 대비를 함께 확인한다.
+- 라이트 모드에서 일부 카드나 검색 결과가 다크 배경으로 남는 문제는 하드코딩 색상 잔재로 본다. 새 UI를 만들 때는 먼저 CSS 토큰을 재사용하고 `:root[data-theme="light"]` override가 필요한 컴포넌트를 함께 추가한다.
+
+#### 참고치·프로필 원칙
+
+- 씨젠 참고치와 USMLE 참고치는 별도 편집 도메인으로 유지한다.
+- 사용자가 low 또는 high 한쪽만 수정한 경우 나머지 쪽은 `null`로 확정하지 말고 기본 참고치로 fallback한다.
+- stage 경계판정 항목에서 사용자가 씨젠 low/high를 직접 수정한 경우, H/L 판정은 stage threshold보다 사용자 low/high를 우선한다. LDL high를 90으로 바꾼 뒤 LDL 95가 H가 되는지 같은 회귀 테스트를 둔다.
+- 기존 flat 참고치 데이터가 있으면 현재 성별 하나에만 몰아넣지 말고 남/여 bucket 양쪽에 안전하게 복제한다.
+- 참고치 수정값은 백업/복원, 저장본 버전 확인, manifest/hash에 포함한다. `customRefs`뿐 아니라 `customUsmleRefs`도 포함한다.
+- 참고치 편집 화면에서 검색창을 포함한 전체 editor를 `innerHTML`로 다시 그리면 한 글자 입력 후 포커스가 사라질 수 있다. 검색 중 렌더링은 결과 영역만 바꾸거나, 불가피하면 `renderRefEditor({keepSearchFocus:true})`처럼 focus와 selection을 복원한다.
+- 참고치 편집창을 새로 열 때 이전 검색어와 "수정된 항목만" 필터가 남아 항목이 사라진 것처럼 보이지 않게 초기화하거나, 명시적인 검색 초기화 버튼을 둔다.
+- 입력 모달을 연 상태에서 프로필을 변경하면 화면은 A 프로필, 저장 대상은 B 프로필이 될 수 있다. `profileSel.onchange`에서는 열린 modal panel을 확인해 entry/settings를 새 active profile 기준으로 다시 렌더링하거나 저장 대상을 기존 profileId로 고정한다.
+- 대시보드 수정 버튼으로 연 입력 모달은 저장 후 닫는 것을 기본으로 한다. 계속 편집을 유지하려면 "저장 완료, 계속 수정 가능" 상태를 명확히 표시한다.
+- 기록이 없는 상태에서는 병원명 수정, 검사일 수정, 삭제처럼 대상 record가 필요한 버튼을 숨기거나 disabled 처리한다.
+- 검사항목 설명 사용자 수정값은 앱 내장 `TEST_INFO`와 분리된 `testDescriptions` 도메인으로 둔다. 실제 최신 설명은 Supabase `lab_test_descriptions`를 우선하고, 앱 내장 설명은 fallback으로만 사용한다.
+- 설명 도메인을 추가하거나 변경하면 `lab_test_descriptions` upsert/delete/pull, JSON 백업/복원, local manifest/hash, 저장본 버전 확인의 설명 개수, 최종본 저장, 기본값 복귀 UI를 함께 갱신한다. 기존 `customTestInfo`는 과거 백업 호환용으로 `testDescriptions`에 승격한다.
+- 검사항목 설명 표시와 CSV/Excel 내보내기는 Supabase/사용자 저장 설명(`testDescriptions`)을 기준으로 한다. 앱 내장 `TEST_INFO`는 표시 fallback이 아니라 초기 Supabase 업로드나 마이그레이션용 원본으로만 사용한다.
+- Supabase 설명이 없는 항목은 내장 설명을 조용히 보여주지 말고 `Supabase 미등록` 같은 안내를 표시한다. 그래야 사용자가 설명 테이블을 채워야 함을 알 수 있다.
+- 검사항목 설명 일괄 업로드는 사용자가 명시적으로 선택한 버튼에서만 기존 Supabase row를 force 덮어쓰기한다. 일반 자동 동기화와 일반 CSV 가져오기는 원격 `updated_at` guard를 유지해 오래된 백업이 최신 설명을 덮지 못하게 한다.
+- 설명 테이블 SQL을 제공할 때는 `id`, `test_id`, `meaning`, `high_text`, `low_text`, `caution`, `source_label`, `version`, `created_at`, `updated_at`, index, RLS policy를 통합 SQL에 포함한다.
+- 검사실별 추가 참고치(예: 서울성모병원, KMI)는 앱 기본 씨젠/USMLE 참고치를 덮어쓰지 않는 별도 override 도메인으로 둔다. Supabase `lab_reference_overrides`는 `id`, `test_id`, `sex`, `standard`, `data`, `source_label`, `created_at`, `updated_at`을 포함하고, `test_id + sex + standard` unique index를 둔다.
+- 참고치 양식 다운로드는 `seegene`, `usmle` 같은 내장 기준 id를 기본 대상으로 삼지 않는다. 새 검사실명에서 안정적인 custom `standard` id를 만들고, 가져오기 시 해당 `standard_label`을 `referenceLabs`에 등록하거나 기존 custom 검사실에 덮어쓴다.
+- 참고치 편집 화면에서 custom 검사실 기준을 선택했을 때는 해당 기준 옆에 양식 다운로드와 일괄 업로드 동선을 함께 둔다. 이 맥락형 업로드는 CSV 안의 `standard` 값보다 현재 선택한 검사실 `standard`를 우선해 다른 검사실 기준이 섞이지 않게 한다.
+- 검사실별 참고치 기준을 추가·가져오기·수정할 수 있게 만들면 씨젠, USMLE, 추가 검사실 기준을 한 화면에서 비교하는 읽기 전용 표를 함께 제공한다. 비교 표에는 성별 전환, 검사항목 검색, 저장값 있는 항목만 보기 필터를 둬 검사실별 차이를 빠르게 점검하게 한다.
+- 참고치 비교표처럼 카테고리별로 같은 열을 반복하는 표는 자동 table layout에 맡기지 않는다. `colgroup` 또는 고정 열 class로 검사항목, 단위, 검사실 기준 열 폭을 통일하고, 태블릿/모바일에서는 모달 폭·최소 표폭·검색 툴바 배치를 별도로 지정한다.
+- 참고치 편집표는 검사항목, 기본 참고치, 사용자 low/high, 단위, 상태 열을 고정 colgroup으로 맞춘다. 지질·혈당·비타민 D처럼 경계 기준 입력칸이 추가되는 항목은 상태 열을 넓히지 말고 기본 참고치 칸 하단에 묶어 배치한다.
+- 참고치 편집표의 low/high 입력칸, 단위, 상태 열은 최소폭과 좌우 패딩을 충분히 둔다. 열 정렬만 맞아도 우측 입력·단위·상태가 촘촘하면 가독성이 떨어지므로 데스크톱, 태블릿, 모바일 각각에서 우측 열 여백을 별도로 점검한다.
+- 참고치 편집/비교처럼 넓은 표를 담는 모달은 일반 설정 모달과 같은 최대폭을 쓰지 않는다. 데스크톱에서는 참고치 모달 전용 wide class로 화면 좌우 공간을 더 쓰고, 태블릿/모바일에서는 화면 폭 기준 제한을 유지한다.
+- 참고치 override 도메인을 추가하거나 변경하면 편집 UI, outbox upsert/delete, 원격 pull, 최종본 저장, JSON 백업/복원, local manifest/hash, 저장본 버전 확인, 통합 SQL을 함께 갱신한다. 자동 H/L 판정 기준을 바꾸는 경우가 아니라면 추가 검사실 기준은 비교·기록용으로 표시하고 기본 판정 흐름은 기존 씨젠 기준을 유지한다.
+
+#### 검사결과 분석노트 백업·복원·최종본 체크리스트
+
+- 사용자 편집 가능 도메인은 `sessions`, `profiles/settings`, `testDescriptions`, `referenceOverrides`, `tombstones`, `syncMeta/manifest`로 보고 한꺼번에 점검한다.
+- 전체 JSON 백업은 Supabase 연결 설정, 현재 `deviceId`, `syncMeta`, manifest/hash, tombstone을 포함하되, 샘플 복원이나 로컬 초기화가 이 값을 임의로 바꾸지 않게 한다.
+- JSON/CSV 가져오기는 먼저 로컬에만 반영하고 완료 모달에서 `로컬만 유지`, `일반 동기화`, `클라우드 최종본 덮어쓰기`를 선택하게 한다. 가져오기 루프 중에는 자동 outbox flush/upsert를 막는다.
+- CSV 가져오기는 `updated_at`을 파일 값 그대로 보존한다. 원격 `lab_test_descriptions` 또는 `lab_reference_overrides`의 같은 id가 더 최신이면 오래된 CSV 값으로 덮어쓰지 않는다.
+- 세션 CSV, 설명 CSV, 참고치 CSV, tombstone CSV는 각각 내보내기와 가져오기를 제공하고, 가져오기 후 목록/상세/저장본 버전 확인 수치가 맞는지 확인한다.
+- 클라우드 최종본 덮어쓰기는 현재 기기의 active 데이터 upsert만으로 끝내지 않는다. 클라우드에만 남은 `lab_test_sessions`, `lab_test_descriptions`, `lab_reference_overrides` row를 delete 또는 tombstone 처리한 뒤 `canonical_version`과 `cloud_manifest`를 마지막에 갱신한다.
+- 최종본 지정 버튼은 JSON 백업 다운로드가 아니라 Supabase 기준본 교체 동작이다. 백업은 별도 버튼/영역에서 제공하고 라벨과 토스트를 섞지 않는다.
+- 백업·복원·동기화 구조를 고친 뒤에는 JS 구문 검사, 데스크톱/태블릿/모바일 렌더링, 가져오기 중 fetch 0회, 오래된 CSV 차단, 최종본 저장 시 원격 전용 설명/참고치 삭제, SQL 변경 필요 여부를 확인한다.
+
+#### 검사결과 이미지 저장 설계
+
+- 결과지 원본 이미지/PDF를 장기 보관하는 기능을 추가할 때는 Supabase Postgres에 파일 원본을 저장하지 않는다. Google Cloud Storage 같은 외부 스토리지에는 파일을 두고, Supabase에는 `lab_result_images` 메타데이터 row만 저장한다.
+- 브라우저 HTML 안에 Google Cloud service account JSON, private key, client email을 넣지 않는다. 업로드·다운로드 권한은 Supabase Edge Function 또는 별도 서버가 Google Cloud Storage signed URL을 짧은 만료시간으로 발급하는 방식으로 처리한다.
+- 이미지 메타데이터는 `id`, `profile_id`, `session_id`, `capture_date`, `storage_provider`, `bucket`, `object_path`, `file_name`, `content_type`, `file_size`, `width`, `height`, `purpose`, `ocr_status`, `created_at`, `updated_at`, `deleted_at`을 기본 축으로 둔다.
+- 이미지가 검사일 세션에 연결되면 세션 저장/삭제, tombstone, 최종본 지정, 저장본 버전 확인 manifest/hash, JSON 백업/복원, 영역별 CSV 내보내기/가져오기에서 이미지 메타데이터를 함께 다룬다. 파일 원본은 JSON 백업에 넣지 않고 `object_path`와 검증용 hash/size만 포함한다.
+- 업로드 전 클라이언트에서 MIME type과 크기를 검사하고 가능한 WebP/JPEG 압축을 적용한다. 일반 학습용 이미지는 300KB 이하를 목표로 하고, 1MB 초과는 경고, 3MB 초과는 기본 차단한다.
+- private bucket을 쓰는 경우 화면 표시는 저장된 public URL에 의존하지 말고, 필요 시 다운로드 signed URL을 새로 발급해 표시한다. signed URL은 캐시 가능한 원본 식별자가 아니라 임시 접근권으로 취급한다.
+
+#### 필수 함수 테스트 예시
+
+수정 후에는 최소 아래 예문을 Node 기반 함수 테스트로 확인한다.
+
+```javascript
+convertLabUnit("wbc", 5600, "/mm3").value        // 5.6
+convertLabUnit("plt", 229000, "/mm3").value      // 229
+convertLabUnit("rbc", 5390000, "/mm3").value     // 5.39
+convertLabUnit("wbc", 5.62, "10^3/uL").value     // 5.62
+convertLabUnit("rbc", 5.39, "10^6/uL").value     // 5.39
+convertLabUnit("hba1c", 42, "mmol/mol").value    // 약 6.0
+convertLabUnit("tsh", 3.08, "μIU/mL").value      // 3.08
+convertLabUnit("tsh", 3.08, "uIU/mL").value      // 3.08
+convertLabUnit("tsh", 3.08, "mIU/L").value       // 3.08
+
+firstNumWithUnit("ALT 55 U/L (0-40)").value
+firstNumWithUnit("ALT (0-40) 55 U/L").value
+firstNumWithUnit("Sodium 140 mEq/L 136-146").value
+firstNumWithUnit("Creatinine 0.90 mg/dL 0.70-1.30").value
+firstNumWithUnit("Glucose 정상범위 70-99 현재 110").value
+firstResultWithLineUnit("0-3 /HPF")              // null 또는 확인 필요
+parseLabText("검사시행일 2026-06-15 TSH 3.08 μIU/mL").values.tsh
+parseLabText("D430003HZ PSA 0.905 <4.000 ng/mL\\nPSA 참고치 40-49세 50-59세 60-69세 70세 이상").values.psa // 0.905
+parseLabText("PSA 0.905 ng/mL 참고치 <4.000 40-49세 <2.0 50-59세 <3.0 60-69세 <4.0 70세 이상 <5.0").values.psa // 0.905
+parseLabText("PSA 참고치 40-49세 <2.0 50-59세 <3.0 60-69세 <4.0 70세 이상 <5.0").values.psa // undefined
+parseLabText("D2800034Z Chloride (Cl) 103 95-108 mmol/L").values.cl // 103
+parseLabText("D0002014Z WBC 4.84 4.00 - 10.00 x 10(3)/μL").values.wbc // 4.84
+parseLabText("WBC 4.00 - 10.00 x 10(3)/μL").values.wbc // undefined
+parseLabText("CRP (정량) < 0.1 < 0.5 mg/dL").values.crp // 0.09
+parseLabText("CRP (정량) 0.12 < 0.5 mg/dL").values.crp // 0.12
+parseLabText("CRP <0.5 mg/dL 0.12").values.crp // 0.12
+parseLabText("CRP <0.5 mg/dL").values.crp // undefined
+parseLabText("AST (GOT) <40 U/L 18").values.ast // 18
+parseLabText("AST (GOT) <40 U/L").values.ast // undefined
+parseLabText("WBC 4.00 - 10.00 x 10(3)/uL 4.84").values.wbc // 4.84
+parseLabText("Platelet 150 - 450 x 10(3)/uL 236").values.plt // 236
+parseLabText("Glucose 70 - 99 mg/dL 109").values.glu // 109
+parseLabText("검진일 2026-06-18\\n당화혈색소 4.0-5.6 6.0\\n공복 시 혈당 70-99 110").values // hba1c 6.0, glu 110, hb undefined
+parseLabText("25-OH Vitamin D 30-100 ng/mL 35").values.vitd // 35
+parseLabText("Microscopic examination\\nRBC 1-3 /HPF\\nWBC 2-4 /HPF").values // urine_rbc 3, urine_wbc 4
+parseLabText("건강 진단 결과 종합 소견서\\n검진일 2021년 12월 03일\\n항목 참고기준치 2021-12-03\\n혈색소 g/㎗ 13 ~ 18 16.5\\nAST(SGOT) U/L 0~40 99\\n크레아티닌 mg/dl 0.7~1.2 0.99\\n전립선 특이항원(PSA) ng/ml 0 ~ 3.5 0.505").values // hb 16.5, ast 99, cr 0.99, psa 0.505
+parseLabText("건강 진단 결과\\n항목 참고기준치 2021-12-03\\n칼륨(potassium, K) mEq/L 3.5~5.1 4.4\\n단핵구(monocytes) % 2~9 7.6\\n혈소판수 10^9/L 150~450 281\\n혈소판용적율 % 0.15~0.4 0.33\\n평균 혈소판 용적(MPV) fl 7.91~11.79 11.8\\n혈소판 분포계수 fl 9.13~19.41 15.5\\nANC 10^9/L 2.91\\n유리 싸이록신(free T4) ng/dL 0.89~1.76 1.11\\n갑상선자극호르몬(TSH) uIU/mL 0.55~4.78 2.192\\n전립선 특이항원(PSA) ng/ml 0 ~ 3.5 0.505\\n체질량지수(BMI) kg/m2 18.5 ~ 23 30.5\\n체지방량 kg 27.4").values // k 4.4, mono 7.6, plt 281, pct 0.33, mpv 11.8, pdw 15.5, ft4 1.11, tsh 2.192, psa 0.505, bmi 30.5
+parseLabText("검진일 2025년 07월 16일\\n항목 참고기준치 2025-07-16 2021-12-03\\n공복혈당 mg/dl 70~99 102 112\\n당화혈색소 % 4.4~6.0 5.7 6.2\\n칼륨(potassium, K) mEq/L 3.5~5.1 3.8 4.4\\n평균 혈소판 용적(MPV) fl 7.91~11.79 10.8 11.8\\n평균적혈구용적 fl 80~99 89.6 87.9\\n평균 혈구내 헤모글로빈\\n% 32~36 32.4 32.8\\n농도\\n유리 싸이록신(free T4) ng/dL 0.89~1.76 1.23 1.11\\n갑상선자극호르몬(TSH) uIU/mL 0.55~4.78 2.657 2.192\\n갑상선 호르몬(T3, T4, free T4)은 설명문\\n전립선 특이항원(PSA) ng/ml 0 ~ 3.5 0.24 0.505").values // date 2025-07-16, glu 102, hba1c 5.7, k 3.8, mpv 10.8, mcv 89.6, mchc 32.4, ft4 1.23, tsh 2.657, psa 0.24, t3 undefined
+parseLabText("건 강 진 단 결 과\\n항 목 참 고 기 준 치 2025-07-16 2021-12-03\\n칼 륨 ( potassium, K ) mEq/L 3 . 5 ~ 5 . 1 3 . 8 4 . 4\\n평 균 혈 소 판 용 적 ( MPV ) fl 7 . 91 ~ 11 . 79 10 . 8 11 . 8\\n유 리 싸 이 록 신 ( free T4 ) ng/dL 0 . 89 ~ 1 . 76 1 . 23 1 . 11\\n갑 상 선 자 극 호 르 몬 ( TSH ) uIU/mL 0 . 55 ~ 4 . 78 2 . 657 2 . 192\\n전 립 선 특 이 항 원 ( PSA ) ng/ml 0 ~ 3 . 5 0 . 24 0 . 505").values // k 3.8, mpv 10.8, ft4 1.23, tsh 2.657, psa 0.24
+parseLabText("건 강 진 단 결 과\\n항 목 참 고 기 준 치 2025-07-16 2021-12-03\\n평 균 혈 소 판 용 적 ( MPV ) fl 7 . 91 ~ 1 1 . 79 1 0 . 8 1 1 . 8\\n혈 색 소 g/dL 13 ~ 18 1 5 . 6\\n갑 상 선 자 극 호 르 몬 ( TSH ) uIU/mL 0 . 55 ~ 4 . 78 2 . 657").values // mpv 10.8, hb 15.6, tsh 2.657
+parseLabText("항목 참고기준치 2025-07-16 2021-12-03\\n총콜레스테롤 mg/dl <200 197 251\\n저밀도 콜레스테롤(LDL-\\nmg/dl <100 124 167\\nC)\\n고밀도 콜레스테롤(HDL-\\nmg/dl >40 38 34\\nC)\\n요산 mg/dl 3.4~7 4.9 9.8\\n단핵구(monocytes) % 2~9 9.0 7.6\\n호산구 % 0~5 1.5 1.0").values // chol 197, ldl 124, hdl 38, ua 4.9, mono 9, eos 1.5
+parseLabText("C09|20230609|종합건강진단\\n검사항목 정상치 단위 현재결과(2023년)\\n공복혈당 Glocose 72~99 mg/dL 109\\n혈소판 130~400 X10³/㎕ 236\\nCRP 5.0이하 mg/dL 3.3\\n요산 2.6~7.2 mg/dL 4.6\\n요잠혈 U-O.B 음성 음성\\n요유로빌리노겐 U-Urobil 음성,약양성 약양성(±)").values // date 2023-06-09, glu 109, plt 236, crp 3.3, ua 4.6, urine_occult_blood 0, urine_urobilinogen 0.5
+parseLabText("검사항목 정상치 단위 현재결과(2023년)\\n구 혈구혈색소량 27~33 pg 29.0\\n양 혈구혈색소농도 33~37 g/dL 32.8\\n갑상선자극호르몬 0.27~4.2 uIU/mL 3.15").values // mch 29, mchc 32.8, tsh 3.15
+parseLabText("건강 진단 결과\\n항목 참고기준치 2021-12-03\\n평균적혈구용적 fl 80~99 87.9\\n평균적혈구혈색소량 pg 27~33 28.8\\n평균 혈구내 헤모글로빈\\n% 32~36 32.8\\n농도").values // mcv 87.9, mch 28.8, mchc 32.8
+```
+
+테스트 스크립트는 작업 후 삭제하고, 완료 보고에는 어떤 검증 문자열이 통과했는지 남긴다.
+
+---
+
+### 16.8 혈액검사 항목 설명 UI
+
+- 검사항목명을 클릭해 설명 모달을 여는 기능을 만들 때는 약어만 표시하지 말고 `표시명`, `full name`, `분류`, `단위`를 함께 보여준다.
+- 설명 모달은 `항목의 의미`, `높을 경우`, `낮을 경우`, `주의사항`을 짧게 나누고, 교육용 요약이며 실제 진단은 증상/병력/복용약/검사실 참고치와 함께 판단해야 한다는 문구를 둔다.
+- 클릭 가능한 카드나 입력 라벨 안에 항목명 설명 트리거를 넣을 때는 캡처 단계 또는 명시적 `stopPropagation()`으로 카드 이동, 추이 선택, 입력 포커스 동작과 섞이지 않게 한다.
+- 설명 데이터는 참고치 판정 로직과 분리한다. 씨젠/USMLE 기준값, stage 경계값, 저장/동기화 도메인을 설명 UI 때문에 바꾸지 않는다.
+- 카테고리 fallback 설명은 최후의 보조로만 쓰고, 혈소판 지표(PCT/PCV, MPV, PDW), 적혈구 지표(MCH/MCHC), 백혈구 감별계산처럼 항목별 의미가 다른 검사는 반드시 개별 `TEST_INFO`를 둔다. PCT는 procalcitonin과 약어가 같고 PCV는 packed cell volume/Hct 의미로도 쓰일 수 있음을 주의사항에 남긴다.
+- 검사항목 검색을 추가할 때는 표시명, full name, 한글명, 분류, 단위, 설명 키워드를 함께 검색하고, 검색 결과 클릭 시 기존 항목 설명 모달로 연결한다.
+
+---
+
+### 16.9 혈액검사 앱 선별 반영 원칙
+
+- 외부 버그 리포트는 우선순위를 그대로 따르지 말고 실제 코드 경로와 현재 앱 방향에 맞는지 재현 가능성부터 확인한다.
+- IndexedDB와 localStorage full backup을 함께 쓰는 혈액검사 앱은 `syncMeta.localSavedAt` 같은 저장 시각을 양쪽에 남기고, 부팅 시 더 최신인 로컬 캐시를 선택한다.
+- 검사일 input 기본값처럼 사용자-facing 날짜는 `new Date().toISOString().slice(0,10)`로 만들지 않는다. 한국 시간 00~09시대에 전날로 밀릴 수 있으므로 로컬 날짜 helper를 둔다.
+- PDF.js, Tesseract 같은 외부 스크립트 동적 로딩은 태그 존재 여부만 보지 말고 `src -> Promise` 캐시를 둔다. 연속 드래그 앤 드롭이나 PDF/OCR 동시 호출에서 로딩 중인 스크립트를 성공으로 오판하지 않는다.
+- `normalizeSession()`은 외부 JSON/과거 캐시/Supabase row의 `values`와 `quals`가 `null`, 배열, 문자열일 때 빈 객체로 보정한다. 추이/대시보드 렌더링 함수도 방어적으로 `s.values && s.values[id]` 형태를 고려한다.
+- custom 참고치 low/high와 stage 경계 라벨은 따로 계산하지 말고 단일 effective assessment 경로로 표시한다.
+- custom low/high가 설정된 항목은 stage 경계판정으로 내려가지 않고 사용자 low/high만으로 H/L/N을 판정한다. 예: LDL high 200, LDL 170은 사용자 기준 범위 내여야 한다.
+- 나이 기반 참고치는 오늘 날짜가 아니라 검사일 기준 나이를 우선 사용한다.
+- 소변현미경 block 안의 `RBC/WBC /HPF` 줄은 CBC `rbc/wbc` review 후보로 만들지 말고 `urine_rbc/urine_wbc`로만 처리한다.
+- 이상치가 있는 카테고리를 기본 자동펼침으로 바꾸면 반복 확인 화면의 스캔성과 사용자 제어가 떨어질 수 있으므로 기본은 접힘 유지, 사용자가 직접 펼치는 방식을 우선한다.
+- 검사항목 검색은 카탈로그 순서와 설명문 포함만으로 정렬하지 않는다. exact id/name/ko match, startsWith, full name 포함, 설명문 포함 순으로 점수를 줘 Creatinine처럼 정확히 입력한 항목이 먼저 나오게 한다.
+
+---
+
+
+## 17. 반복 실수 방지 목록
+
+| 상황 | 실수 | 기준 해결 |
+|---|---|---|
+| 기기별 개수 다름 | 로컬 개수를 전체 개수로 표시 | 로컬/클라우드 활성/삭제 수를 분리 표시 |
+| 삭제 항목 부활 | hard delete만 수행 | `deleted_at` tombstone 사용 |
+| 신규 기기 접속 후 데이터 감소 | 앱 시작 시 클라우드에 merged 전체 업로드 | 앱 시작 시 받기만 수행 |
+| 최종본 덮어쓰기 실패 반복 | pending 상태가 남음 | pending 재확인/자동 해제/수동 잠금 해제 구현 |
+| 오래된 백업이 최신본 덮음 | import 시 `updated_at`을 현재 시각으로 변경 | 기존/파일 `updated_at` 비교 후 오래된 것은 건너뜀 |
+| 버튼 클릭 안 됨 | `onclick` 문자열 방식 | `addEventListener` 방식 |
+| 모달 즉시 닫힘 | `stopPropagation()` 누락 | 모달 내부 버튼에서 이벤트 버블링 차단 |
+| 입력 모달 저장 대상 꼬임 | 모달은 A 프로필인데 activeId가 B로 바뀜 | 프로필 변경 시 열린 entry/settings 모달 재렌더링 또는 저장 profileId 고정 |
+| 탭 검색 충돌 | 전역검색/탭검색 우선순위 없음 | 우선순위 명시 후 한쪽 입력 시 다른쪽 초기화 |
+| 검색창 포커스 사라짐 | oninput마다 검색창 포함 전체 innerHTML 재렌더 | 결과 영역만 렌더링하거나 focus/selection 복원 |
+| 체크박스 컬럼 깨짐 | nth-child 규칙 미점검 | 컬럼 추가 전 `grep -n nth-child` |
+| 태블릿 하단 버튼 과대 확장 | 상단 버튼용 `width:100%`가 하단 dock에 적용 | tablet/mobile breakpoint를 분리하고 dock 전용 override 적용 |
+| 녹음 끝부분 잘림 | `MediaRecorder.start(200)` 사용 | `start()` + stop 전 `requestData()` |
+| 사후녹음 조용히 실패 | JS 참조 id가 HTML에 없음 | `$()` 참조 id 실재 여부 확인 |
+| HTML 미리보기 실패 | 파일 크기 문제로 오판 | 외부 리소스 차단 가능성 안내, Chrome/GitHub Pages 사용 |
+| 새 도메인 카드가 비어 보임 | 목록 렌더만 만들고 상세/편집 렌더 누락 | 목록, 상세, 편집, 삭제, 빈 상태를 한 묶음으로 구현 |
+| 저장 후 항목이 사라진 것처럼 보임 | 저장 직후 대시보드가 최신 날짜나 이전 선택 날짜로 돌아감 | 방금 저장한 날짜/레코드를 선택 상태로 유지 |
+| 삭제한 새 도메인 항목 부활 | active 목록에서만 제거 | 도메인별 tombstone 또는 `deleted_at`을 동기화 |
+| 백업 복원 후 새 도메인 유실 | 전체 JSON schema 갱신 누락 | active 목록과 tombstone을 schemaVersion에 포함 |
+| 저장본 버전 확인 불일치 | 기존 도메인 hash만 검증 | 새 도메인 count/hash/meta를 함께 표시 |
+| 설명 수정이 앱 업데이트로 사라짐 | 설명문을 HTML 내장값에만 저장 | 설명 도메인은 Supabase 테이블 기준, 내장값은 초기 업로드 seed로만 사용, 백업/복원/hash 포함 |
+| 영역 내보내기 버튼 무반응 | row 생성 함수 안에서 없는 helper 호출 | 각 domain export 경로를 실제 함수명으로 대조하고, JS 문법 검사와 별도로 버튼 실행 경로를 검증 |
+| 요약 숫자만 있고 항목 확인 어려움 | H/경계/정상 count만 표시 | 요약 배지 클릭 시 항목명·값·날짜 상세창과 row/추이 이동 연결 |
+| 사용자 날짜 하루 밀림 | `toISOString().slice(0,10)`를 검사일 기본값으로 사용 | 로컬 날짜 helper로 input 날짜 생성 |
+| 외부 스크립트 race | script 태그 존재만 보고 로드 완료로 처리 | `src -> Promise` 캐시로 로딩 중/완료 구분 |
+| 검사값 단위 변환 누락 | 숫자만 추출해 앱 단위로 바로 저장 | `{value, unit}`을 보존하고 공통 변환 함수를 통과 |
+| CBC 값 1000배 오류 | `/mm3`을 `10^3/uL`과 호환으로 early return | WBC/PLT/RBC별 변환 분기에서 스케일 조정 |
+| TSH 단위 오인식 | `μIU/mL` 내부의 `IU/mL`을 먼저 매칭 | 구체 단위를 먼저 매칭하고 `μIU/mL/uIU/mL/mIU/L`을 검증 |
+| 참고범위를 결과로 저장 | `ALT (0-40) 55`에서 0 또는 40을 추출 | 결과 라벨 우선, 범위 숫자 제외, 양방향 예문 테스트 |
+| 소변현미경 range-only 자동입력 | `0-3 /HPF`의 3을 결과로 저장 | range-only 줄은 자동 저장하지 않고 확인 필요 |
+| 병원별 템플릿 파서 무시 | 전용 파서가 감지한 항목을 일반 alias scan이 다시 추정 | 전용 파서 감지 항목은 fallback 금지, 실패 시 확인 필요 |
+| 한글 검진표 줄결합 오염 | 가장 긴 후보를 우선해 다음 행 ANC/BMI 아래 항목 값을 먹음 | 짧은 후보부터 검사하고 reference-only일 때만 다음 줄 결합 |
+| 다중연도 표 과거값 저장 | 현재열과 과거열이 함께 있을 때 마지막 숫자를 결과로 저장 | 참고기준치 다음 첫 결과열을 현재값으로 저장 |
+| 설명문 약어 오인식 | `T3, T4, free T4` 설명문에서 T3=4 생성 | 구조화 문서에서는 전용 행으로 확인된 항목만 fallback 허용 |
+| 당화혈색소 중복 파싱 | `당화혈색소` 줄의 혈색소가 Hemoglobin alias에 걸림 | HbA1c로 판정된 줄은 Hemoglobin fallback에서 제외 |
+| 최신 파서 확인 단정 | 최신 GitHub Pages라는 사용자 말을 무시하고 구버전 실행으로만 판단 | 실행 버전, 브라우저 파일 캐시, 로컬 저장 캐시, 원격 오판독 저장값, 실제 PDF.js 흐름을 분리 진단 |
+| 최신 파서 미실행 | 함수 테스트는 57개지만 사용자 화면은 구버전 `입력 가능 10` | 자동판독 모달에 앱/파서 버전 표시, 제공 파일과 `index.html` 동시 갱신, 실행/캐시 진단 기능 제공 |
+| 개발용 PDF 추출기만 신뢰 | PyMuPDF에서는 KMI가 통과하지만 브라우저 PDF.js에서는 핵심 항목 누락 | 앱과 같은 PDF.js 행 재구성으로 실제 PDF를 다시 추출해 `parseLabText()` 결과를 대조 |
+| 한글 정규식 경계 오용 | `총단백\b`, `음성\b`이 한글 뒤에서 매칭 실패 | 한글 뒤에는 `(?=\s|\(|$)`처럼 실제 구분자를 쓰고 회귀 테스트에 포함 |
+| 혈소판 지표 alias 충돌 | 혈소판 분포계수를 PLT로 저장 | PCT/MPV/PDW 구체 한글명 우선 후 PLT 매칭 |
+| 일부 참고치 수정 후 판정 누락 | low/high 중 빈 값을 `null`로 확정 | 사용자 수정값이 없는 쪽은 기본 참고치로 fallback |
+| stage 항목 custom 참고치 무시 | LDL high를 90으로 바꿔도 95가 정상 | custom low/high가 있으면 stage 판정보다 우선 |
+| USMLE 참고치 변경 감지 누락 | manifest hash에 `customRefs`만 포함 | `customRefs`와 `customUsmleRefs` 등 모든 편집 도메인 포함 |
+| 이름 혼재 | 개발 중 이전 기능명 일부 잔존 | 잔존 표시명을 같은 이름으로 일괄 교체 (단, 오래 배포된 기능의 의도적 개명은 §3.4 — 식별자·과거 이력 보존) |
+| auto-fit 그리드 빈 셀 | `repeat(auto-fit,minmax)` 그리드에 항목 수가 열 수와 안 맞아 마지막 줄에 빈 칸(컨테이너 배경=회색 블록)이 노출 | 항목 수를 열 수의 배수로 맞추거나, 안 맞는 항목은 헤더/전체폭 행으로 빼서 그리드는 짝수 카드만 담는다 |
+| 발음 버튼이 카드 열기와 충돌 | 클릭 가능한 카드 안 버튼에 전파 차단 없음 | `event.stopPropagation()`과 현재 클릭 버튼 기준 TTS 상태 표시 |
+| YouTube 자막 무한 로딩 | 순차 fetch | `Promise.all` 병렬 처리 |
+| YouTube IFrame 오류 | 로컬 파일 실행 | GitHub Pages 등 서버에서 실행 |
+
+---
+
+
+## 18. 실제 작업 시 짧은 실행 순서
+
+1. 파일 백업을 만든다.
+2. grep으로 관련 함수, id, 호출 체인을 확인한다.
+3. 저장·동기화 작업이면 `canonical_version`, `deleted_at`, pending, res.ok 확인 지점을 먼저 찾는다. 보안 검토는 치명적 위험이 보일 때만 별도로 표시한다.
+4. 새 데이터 도메인을 추가했다면 저장/로드, 상세/편집, 삭제, 동기화, 백업/복원, 저장본 버전 확인 생명주기를 먼저 점검한다.
+5. CSS → HTML → 상태 변수 → 신규 함수 → 기존 함수 호출 1줄 순서로 바꾼다.
+6. JS 구문 검사를 한다.
+7. 데이터 관리 화면에서 로컬/클라우드/삭제/pending 상태를 확인한다.
+8. 삭제 부활 방지, 최종본 교체, 기준본 이후 신규 추가, pending 복구 테스트를 한다.
+9. 업데이트 파일명 규칙에 맞춰 최종 HTML을 제공한다.
+
+---
+
+
+## 19. 최종 기준 문장
+
+```text
+클라우드가 기준 원본이고, 로컬은 임시 화면 캐시다.
+저장은 온라인에서 클라우드 성공이 확인될 때만 확정된다.
+일반 동기화와 클라우드 최종본 덮어쓰기는 같은 기능이 아니다.
+삭제는 tombstone으로 남겨야 다른 기기에서 되살아나지 않는다.
+새 데이터 도메인은 카드 렌더링만 추가하면 끝이 아니며 상세, 편집, 삭제, 백업, 복원, 저장본 검증까지 같은 수준으로 연결한다.
+앱 시작 시에는 클라우드를 덮어쓰지 말고 먼저 받기만 한다.
+보안은 치명적 위험이 아니면 핵심 작업 범위에 넣지 않는다.
+```
+
+---
+
+## 21. 브라우저 검증 부하 관리 (1MB DOM 타임아웃 방지)
+
+단일 HTML이 ~1MB라 무거운 검증은 스크린샷 도구가 타임아웃 난다. **부하를 낮추되 검증은 빠뜨리지 않는다.**
+
+- **텍스트·수치 검증 우선.** `evaluate`로 `document.scrollingElement.scrollWidth <= innerWidth`(가로 스크롤 없음), 주요 패널 `getBoundingClientRect()`가 viewport 안인지, 닫기/저장 버튼 가시성, 항목 수/상태를 확인한다. 회귀 판정의 대부분은 여기서 끝난다.
+- **스크린샷은 마지막 증거용으로 가볍게.** `fullPage:true` 금지(전체 reflow→타임아웃). 뷰포트 한 장 또는 특정 요소·`clip` 영역만 캡처. 필요하면 screenshot `timeout` 상향, `animations:'disabled'`, 사전 `document.fonts.ready` 대기.
+- **로드 대기는 `domcontentloaded` + 구체 DOM 신호.** `networkidle` 금지 — Supabase REST·YouTube IFrame·Cloudinary·Google Fonts·cdnjs xlsx 때문에 네트워크가 idle이 되지 않는다. 준비 신호는 DOM 표시·공개 함수·test hook으로 잡는다. 가능하면 외부 도메인을 `route` 차단해 페이지를 빨리 안정화한다.
+- **그래도 막히면 렌더 노드 수를 줄인다.** 최소 seed 데이터로 카드 수를 낮추거나 특정 뷰만 렌더한 뒤 검증한다.
+- 검증을 환경 문제로 못 돌렸으면 그 사실을 완료 보고에 남긴다.
+
+---
+

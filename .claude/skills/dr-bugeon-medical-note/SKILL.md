@@ -62,15 +62,15 @@ description: >-
 
 작업 종류에 따라 **필요한 문서만** 열어 상세 절차를 확인한다. (development-guide.md는 주제별로 4개로 분할됨)
 
-- **references/dev-workflow.md** — 개발 워크플로: 최상위 원칙, 작업 전 절차(grep/Playwright), 파일명·배포 규칙, 수정 방법론, 작업 후 검증 체크리스트, 반복 실수 방지, 실행 순서, 최종 기준 문장. **모든 작업의 시작점.** _(⚠️ 이번 업로드 미포함 — 데스크톱에서 추후 추가)_
+- **[references/dev-workflow.md](references/dev-workflow.md)** — 개발 워크플로: 최상위 원칙, 작업 전 절차(grep/Playwright), 파일명·배포 규칙, 수정 방법론, 작업 후 검증 체크리스트, 반복 실수 방지, 실행 순서, 최종 기준 문장. **모든 작업의 시작점.**
 - **[references/storage-sync.md](references/storage-sync.md)** — 저장 계층 & Supabase 동기화: IndexedDB/localStorage 설계, Supabase 테이블, 동기화 모드 구분(일반 vs 최종본), 삭제 tombstone, pending 복구, Supabase SQL 점검표, 동기화 테스트 시나리오. **저장·동기화·삭제 작업 시 필수.**
 - **[references/ui-features.md](references/ui-features.md)** — UI/기능별 지침: 표 편집기, UI/DOM/상태 관리, 테이블 수정, YouTube IFrame/외부 API, 데이터 관리 화면, 검사일별 판정 기준.
-- **references/import-backup-media.md** — 가져오기/내보내기/백업, 녹음 파일 처리. _(⚠️ 이번 업로드 미포함 — 데스크톱에서 추후 추가)_
-- **references/agents-rules.md** — 모든 앱개발에 반복 적용하는 전역 필수·금지·완료 보고 규칙(디자인 회귀 방지, 데이터 규칙, 동기화 모드, 로컬 캐시, 패치/quoting/Playwright 검증 원칙 등). _(⚠️ 이번 업로드 미포함 — 데스크톱에서 추후 추가)_
+- **[references/import-backup-media.md](references/import-backup-media.md)** — 가져오기/내보내기/백업, 녹음 파일 처리.
+- **[references/agents-rules.md](references/agents-rules.md)** — 모든 앱개발에 반복 적용하는 전역 필수·금지·완료 보고 규칙(디자인 회귀 방지, 데이터 규칙, 동기화 모드, 로컬 캐시, 패치/quoting/Playwright 검증 원칙 등) + 데이터 유실 회귀 방지(전수감사 일반화).
 - **[references/reconstruction-spec.md](references/reconstruction-spec.md)** — 복원용 설계 명세서. 앱 HTML이 전부 사라져도 이 문서로 재구축 가능. 아키텍처, 7 도메인 데이터 모델(용어·약물·공식·미생물·주요 질환·노트 + 학습상태), 저장 계층 키 목록, 동기화 설계, 노트 시스템, 무결성 해시 함정, 재구축 체크리스트. **§10 불변조건 & 함정은 동기화/삭제/노트 변경 전 필독.**
 - **[references/install-deploy-guide.md](references/install-deploy-guide.md)** — 설치·배포 가이드. Supabase 프로젝트/SQL, Cloudinary unsigned preset, Edge Function `delete-cloudinary-image`(코드 포함), GitHub Pages 배포, 오류 해결표, 빠른 복구 절차.
 
-> **이번 업로드 범위 메모:** SKILL.md + 4개 참고문서(storage-sync, ui-features, reconstruction-spec, install-deploy-guide)만 포함됐다. `dev-workflow.md` / `import-backup-media.md` / `agents-rules.md`는 데스크톱 원본에서 추후 추가한다(위 링크는 그 전까지 비활성).
+> **스킬 구성:** SKILL.md + 7개 참고문서(dev-workflow, storage-sync, ui-features, import-backup-media, agents-rules, reconstruction-spec, install-deploy-guide) 전체 포함. 모든 문서에는 2026-06-29 로직 전수감사 결과가 `⚠️AUDIT` 주의문구/불변조건으로 반영돼 있다.
 
 ## 지침 자동 구분 규칙
 
