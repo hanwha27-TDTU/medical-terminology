@@ -245,6 +245,9 @@ deleted_at
 - 로컬 전용 항목이 있어도 최종본 기준 시각보다 오래된 항목은 업로드 후보가 아니다.
 
 > ⚠️AUDIT(부분 로드 시 `canonicalVersion` 전진 금지 — v1.06): `canonicalChanged` 분기에서 일부 도메인(약물·공식·미생물·질환) 클라우드 로드가 실패(`canSync*=false`)하면 그 도메인 적용은 건너뛰는데, **그래도 `canonicalVersion`을 저장하면 안 된다.** 저장하면 실패한 도메인은 새 기준본을 영영 적용받지 못하고(다음부터 `canonicalChanged=false`), 다음 일반 병합에서 오래된 로컬 데이터가 fence를 통과해 **재업로드(부활)** 된다. → **모든 동기 대상 도메인이 정상 로드됐을 때만(`allDomainsLoaded`) `canonicalVersion`을 전진**시키고, 아니면 보류해 다음 동기화에서 재적용(멱등)되게 한다. 부분 적용 시 토스트도 "일부 도메인 보류"로 구분한다.
+> ⚠️AUDIT(같은 가드를 "클라우드 최종본→로컬 적용(pull/overwrite)" 경로에도 — v1.37): 위 가드는 일반 동기화(`syncWithCloud`)뿐 아니라 **클라우드 기준본을 로컬에 덮어쓰는 pull 경로**에도 똑같이 필요하다. 이 경로는 도메인별 `cloudX===null`이면 해당 배열을 그대로 두고 넘어가는데, 그 뒤에서 무조건 `canonicalVersion`을 저장하면 위와 동일한 부활이 생긴다(v1.37 전수점검에서 발견). 두 경로 모두 `allDomainsLoaded`로 게이트한다.
+
+> ⚠️AUDIT(snapshot 해시는 "편집 가능한 모든 필드"를 포함 — v1.37): §13은 tombstone 키 누락을 다루지만, **새로 추가한 일반 필드도 `canonical*HashPayload`에 반드시 넣어야 한다.** 빠지면 그 필드만 다른 두 항목이 같은 해시 → "저장본 버전 확인"·기기 일치(`localMatchesCloud`)가 **거짓 "일치"** 를 보고(실제로 v1.36 `finding_type`(용어), `refs`(미생물·질환), 오답노트 필드+`images`(노트)가 누락됐다 v1.37에 보강). 규칙: 도메인/노트에 편집 필드를 더하면 normalize·row 매핑·**해시 payload**·충돌판정(`noteContentDiffers`)을 **한 세트로** 갱신하고, 해시 payload는 그 도메인의 충돌판정과 **동일 필드셋**을 유지한다. 해시 payload가 바뀌면 저장본 해시가 1회 재베이스라인된다(손상 아님 — 완료 보고에 명시).
 
 ```javascript
 const isNewDevice = !localVersion;
