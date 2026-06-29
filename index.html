@@ -16710,7 +16710,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.03',
+  version: '1.04',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16719,7 +16719,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.03 — AI 콘텐츠 양식: 설명 한국어화 + TSV·JSON 동시 출력',
+    title: '최신 · v1.04 — 노트 동기화: 불필요한 "충돌 사본" 양산 방지',
+    items: [
+      '노트 충돌 판단에서 자동 계산 링크(관련 용어·약물·미생물·공식)를 제외했습니다. 이 링크들은 본문에서 자동 파생되어 용어 수정·앱 버전·여러 탭 동시 사용 때 텍스트가 같아도 달라질 수 있는데, 이를 충돌로 보아 "충돌 사본"이 불필요하게 생기던 문제를 고쳤습니다.',
+      '대신 동기화 병합 때 양쪽 링크를 합집합으로 보존하여, 수동으로 추가한 링크를 포함해 어느 쪽 링크도 사라지지 않습니다.',
+      '참고: 여러 탭을 동시에 열어 두면 각 탭이 따로 동기화되어 충돌이 날 수 있으니 한 탭에서 사용하시길 권합니다. (이번 변경으로 링크 차이만으로 인한 충돌 사본은 사라집니다.)',
+    ]
+  },
+  {
+    title: 'v1.03 — AI 콘텐츠 양식: 설명 한국어화 + TSV·JSON 동시 출력',
     items: [
       'AI 콘텐츠 생성 양식에 "언어 규칙"을 추가했습니다: USMLE·KMLE 포인트, 약물 계열 설명, 질환 임상 포인트 등 자유 서술은 한국어로 생성됩니다(def_en=영어, def_uz=우즈벡어, 용어명·약물명·학명·약어·발음기호는 원어 유지).',
       '일반용어 양식이 답변 끝에 TSV와 JSON 블록을 둘 다 제공하도록 바꿨습니다. 둘 중 편한 형식 하나를 골라 "AI 답변 붙여넣기"에 넣으면 됩니다(자동 인식).',
@@ -22162,6 +22170,7 @@ initApp();
   };
   function mergeIntegratedNotesForSync(cloudNotes, localNotes, localTombstones = []) {
     const merged = new Map();
+    const linkSources = new Map(); // id -> 활성(미삭제) 버전들 (링크 합집합용)
     [
       ...(Array.isArray(cloudNotes) ? cloudNotes : []).map(n => ({ term: normalizeIntegratedNote(n), source: 'cloud' })),
       ...(Array.isArray(localNotes) ? localNotes : []).map(n => ({ term: normalizeIntegratedNote(n), source: 'local' })),
@@ -22170,19 +22179,34 @@ initApp();
       if (!entry.term?.id) return;
       const key = String(entry.term.id);
       merged.set(key, pickSyncWinner(merged.get(key), entry));
+      if (!entry.term.deletedAt && entry.source !== 'local_tombstone') {
+        if (!linkSources.has(key)) linkSources.set(key, []);
+        linkSources.get(key).push(entry.term);
+      }
     });
-    return [...merged.values()].map(entry => entry.term);
+    // 같은 노트가 클라우드·로컬 양쪽에 활성으로 있으면, 링크 4종을 합집합으로 보존한다.
+    // (충돌 판단에서 링크를 뺐으므로, 어느 쪽 링크도 잃지 않도록 여기서 합쳐 준다.)
+    return [...merged.values()].map(entry => {
+      const t = entry.term;
+      const srcs = t && !t.deletedAt ? linkSources.get(String(t.id)) : null;
+      if (srcs && srcs.length > 1) {
+        t.linkedTerms = mergeNoteLists(...srcs.map(s => s.linkedTerms || []));
+        t.linkedDrugs = mergeNoteLists(...srcs.map(s => s.linkedDrugs || []));
+        t.linkedMicrobes = mergeNoteLists(...srcs.map(s => s.linkedMicrobes || []));
+        t.linkedFormulas = mergeNoteLists(...srcs.map(s => s.linkedFormulas || []));
+      }
+      return t;
+    });
   }
   function noteContentDiffers(a, b) {
     const keys = ['title', 'system', 'noteType', 'summary', 'keyPoint', 'comparison', 'bodyHtml', 'wrongStem', 'myAnswer', 'correctAnswer', 'wrongReason', 'trap', 'nextCue', 'usmleSource', 'kmleSource'];
     if (keys.some(k => String(a[k] || '') !== String(b[k] || ''))) return true;
     if (JSON.stringify(a.tags || []) !== JSON.stringify(b.tags || [])) return true;
-    if (JSON.stringify(a.linkedTerms || []) !== JSON.stringify(b.linkedTerms || [])) return true;
-    // 링크 4종 전부 비교(canonicalNoteHashPayload와 동일 필드셋). 일부만 비교하면
-    // 약물/미생물/공식 링크만 바꾼 로컬 편집이 충돌 사본 없이 클라우드본에 덮여 사라진다.
-    if (JSON.stringify(a.linkedDrugs || []) !== JSON.stringify(b.linkedDrugs || [])) return true;
-    if (JSON.stringify(a.linkedMicrobes || []) !== JSON.stringify(b.linkedMicrobes || [])) return true;
-    if (JSON.stringify(a.linkedFormulas || []) !== JSON.stringify(b.linkedFormulas || [])) return true;
+    // 링크 4종(linkedTerms/Drugs/Microbes/Formulas)은 '사용자 작성 내용'이 아니라 본문에서
+    // 자동 파생되는(+선택적 수동) 배열이라, 용어 수정·앱 버전·멀티탭 때문에 텍스트가 같아도
+    // 달라질 수 있다. 이를 충돌 트리거로 쓰면 불필요한 "충돌 사본"이 양산됐다(실제 발생).
+    // → 충돌 판단에서는 제외하고, 대신 동기화 병합 때 양쪽 링크를 합집합으로 보존한다
+    //   (mergeIntegratedNotesForSync). 그래서 어느 쪽 링크(수동 편집 포함)도 사라지지 않는다.
     if (JSON.stringify(a.originalMcq || {}) !== JSON.stringify(b.originalMcq || {})) return true;
     if (JSON.stringify(a.images || []) !== JSON.stringify(b.images || [])) return true;
     return false;
