@@ -14907,9 +14907,10 @@ function showExportMenu() {
             <input id="dataJsonImport" type="file" accept=".json,application/json" hidden onchange="previewDataImport(event,'json')">
             <div class="data-section-label">표 파일 가져오기</div>
             <div class="data-button-row">
-              <button class="data-action-btn outline" onclick="document.getElementById('dataTableImport').click()">일반용어 Excel · CSV · TSV</button>
+              <button class="data-action-btn outline" onclick="document.getElementById('dataTableImport').click()">일반용어 · 주요 질환 Excel · CSV · TSV</button>
             </div>
             <input id="dataTableImport" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden onchange="previewDataImport(event,'table')">
+            <div class="data-inline-note">표 파일은 형식을 자동 인식합니다 — 용어 양식이면 용어로, 주요 질환 내보내기 양식(ko_name·섹션 열)이면 질환으로 가져옵니다.</div>
             <div class="data-inline-note">가져오기는 먼저 미리보기로 추가·갱신·교체 예상 건수를 확인합니다. 원격 기준본 변경은 가져오기 후 사용자가 일반 동기화 또는 최종상태 저장을 선택해야 합니다.</div>
             <div id="dataImportPreview"></div>
           </section>
@@ -16030,7 +16031,13 @@ function diseaseExportRows(diseases) {
     DISEASE_SECTIONS.forEach(sec => {
       if (sec.type === 'rows') {
         const arr = Array.isArray(d.body && d.body[sec.key]) ? d.body[sec.key] : [];
-        row[`${sec.key}`] = arr.map(r => sec.rowFields.map(f => r[f.k] || '').filter(Boolean).join(':')).filter(Boolean).join(' | ');
+        // 위치 보존 인코딩: 행 = rowFields 값을 ':'로(빈 칸도 자리 유지), 행 구분 ' | '. 값 내 ':'·'|'는
+        // 가져오기 역파싱이 깨지지 않게 공백으로 치환(round-trip 안전). 전부 빈 행은 제외.
+        row[`${sec.key}`] = arr
+          .map(r => sec.rowFields.map(f => String(r[f.k] || '').replace(/[:|]/g, ' ').trim()))
+          .filter(vals => vals.some(Boolean))
+          .map(vals => vals.join(':'))
+          .join(' | ');
       } else {
         const secObj = (d.body && d.body[sec.key]) || {};
         sec.fields.forEach(f => { row[`${sec.key}.${f.k}`] = secObj[f.k] || ''; });
@@ -16490,7 +16497,56 @@ async function readDataImportFile(file, kind) {
     const workbook = XLSX.read(text, { type: 'string' });
     rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
   }
+  // 질환 표(diseaseExportRows 형식) 감지 → 질환 페이로드로. 식별: 'ko_name' 헤더(용어는 'ko').
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const isDiseaseTable = headers.includes('ko_name') || headers.includes('definition.ko') || headers.some(h => h.startsWith('symptoms.'));
+  if (isDiseaseTable) {
+    const diseases = dedupeDiseasesById(rows.map(diseaseFromTableRow).map(normalizeDiseaseForStorage)).filter(d => d.ko_name || d.en_name || d.uz_name);
+    // kind:'json'으로 둬서 검증된 질환 merge/append/replace 적용·미리보기 경로를 그대로 재사용한다
+    // (질환 단일 페이로드라 isCompleteJsonBackupImport=false → 위험한 전체교체+canonical 흐름은 발동 안 함).
+    return { kind: 'json', fileName: file.name, terms: [], drugs: [], formulas: [], microbes: [], diseases, learningStates: {}, tombstones: [], drugTombstones: [], formulaTombstones: [], microbeTombstones: [], diseaseTombstones: [], hasTermPayload: false, hasDrugPayload: false, hasDrugTombstonePayload: false, hasFormulaPayload: false, hasFormulaTombstonePayload: false, hasMicrobePayload: false, hasMicrobeTombstonePayload: false, hasDiseasePayload: diseases.length > 0, hasDiseaseTombstonePayload: false };
+  }
   return { kind, fileName: file.name, terms: normalizeImportedTableRows(rows), drugs: [], formulas: [], microbes: [], diseases: [], learningStates: {}, tombstones: [], drugTombstones: [], formulaTombstones: [], microbeTombstones: [], diseaseTombstones: [], hasTermPayload: true, hasDrugPayload: false, hasDrugTombstonePayload: false, hasFormulaPayload: false, hasFormulaTombstonePayload: false, hasMicrobePayload: false, hasMicrobeTombstonePayload: false, hasDiseasePayload: false, hasDiseaseTombstonePayload: false };
+}
+
+// 질환 표 한 행(diseaseExportRows 역변환) → 질환 객체. normalizeDiseaseForStorage가 body/행을 정규화.
+function diseaseFromTableRow(row) {
+  const val = k => String(row[k] == null ? '' : row[k]).trim();
+  const d = {
+    id: Number(row.id) || undefined,
+    ko_name: val('ko_name') || val('Korean'),
+    en_name: val('en_name') || val('English'),
+    uz_name: val('uz_name') || val('Uzbek'),
+    ipa: val('ipa'),
+    concept_category: val('concept_category'),
+    category: val('system') || val('category'),
+    system_tags: (val('system_tags') || '').split(/[;,]/).map(s => s.trim()).filter(Boolean),
+    one_line_summary: val('one_line_summary'),
+    acuity: val('acuity'),
+    emergency: val('emergency'),
+    progression: val('progression'),
+    contagious: val('contagious'),
+    body: {},
+    updatedAt: val('updated_at') || val('updatedAt') || undefined,
+  };
+  DISEASE_SECTIONS.forEach(sec => {
+    if (sec.type === 'rows') {
+      const raw = val(sec.key);
+      d.body[sec.key] = raw
+        ? raw.split('|').map(s => s.trim()).filter(Boolean).map(chunk => {
+            const parts = chunk.split(':');
+            const obj = {};
+            sec.rowFields.forEach((f, idx) => { obj[f.k] = (parts[idx] || '').trim(); });
+            return obj;
+          })
+        : [];
+    } else {
+      const obj = {};
+      sec.fields.forEach(f => { obj[f.k] = val(`${sec.key}.${f.k}`); });
+      d.body[sec.key] = obj;
+    }
+  });
+  return d;
 }
 
 // 모드별 정확한 가져오기 미리보기 카운트.
@@ -17302,7 +17358,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.39',
+  version: '1.40',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17311,7 +17367,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.39 — 개념·오답 노트 필터(구성·연결 자료) 부활',
+    title: '최신 · v1.40 — 주요 질환 CSV/Excel 가져오기(왕복) 지원',
+    items: [
+      '주요 질환을 CSV·Excel로 내보낸 뒤 다시 가져올 수 있습니다(이전엔 JSON만 복원 가능). "표 파일 가져오기"에서 질환 양식을 자동 인식해 본문 섹션(정의·증상·징후·원인·검사 등)까지 복원합니다.',
+      '왕복 안정성을 위해 행 섹션(원인·Red flags·검사/진단) 내보내기 인코딩을 위치 보존형으로 정비했습니다(빈 칸도 자리 유지). 값에 쓰인 \':\' \'|\' 기호는 공백으로 정리됩니다.',
+    ]
+  },
+  {
+    title: 'v1.39 — 개념·오답 노트 필터(구성·연결 자료) 부활',
     items: [
       '노트 목록 상단에 필터 바를 추가했습니다. 구성(전체/개념노트/오답노트)과 연결 자료(용어/약물/미생물/공식)로 노트를 좁혀 볼 수 있습니다. 이전에는 동작하지 않던(렌더되지 않던) 필터를 실제로 살렸습니다.',
     ]
