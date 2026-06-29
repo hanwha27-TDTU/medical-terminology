@@ -2877,10 +2877,6 @@ document.addEventListener('keydown', e => {
       white-space: normal;
       line-height: 1.25;
     }
-
-    .library-mode-btn.note {
-      grid-column: 1 / -1;
-    }
   }
 
   .top-tool-row {
@@ -16691,7 +16687,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.84',
+  version: '4.85',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16700,7 +16696,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.84 추가 화면에 "JSON 붙여넣기" 탭 추가',
+    title: '최신 · v4.85 작은 화면 자료 모드 버튼 정렬 수정',
+    items: [
+      '작은 화면(모바일)에서 자료 모드 버튼(일반용어·미생물·약물·공식·질환·개념오답노트) 그리드가 틀어지던 문제 수정 — 개념·오답 노트 버튼만 전체 폭을 차지(grid-column 1/-1)해 "주요 질환" 옆에 빈 칸이 생기고 노트가 홀로 떨어지던 것을 제거',
+      '이제 6개 버튼이 2열로 깔끔하게 3행 정렬됩니다',
+    ]
+  },
+  {
+    title: 'v4.84 추가 화면에 "JSON 붙여넣기" 탭 추가',
     items: [
       '용어 추가 화면(단어 하나 / TSV 붙여넣기 / Excel 신규만) 옆에 "🤖 JSON 붙여넣기" 탭 추가 — AI로 만든 JSON 블록을 여기서도 바로 붙여넣어 가져오기',
       '용어뿐 아니라 약물·공식·미생물·주요 질환까지 전 도메인 JSON을 이 탭에서 추가 가능. TSV도 자동 인식, 중복 시 건너뛰기/덮어쓰기 선택(이름 기준)',
