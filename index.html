@@ -16741,7 +16741,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.11',
+  version: '1.12',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16750,7 +16750,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.11 — 주요 질환 원인에 "상위분류(내인성/외인성)" 추가',
+    title: '최신 · v1.12 — Supabase 통합 SQL 헤더 보정(주요 질환 명시)',
+    items: [
+      '개발자 화면의 "Supabase 동기화 스키마 설정 SQL" 헤더 설명에서 빠져 있던 "주요 질환"을 포함 도메인 목록에 추가하고, 질환 상세 분류는 body(jsonb)에 저장되어 별도 컬럼이 필요 없음을 명시했습니다. SQL 본문(테이블/컬럼)은 기존과 동일하며 한 번에 붙여넣어 안전하게 실행됩니다(create/alter 모두 if not exists).',
+    ]
+  },
+  {
+    title: 'v1.11 — 주요 질환 원인에 "상위분류(내인성/외인성)" 추가',
     items: [
       '원인·위험인자 행에 상위분류 선택을 추가했습니다: 내인성 · 외인성 · 혼합·불명(선택, 빈칸 허용). 상세 분류 18개와는 다른 축이라, 같은 분류라도 행마다 내/외인성을 따로 달 수 있습니다(예: 유전성 종양=내인성, 흡연 유발 종양=외인성). 양다리·원인불명은 "혼합·불명"으로.',
     ]
@@ -16852,10 +16858,11 @@ const UPDATE_HISTORY = [
 const SUPABASE_SCHEMA_VERSION = 'v4.55 · 주요질환(medical_diseases)추가';
 const SUPABASE_SCHEMA_UPDATED_AT = '2026년 6월 27일';
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon Medical Note Supabase 통합 스키마
--- Schema version: v4.13 · 단권화노트통합스키마
--- Schema updated at: 2026년 6월 24일 03:17
--- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 개념·오답 노트, 학습상태, 최종본 메타
--- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요.
+-- Schema version: v4.14 · 단권화노트통합스키마
+-- Schema updated at: 2026년 6월 29일
+-- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 주요 질환, 개념·오답 노트, 학습상태, 최종본 메타
+-- 참고: 주요 질환의 상세 분류(원인 18종·상위분류 내/외인성 등)는 medical_diseases.body(jsonb)에 저장되므로 별도 컬럼이 필요 없습니다.
+-- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요. (이미 만든 테이블이 있어도 안전 — create/alter 모두 if not exists)
 
 create table if not exists public.medical_terms (
   id bigint primary key,
