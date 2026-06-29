@@ -1503,6 +1503,17 @@ function diseaseDetailLine(label, value, extraClass = '') {
   if (!text) return '';
   return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value">${escapeHtml(text)}</div></div>`;
 }
+// 쉼표 등으로 구분된 값을 칩(pill)으로 — '비슷한 질환 목록'과 같은 디자인(단, 질환 링크 없는 plain 칩).
+function diseaseChipifyTokens(text) {
+  return String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i)
+    .map(t => t.trim()).filter(Boolean)
+    .map(tok => `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`).join('');
+}
+function diseaseChipLine(label, value, extraClass = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value disease-ddx-links">${diseaseChipifyTokens(text)}</div></div>`;
+}
 
 function _renderDiseaseDrawerContent(d) {
   const title = diseaseDisplayName(d);
@@ -1523,7 +1534,9 @@ function _renderDiseaseDrawerContent(d) {
   const baseGrid = [
     diseaseDetailLine('IPA English', d.ipa),
     diseaseDetailLine('System Tags', systemTags, 'microbe-card-wide'),
-    ...(profileSec ? profileSec.fields.map(f => diseaseDetailLine(f.label, d.body?.profile?.[f.k])) : []),
+    ...(profileSec ? profileSec.fields.map(f => f.k === 'chief_complaints'
+      ? diseaseChipLine(f.label, d.body?.profile?.[f.k])
+      : diseaseDetailLine(f.label, d.body?.profile?.[f.k])) : []),
   ].filter(Boolean).join('');
   const accordion = DISEASE_SECTIONS.filter(s => s.key !== 'profile').map(sec => {
     if (sec.type === 'rows') {
@@ -17022,7 +17035,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.27',
+  version: '1.28',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17031,7 +17044,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.27 — 질환 편집 "한 줄 암기" 칸을 넓고 길게',
+    title: '최신 · v1.28 — 질환 상세의 주호소를 칩(pill)으로 표시',
+    items: [
+      '질환 상세 "기본 정보·질환 프로필"의 주호소를 쉼표 단위로 칩(pill) 형태로 보여줍니다. "비슷한 질환 목록"과 같은 디자인으로 통일했습니다(증상이라 질환 링크는 없는 plain 칩).',
+    ]
+  },
+  {
+    title: 'v1.27 — 질환 편집 "한 줄 암기" 칸을 넓고 길게',
     items: [
       'USMLE/KMLE 섹션의 "한 줄 암기" 입력 칸을 좁은 단일행에서 전체폭 2줄 입력창으로 바꿨습니다(다른 서술형 칸과 동일한 area 스타일). 더 길고 넓어 편하게 적을 수 있습니다.',
     ]
