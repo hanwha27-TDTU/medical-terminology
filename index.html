@@ -1030,7 +1030,8 @@ function _renderDrawerContent(t) {
   // 카테고리 배지
   const catHtml = `
     <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text3)">${escapeHtml(conceptDisplay(t.concept_category))}</span>
-    <span style="font-size:11px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px;color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>`;
+    <span style="font-size:11px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:2px 8px;color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>
+    ${t.finding_type ? `<span style="font-size:11px;background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.4);border-radius:6px;padding:2px 8px;color:#5eead4">${escapeHtml(t.finding_type)}</span>` : ''}`;
 
   // 링크 버튼들
   const linksHtml = `
@@ -6286,6 +6287,7 @@ function termToRow(t) {
     def_uz:      t.def_uz || '',
     usmle:       t.usmle || '',
     ipa:         t.ipa || '',
+    finding_type: t.finding_type || '',
     refs:        Array.isArray(t.refs) ? t.refs : [],
     icd11:       t.icd11 || null,
     fda_drug:    t.fdaDrug || null,
@@ -6312,6 +6314,7 @@ function rowToTerm(r) {
     def_uz:      r.def_uz || '',
     usmle:       r.usmle || '',
     ipa:         r.ipa || '',
+    finding_type: r.finding_type || '',
     refs:        Array.isArray(r.refs) ? r.refs : [],
     icd11:       r.icd11 || null,
     fdaDrug:     r.fda_drug || null,
@@ -7276,6 +7279,24 @@ function normalizeSystemTags(value) {
     .filter(Boolean))];
 }
 
+// 증상/징후 태그 정규화 — '증상' | '징후' | '증상·징후' | '' (다양한 입력 형태 허용).
+function normalizeFindingType(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  const hasSym = /증상|symptom/i.test(s);
+  const hasSign = /징후|sign/i.test(s);
+  if (hasSym && hasSign) return '증상·징후';
+  if (hasSym) return '증상';
+  if (hasSign) return '징후';
+  return '';
+}
+// 체크박스 2개(증상/징후) → finding_type 값
+function readFindingTypeChecks(symptomId, signId) {
+  const sym = !!document.getElementById(symptomId)?.checked;
+  const sign = !!document.getElementById(signId)?.checked;
+  return sym && sign ? '증상·징후' : sym ? '증상' : sign ? '징후' : '';
+}
+
 function normalizeTermForStorage(t) {
   const now = new Date().toISOString();
   const category = normalizeSystemCategory(t.system || t.category);
@@ -7296,6 +7317,7 @@ function normalizeTermForStorage(t) {
     def_uz: cleanTermString(t.def_uz),
     usmle: cleanTermString(t.usmle),
     ipa: cleanTermString(t.ipa),
+    finding_type: normalizeFindingType(t.finding_type || t.findingType),
     refs: Array.isArray(t.refs) ? t.refs : [],
     icd11: t.icd11 || null,
     fdaDrug: t.fdaDrug || null,
@@ -9916,6 +9938,7 @@ function renderTerms(terms, bookmarkDivider = 0) {
         <div class="term-meta-row">
           <span class="term-category" title="개념분류">${escapeHtml(conceptDisplay(t.concept_category))}</span>
           <span class="term-category" title="대표 장기계" style="border-color:rgba(88,166,255,0.35);color:#74b0ff">${escapeHtml(categoryDisplay(t.category))}</span>
+          ${t.finding_type ? `<span class="term-category" title="증상/징후" style="border-color:rgba(45,212,191,0.4);color:#5eead4">${escapeHtml(t.finding_type)}</span>` : ''}
           ${(() => {
             const missing = [];
             if (!t.ko)     missing.push('KO');
@@ -11788,6 +11811,7 @@ function applyFilters() {
       termText(t, 'uz').toLowerCase().includes(query) ||
       String(t.concept_category || '').toLowerCase().includes(query) ||
       String(t.category || '').toLowerCase().includes(query) ||
+      String(t.finding_type || '').toLowerCase().includes(query) ||
       termText(t, 'def_ko').toLowerCase().includes(query) ||
       termText(t, 'def_en').toLowerCase().includes(query)
     );
@@ -13108,7 +13132,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3);line-height:1.8">
             <b style="color:var(--text2)">TSV 컬럼 순서</b><br>
-            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa<br>
+            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa · finding_type<br>
             <span style="color:var(--accent2)">✓ 헤더 있어도 OK &nbsp;✓ 예전 category 순서도 OK</span>
           </div>
         </div>
@@ -13153,7 +13177,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3);line-height:1.8">
             <b style="color:var(--text2)">지원 컬럼</b><br>
-            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa<br>
+            ko · en · uz · concept_category · system · system_tags · def_ko · def_en · def_uz · usmle · ipa · finding_type<br>
             <span style="color:var(--accent2)">✓ 기존 용어 보존 &nbsp;✓ 새 용어만 추가 &nbsp;✓ 예전 category 파일도 인식</span>
           </div>
         </div>
@@ -13219,6 +13243,13 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">🏷️ 시스템 태그</label>
             <input id="add_system_tags" type="text" placeholder="예: Immunology, Pulmonary, ENT · 쉼표로 구분" style="${inputStyle()}">
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">🩺 증상 / 징후 여부 <span style="color:var(--text3);font-weight:400">(둘 다 가능 · 환자가 느끼면 증상, 의사가 확인하면 징후)</span></label>
+            <div style="display:flex;gap:16px;padding:4px 2px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer"><input id="add_finding_symptom" type="checkbox" style="width:16px;height:16px;cursor:pointer"> 증상 (Symptom)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer"><input id="add_finding_sign" type="checkbox" style="width:16px;height:16px;cursor:pointer"> 징후 (Sign)</label>
+            </div>
           </div>
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">🇰🇷 한국어 정의</label>
@@ -13554,7 +13585,7 @@ function parseTsvPaste(raw) {
   const lines = raw.trim().split('\n').filter(l => l.trim());
   if (!lines.length) return [];
   parseTsvPaste.lastError = '';
-  const COLS = ['ko','en','uz','concept_category','category','system_tags','def_ko','def_en','def_uz','usmle','ipa'];
+  const COLS = ['ko','en','uz','concept_category','category','system_tags','def_ko','def_en','def_uz','usmle','ipa','finding_type'];
 
   // 헤더 별칭 매핑 (영문 헤더 → 내부 키)
   const ALIAS = {
@@ -13575,6 +13606,10 @@ function parseTsvPaste(raw) {
     'def_uz':'def_uz',
     'usmle':'usmle',
     'ipa':'ipa',
+    'finding_type':'finding_type',
+    'findingtype':'finding_type',
+    'sign_symptom':'finding_type',
+    '증상징후':'finding_type',
   };
 
   // 헤더 감지: ko/en 또는 Korean/English 포함 여부
@@ -13596,21 +13631,23 @@ function parseTsvPaste(raw) {
       }).filter(t => t.ko || t.en || t.uz);
   }
 
-  // 헤더 없음 — 11열 표준 또는 9열 legacy만 허용
+  // 헤더 없음 — 11열 표준(또는 finding_type 포함 12열) 또는 9열 legacy만 허용.
+  // STD_LEN(11)은 finding_type 도입 이전 표준 열 수 — 기존 11열 파일 하위호환.
   const LEGACY_COLS = ['ko','en','uz','category','def_ko','def_en','def_uz','usmle','ipa'];
+  const STD_LEN = 11;
   const dataLines = lines.filter(l => !l.startsWith('#'));
   const invalidLine = dataLines.find(line => {
     const count = line.split('\t').length;
-    return !(count >= COLS.length || count === LEGACY_COLS.length);
+    return !(count >= STD_LEN || count === LEGACY_COLS.length);
   });
   if (invalidLine) {
-    parseTsvPaste.lastError = '헤더 없는 TSV는 11열 표준 또는 9열 legacy 형식만 지원합니다. 안전을 위해 헤더를 추가해 주세요.';
+    parseTsvPaste.lastError = '헤더 없는 TSV는 11열 표준(또는 12열 finding_type 포함) 또는 9열 legacy 형식만 지원합니다. 안전을 위해 헤더를 추가해 주세요.';
     return [];
   }
   return dataLines.map(line => {
       const cells = line.split('\t');
       const t = {};
-      const schema = cells.length >= COLS.length ? COLS : LEGACY_COLS;
+      const schema = cells.length >= STD_LEN ? COLS : LEGACY_COLS;
       schema.forEach((c, idx) => { t[c] = (cells[idx] || '').trim(); });
       t.category = t.category || 'General';
       t.concept_category = t.concept_category || 'Other / Unclassified';
@@ -13831,6 +13868,7 @@ async function submitAddTerm() {
     def_uz:   document.getElementById('add_def_uz')?.value.trim() || '',
     usmle:    document.getElementById('add_usmle')?.value.trim() || '',
     ipa:      document.getElementById('add_ipa')?.value.trim() || '',
+    finding_type: readFindingTypeChecks('add_finding_symptom', 'add_finding_sign'),
     refs: [], icd11: null, fdaDrug: null, rxclassATC: null, trials: null,
   };
 
@@ -14079,6 +14117,13 @@ function openEditModal(e, id) {
       <div style="margin-bottom:10px">
         <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">보조 장기 태그 <span style="color:var(--text3)">(쉼표로 구분)</span></label>
         <input id="edit_system_tags" value="${esc((t.system_tags || []).join(', '))}" placeholder="예: ENT, GI & Hepatobiliary" style="${IS}">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">증상 / 징후 여부 <span style="color:var(--text3)">(둘 다 가능)</span></label>
+        <div style="display:flex;gap:16px;padding:2px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer"><input id="edit_finding_symptom" type="checkbox" ${/증상/.test(t.finding_type || '') ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"> 증상</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer"><input id="edit_finding_sign" type="checkbox" ${/징후/.test(t.finding_type || '') ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer"> 징후</label>
+        </div>
       </div>
 
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:4px">정의</div>
@@ -14508,6 +14553,7 @@ function saveEdit(id) {
     def_en:   document.getElementById('edit_def_en')?.value.trim()   || '',
     def_uz:   document.getElementById('edit_def_uz')?.value.trim()   || '',
     usmle:    document.getElementById('edit_usmle')?.value.trim()    || '',
+    finding_type: readFindingTypeChecks('edit_finding_symptom', 'edit_finding_sign'),
   });
 
   TERMS[idx].updatedAt = new Date().toISOString();
@@ -15060,7 +15106,7 @@ function buildAIContentSpec(domain) {
   // 드롭다운=옵션 상수). 출력은 "예쁜 검토용 정리 + 맨 끝 붙여넣기 블록(용어=TSV, 그 외=JSON)".
   const cats = VALID_CATS.join(', ');
   const concepts = CONCEPT_CATEGORIES.join(', ');
-  const TSV_COLS = ['ko', 'en', 'uz', 'concept_category', 'category', 'system_tags', 'def_ko', 'def_en', 'def_uz', 'usmle', 'ipa'];
+  const TSV_COLS = ['ko', 'en', 'uz', 'concept_category', 'category', 'system_tags', 'def_ko', 'def_en', 'def_uz', 'usmle', 'ipa', 'finding_type'];
 
   const NORM = { terms: normalizeTermForStorage, drugs: normalizeDrugForStorage, formulas: normalizeFormulaForStorage, microbes: normalizeMicrobeForStorage, diseases: normalizeDiseaseForStorage };
   const EXCLUDE = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'hiddenAt', 'conceptCategory', 'icd11', 'fdaDrug', 'rxclassATC', 'trials', 'refs']);
@@ -15082,6 +15128,7 @@ function buildAIContentSpec(domain) {
     if (k === 'drug_form') return '제형 tablet 등 (자유)';
     if (k === 'drug_class') return 'USMLE 약물 계열 (자유)';
     if (k === 'ipa') return '/발음기호/';
+    if (k === 'finding_type') return '증상 | 징후 | 증상·징후 | 빈칸 (환자가 느끼면 증상·의사가 확인하면 징후·둘 다면 증상·징후)';
     if (k === 'ko' || k === 'ko_name') return '한국어';
     if (k === 'en' || k === 'en_name' || k === 'generic_name' || k === 'organism') return 'English / 학명';
     if (k === 'uz' || k === 'uz_name') return '(모르면 빈칸)';
@@ -15148,11 +15195,12 @@ function buildAIContentSpec(domain) {
       '맨 끝에 아래 두 블록을 "각각 별도의 코드블록"으로 출력해라(같은 내용을 형식만 다르게). 사용자는 둘 중 하나만 골라 붙여넣는다.',
       '',
       '— 블록 A) TSV (탭으로 구분) —',
-      '열 순서(11열, 각 열은 탭으로 구분): ' + TSV_COLS.join(', '),
-      '첫 줄에 이 11개 머리글을 탭으로 구분해 그대로 넣고, 다음 줄부터 용어 한 줄씩(각 칸은 탭으로 구분). 빈 칸은 값만 비우고 탭은 유지.',
+      '열 순서(' + TSV_COLS.length + '열, 각 열은 탭으로 구분): ' + TSV_COLS.join(', '),
+      '첫 줄에 이 ' + TSV_COLS.length + '개 머리글을 탭으로 구분해 그대로 넣고, 다음 줄부터 용어 한 줄씩(각 칸은 탭으로 구분). 빈 칸은 값만 비우고 탭은 유지.',
       ' · concept_category = [개념분류 목록 중 1개]',
       ' · category = [장기계 목록 중 1개]',
       ' · system_tags = 장기계 값(여러 개면 쉼표). 탭이 아니라 쉼표.',
+      ' · finding_type = 증상/징후 여부: 증상 | 징후 | 증상·징후 | (빈칸). 환자가 느끼면 증상, 의사가 확인하면 징후, 둘 다면 "증상·징후".',
       ' · 나머지(ko/en/uz/def_ko/def_en/def_uz/usmle/ipa)는 자유 텍스트(usmle 등 설명은 한국어).',
       '',
       '— 블록 B) JSON (TSV와 동일한 항목들) —',
@@ -15746,6 +15794,7 @@ function termExportRows(terms) {
     Def_uz: t.def_uz || '',
     USMLE: t.usmle || '',
     IPA: t.ipa || '',
+    Finding_type: t.finding_type || '',
     Refs_json: stringifyExportJson(t.refs || []),
     ICD11_json: stringifyExportJson(t.icd11),
     FDA_json: stringifyExportJson(t.fdaDrug),
@@ -17228,7 +17277,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.35',
+  version: '1.36',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17237,7 +17286,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.35 — 감별 워크벤치: 증상 조합(AND) 검색 + 감별 표',
+    title: '최신 · v1.36 — 일반 용어에 증상/징후 태그 추가 (⚠️ SQL 변경)',
+    items: [
+      '일반 용어에 개념분류·대표 장기계와 별도로 "증상/징후 여부"를 태그할 수 있습니다(체크박스 2개, 둘 다 가능). 추가·편집창 입력, 카드·상세 칩 표시, 검색, TSV/CSV·AI 양식까지 반영했습니다.',
+      '⚠️ Supabase 사용 시: medical_terms에 finding_type 컬럼이 추가됐습니다. 설정 → "설정 SQL 복사"의 최신 SQL을 한 번 실행해 주세요(idempotent — 여러 번 실행해도 안전).',
+    ]
+  },
+  {
+    title: 'v1.35 — 감별 워크벤치: 증상 조합(AND) 검색 + 감별 표',
     items: [
       '소견 칩 클릭 모달이 "감별 워크벤치"로 확장됐습니다. 동반 소견을 +칩으로 눌러 조건을 누적하면(예: 어지럼 + 저혈압) 모두 만족하는 질환만 좁혀 보여줍니다(조합 검색, AND).',
       '"📊 감별 표" 보기를 켜면 후보 질환을 열로, 한 줄·주호소·증상·징후를 행으로 나란히 비교할 수 있습니다. 조건·표 모두 용어 동의어·다국어 매칭이 적용됩니다.',
@@ -17510,6 +17566,7 @@ create table if not exists public.medical_terms (
   def_uz text default '',
   usmle text default '',
   ipa text default '',
+  finding_type text default '',
   refs jsonb default '[]'::jsonb,
   icd11 jsonb,
   fda_drug jsonb,
@@ -17532,6 +17589,7 @@ alter table public.medical_terms
   add column if not exists def_uz text default '',
   add column if not exists usmle text default '',
   add column if not exists ipa text default '',
+  add column if not exists finding_type text default '',
   add column if not exists refs jsonb default '[]'::jsonb,
   add column if not exists icd11 jsonb,
   add column if not exists fda_drug jsonb,
@@ -19803,6 +19861,7 @@ async function handleFileUpload(e, mode = 'replace') {
           def_uz:   String(row['def_uz']   || row['Def_uz']   || '').trim(),
           usmle:    String(row['usmle']    || row['USMLE']    || '').trim(),
           ipa:      String(row['ipa']      || row['IPA']      || '').trim(),
+          finding_type: String(row['finding_type'] || row['Finding_type'] || row['증상징후'] || '').trim(),
           refs:     parseImportJson(row['refs'] || row['Refs'] || row['Refs_json'] || row['refs_json'], []),
           icd11:    parseImportJson(row['icd11'] || row['ICD11'] || row['ICD11_json'] || row['icd11_json'], null),
           fdaDrug:  parseImportJson(row['fdaDrug'] || row['fda_drug'] || row['FDA_json'] || row['fda_json'], null),
