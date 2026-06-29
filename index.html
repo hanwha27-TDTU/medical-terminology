@@ -9197,9 +9197,10 @@ function renderDiseaseFrame(diseases = []) {
           <div class="drug-chip-row">
             ${emergencyChip}
             ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
-            ${d.ipa ? `<span class="drug-chip">IPA ${escapeHtml(d.ipa)}</span>` : ''}
           </div>
           ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
+          ${(d.body?.profile?.chief_complaints) ? `<div class="microbe-memory-line"><span>주호소</span>${escapeHtml(d.body.profile.chief_complaints)}</div>` : ''}
+          ${(d.body?.definition?.ko) ? `<div class="microbe-memory-line"><span>정의</span>${escapeHtml(d.body.definition.ko)}</div>` : ''}
         </article>
       `; }).join('')}
     </section>`;
@@ -17021,7 +17022,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.24',
+  version: '1.25',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17030,7 +17031,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.24 — 추가 화면 상단 고정 "추가" 버튼',
+    title: '최신 · v1.25 — 질환 대시보드 카드를 상세 개요와 통일',
+    items: [
+      '질환 목록(대시보드) 카드를 상세 서랍 개요와 같은 구성으로 맞췄습니다: IPA 칩을 빼고, 한 줄 핵심 아래에 주호소·정의를 함께 표시합니다(v1.22 개요 변경의 수평 전개). 목록에서도 임상 핵심을 바로 볼 수 있습니다.',
+    ]
+  },
+  {
+    title: 'v1.24 — 추가 화면 상단 고정 "추가" 버튼',
     items: [
       '항목 추가 모달의 헤더에 "추가" 버튼을 고정했습니다(편집창처럼). 입력 칸이 많아 길게 스크롤해도 상단 버튼으로 바로 저장할 수 있고, 본문만 내부 스크롤되어 헤더는 항상 보입니다. 맨 아래 추가 버튼도 그대로 유지됩니다. ("단어 하나" 탭에서만 표시 — TSV·Excel·JSON 탭은 각자의 가져오기 버튼 사용).',
     ]
