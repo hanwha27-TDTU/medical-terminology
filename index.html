@@ -12356,10 +12356,17 @@ async function syncWithCloud() {
     saveLocalTombstones(cloudTerms.filter(t => t.deletedAt));
     const learning = await sbLoadLearningStates();
     if (learning) applyLearningStates(learning, true);
-    saveLocalSyncMeta({ canonicalVersion: canonicalMeta.version });
+    // 일부 도메인(약물/공식/미생물/질환) 로드 실패 시 canonicalVersion을 전진시키지 않는다.
+    // 전진시키면 그 도메인은 새 기준본을 영영 적용받지 못하고, 다음 일반 병합에서
+    // 오래된 로컬 전용 데이터가 fence를 통과해 클라우드로 재업로드(삭제 부활급)될 수 있다.
+    // 보류해 두면 다음 동기화에서 canonicalChanged가 다시 잡혀 실패 도메인까지 재적용된다.
+    const allDomainsLoaded = canSyncDrugs && canSyncFormulas && canSyncMicrobes && canSyncDiseases;
+    if (allDomainsLoaded) saveLocalSyncMeta({ canonicalVersion: canonicalMeta.version });
     updateBookmarkCount();
     applyFilters();
-    showToast(`☁️ 새 최종본 적용 완료 · 용어 ${TERMS.length}개 · 미생물 ${MICROBES.length}개 · 약물 ${DRUGS.length}개 · 공식 ${FORMULAS.length}개 · 질환 ${DISEASES.length}개 · 노트 ${activeNoteCountForToast()}개`);
+    showToast(allDomainsLoaded
+      ? `☁️ 새 최종본 적용 완료 · 용어 ${TERMS.length}개 · 미생물 ${MICROBES.length}개 · 약물 ${DRUGS.length}개 · 공식 ${FORMULAS.length}개 · 질환 ${DISEASES.length}개 · 노트 ${activeNoteCountForToast()}개`
+      : `⚠️ 일부 도메인 보류 · 적용 가능한 항목만 새 최종본 반영 · 통합 SQL/연결 확인 후 다시 동기화하세요`);
     return true;
   }
 
@@ -15964,16 +15971,20 @@ function calculateImportPreview(importData) {
 }
 
 function isCompleteJsonBackupImport(importData) {
+  // 질환(diseases)은 v1.0 정식 도메인이므로 "전체 백업" 판정에 포함한다. 질환이 빠진 구버전
+  // 4도메인 백업은 더 이상 '전체'로 보지 않아, 교체 후 최종상태 저장이 오판되지 않게 한다.
   return !!importData
     && importData.kind === 'json'
     && !!importData.hasTermPayload
     && !!importData.hasDrugPayload
     && !!importData.hasFormulaPayload
     && !!importData.hasMicrobePayload
+    && !!importData.hasDiseasePayload
     && Array.isArray(importData.terms)
     && Array.isArray(importData.drugs)
     && Array.isArray(importData.formulas)
-    && Array.isArray(importData.microbes);
+    && Array.isArray(importData.microbes)
+    && Array.isArray(importData.diseases);
 }
 
 async function previewDataImport(event, kind) {
@@ -16717,7 +16728,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.05',
+  version: '1.06',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16726,7 +16737,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.05 — 설정 화면 정리: 접기/펼치기 + 자주 쓰는 항목 위로',
+    title: '최신 · v1.06 — 동기화 안전성: 부분 로드 시 기준본 전진 차단 + 백업 판정 보정',
+    items: [
+      '코드 리뷰 반영(2건). ① 동기화 중 일부 도메인(약물·공식·미생물·질환) 로드에 실패하면 기준본 버전을 전진시키지 않도록 고쳤습니다. 이전에는 실패해도 "최신 적용 완료"로 표시되어 그 도메인의 오래된 로컬 데이터가 다음 동기화에서 다시 올라갈(부활) 위험이 있었습니다.',
+      '② "전체 JSON 백업" 판정에 주요 질환 도메인을 포함했습니다. 질환이 빠진 구버전 4도메인 백업이 전체 백업으로 오판되지 않습니다.',
+    ]
+  },
+  {
+    title: 'v1.05 — 설정 화면 정리: 접기/펼치기 + 자주 쓰는 항목 위로',
     items: [
       'AI · Supabase 설정 화면이 너무 길고 복잡해, 모든 항목을 접기/펼치기(아코디언)로 정리했습니다. 제목 줄을 누르면 열고 닫힙니다.',
       '자주 쓰는 Supabase · Cloudinary를 맨 위로 올리고 기본 펼침으로 두었습니다. AI 자동완성(OpenAI·Anthropic·Gemini·로컬·UMLS)·현재 상태·안내는 접힌 상태가 기본입니다.',
