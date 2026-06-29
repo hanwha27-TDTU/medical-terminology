@@ -4350,6 +4350,9 @@ document.addEventListener('keydown', e => {
     cursor: pointer;
     margin-top: 8px;
     transition: all 0.15s;
+    /* 카드 헤더가 좁아져도 버튼이 줄거나 라벨(••••+발음)이 줄바꿈되지 않게 고정 */
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .speak-btn:hover {
@@ -16900,7 +16903,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.15',
+  version: '1.16',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16909,7 +16912,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.15 — 가져오기 중복 시 "비교 후 항목별 선택"',
+    title: '최신 · v1.16 — 발음 버튼 줄바꿈 깨짐 수정',
+    items: [
+      '영어 이름(부제)이 길어 카드 헤더가 좁아질 때, 발음 버튼의 "•••• 발음"이 두 줄로 찌그러지던 문제를 고쳤습니다. 발음 버튼이 한 줄로 고정되고 줄어들지 않도록 했습니다(모든 도메인 카드 공통).',
+    ]
+  },
+  {
+    title: 'v1.15 — 가져오기 중복 시 "비교 후 항목별 선택"',
     items: [
       'JSON 붙여넣기 가져오기에 "🔍 비교 후 선택" 버튼을 추가했습니다. 중복(같은 이름) 항목마다 기존↔새 내용의 바뀌는 필드를 미리 보여주고, 항목별로 덮어쓸지/기존을 유지할지 직접 고를 수 있습니다. 신규 항목은 그대로 추가됩니다.',
       '기존의 전부 건너뛰기/전부 덮어쓰기 버튼도 그대로 유지됩니다. (검토는 5개 도메인 공통 · 전체 덮어쓰기/전체 건너뛰기 도우미 포함)',
