@@ -17358,7 +17358,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.40',
+  version: '1.41',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17367,7 +17367,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.40 — 주요 질환 CSV/Excel 가져오기(왕복) 지원',
+    title: '최신 · v1.41 — SQL 스키마 버전 이력 정정(finding_type 반영 누락)',
+    items: [
+      'v1.36에서 medical_terms에 finding_type 컬럼을 추가했는데(SQL 자체는 정상 반영됨), 설정 SQL의 버전 배지·갱신일·Schema version 주석을 함께 올리지 않았던 이력 누락을 정정했습니다. 이제 배지(v4.56)·날짜·Schema version(v4.15)이 컬럼 변경을 반영합니다. 기능 변화는 없습니다.',
+    ]
+  },
+  {
+    title: 'v1.40 — 주요 질환 CSV/Excel 가져오기(왕복) 지원',
     items: [
       '주요 질환을 CSV·Excel로 내보낸 뒤 다시 가져올 수 있습니다(이전엔 JSON만 복원 가능). "표 파일 가져오기"에서 질환 양식을 자동 인식해 본문 섹션(정의·증상·징후·원인·검사 등)까지 복원합니다.',
       '왕복 안정성을 위해 행 섹션(원인·Red flags·검사/진단) 내보내기 인코딩을 위치 보존형으로 정비했습니다(빈 칸도 자리 유지). 값에 쓰인 \':\' \'|\' 기호는 공백으로 정리됩니다.',
@@ -17653,11 +17659,11 @@ const UPDATE_HISTORY = [
   }
 ];
 
-const SUPABASE_SCHEMA_VERSION = 'v4.55 · 주요질환(medical_diseases)추가';
-const SUPABASE_SCHEMA_UPDATED_AT = '2026년 6월 27일';
+const SUPABASE_SCHEMA_VERSION = 'v4.56 · 용어 finding_type(증상/징후) 컬럼 추가';
+const SUPABASE_SCHEMA_UPDATED_AT = '2026년 6월 29일';
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon Medical Note Supabase 통합 스키마
 -- App version: v${APP_INFO.version} (${APP_INFO.updatedAt}) · 이 SQL이 포함된 앱 버전 — 자동 표기(APP_INFO에서)
--- Schema version: v4.14 · 단권화노트통합스키마 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
+-- Schema version: v4.15 · 용어 finding_type 컬럼 추가 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
 -- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 주요 질환, 개념·오답 노트, 학습상태, 최종본 메타
 -- 참고: 주요 질환의 상세 분류(원인 18종·상위분류 내/외인성 등)는 medical_diseases.body(jsonb)에 저장되므로 별도 컬럼이 필요 없습니다.
 -- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요. (이미 만든 테이블이 있어도 안전 — create/alter 모두 if not exists)
