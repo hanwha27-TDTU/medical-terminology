@@ -1980,19 +1980,22 @@ document.addEventListener('keydown', e => {
     .final-save-header-btn,
     .version-check-header-btn {
       margin-left: 0;
-      flex: 1 1 132px;
+      flex: 0 1 auto;            /* 컴팩트: 행 폭을 억지로 채워 커지지 않게 */
       min-width: 0;
       max-width: 100%;
+      padding: 7px 11px;
+      font-size: 11px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .final-save-header-btn,
     .version-check-header-btn {
-      flex-basis: 180px;
+      flex-basis: auto;
     }
 
     .header-top button span {
@@ -2067,6 +2070,16 @@ document.addEventListener('keydown', e => {
     .theme-toggle-btn { padding: 7px 9px; }
     .final-save-header-btn { padding: 7px 9px; }
     .version-check-header-btn { padding: 7px 9px; }
+    .data-header-btn,
+    .kma-header-btn,
+    .settings-header-btn,
+    .category-stats-header-btn,
+    .developer-header-btn,
+    .theme-toggle-btn,
+    .final-save-header-btn,
+    .version-check-header-btn {
+      flex: 1 1 calc(50% - 4px);   /* 모바일: 2열 균일 배치 */
+    }
     .wide-label { display: none; }
     .mobile-label { display: inline !important; }
     .developer-grid { grid-template-columns: 1fr; }
@@ -5511,8 +5524,8 @@ document.addEventListener('keydown', e => {
     <button class="kma-header-btn" onclick="openKmaTermSearch(event)" title="대한의사협회 의학용어 검색을 화면 크기에 맞는 새 창으로 열기">🔎 <span class="wide-label">대한의사협회 용어검색</span><span class="mobile-label" style="display:none">KMA 검색</span></button>
     <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
     <button class="category-stats-header-btn" onclick="showCategoryStats()" title="분류별 용어 통계 보기">📊 통계</button>
-    <button class="final-save-header-btn" onclick="saveCurrentStateToCloud()" title="현재 화면의 용어·미생물·약물·공식 데이터를 클라우드 최종본으로 저장">💾 최종상태 저장</button>
-    <button class="version-check-header-btn" onclick="showSavedVersionInfo()" title="클라우드 저장본 버전과 현재 로컬 캐시 상태 확인">🔎 저장본 버전 확인</button>
+    <button class="final-save-header-btn" onclick="saveCurrentStateToCloud()" title="현재 화면의 용어·미생물·약물·공식 데이터를 클라우드 최종본으로 저장">💾 <span class="wide-label">최종상태 저장</span><span class="mobile-label" style="display:none">저장</span></button>
+    <button class="version-check-header-btn" onclick="showSavedVersionInfo()" title="클라우드 저장본 버전과 현재 로컬 캐시 상태 확인">🔎 <span class="wide-label">저장본 버전 확인</span><span class="mobile-label" style="display:none">버전</span></button>
     <button class="settings-header-btn txt-converter-header-btn" onclick="openAssystTxtConverter()" title="객관식 문제를 Assyst TXT 양식으로 변환">TXT 변환</button>
     <button class="developer-header-btn" onclick="showDeveloperInfo()" title="개발자 정보와 업데이트 내역 보기">👨‍💻 개발자</button>
   </div>
@@ -16687,7 +16700,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.00',
+  version: '1.01',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16696,7 +16709,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.00 — 정식 버전 (기준점, 이후 업데이트마다 +0.01)',
+    title: '최신 · v1.01 — 헤더 버튼 컴팩트/정렬 정리',
+    items: [
+      '헤더 버튼이 화면 폭을 억지로 채워 커지던 문제 수정: 태블릿·창 축소(≤1100px)에서 버튼이 내용 크기에 맞게 컴팩트하게 표시되고 좌측 정렬로 자연스럽게 줄바꿈됩니다.',
+      '모바일(≤600px)에서 헤더 버튼을 2열로 균일하게 배치하고, "최종상태 저장 → 저장", "저장본 버전 확인 → 버전" 등 긴 라벨에 짧은 모바일 표기를 추가했습니다.',
+    ]
+  },
+  {
+    title: 'v1.00 — 정식 버전 (기준점, 이후 업데이트마다 +0.01)',
     items: [
       '버전 체계 정리: 지금까지의 개발 이력을 요약해 v1.00을 기준점으로 정의했습니다. 이후 업데이트는 0.01씩 올립니다(1.00 → 1.01 → … → 1.99 → 2.00). 상세 이력은 GitHub 저장소 커밋 기록에 그대로 보존됩니다.',
       '7개 학습 도메인 — 일반용어 · 미생물 · 약물명 및 정보 · 주요 의학계산공식 · 주요 질환 · 개념·오답 노트 + 학습상태. 검색 · 필터 · 통계 · 북마크 · 간격반복(SRS) 퀴즈.',
