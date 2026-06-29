@@ -14692,117 +14692,92 @@ function _aiCopyToClipboard(text, okMsg) {
   } else { _aiCopyFallback(text, done); }
 }
 function buildAIContentSpec(domain) {
+  // 양식을 앱의 실제 스키마에서 동적 생성한다 → 필드(칸)는 normalize 함수의 키에서,
+  // 질환 body는 DISEASE_SECTIONS에서, 드롭다운 값은 각 옵션 상수에서. 스키마가 바뀌면
+  // (필드 추가/섹션 추가/선택값 변경) 이 양식이 자동으로 따라온다. (스킬 §0.6)
   const cats = VALID_CATS.join(', ');
   const concepts = CONCEPT_CATEGORIES.join(', ');
   const rules = [
     '너는 의학 학습 앱에 넣을 데이터를 만든다. 아래 규칙을 반드시 지켜라.',
     '1) 출력은 JSON 객체 하나만. 코드블록으로 감싸고, 그 외 설명·인사·주석은 절대 쓰지 마라.',
-    '2) "선택목록"이 있는 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 "".',
+    '2) "[ ...목록... ]" 으로 표시된 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 "".',
     '3) 모르거나 불확실한 칸은 지어내지 말고 "". 모르는 행(row) 배열은 [].',
     '4) 각 항목의 id는 서로 겹치지 않는 큰 숫자. 8000000000001 부터 1씩 올려라.',
     '5) 의학적으로 정확하게, USMLE/KMLE 관점으로. 모르는 언어 칸은 비워라.',
     '6) 내가 말한 개수만큼 배열 안에 항목을 채워라.',
+    '7) 위 형식의 칸 이름(key)은 절대 바꾸거나 추가/삭제하지 마라. 값만 채워라.',
     '',
-    '[공통 선택목록]',
-    '· 장기계(category/system/system_tags): ' + cats,
-    '· 개념분류(concept_category): ' + concepts,
+    '[공통 선택목록] 장기계(category/system/system_tags): ' + cats,
+    '[공통 선택목록] 개념분류(concept_category): ' + concepts,
   ].join('\n');
 
-  const blocks = {};
-  blocks.terms = [
-    '=== terms (일반용어) — 필수: ko/en/uz 중 1개 이상 ===',
-    '{ "terms": [ {',
-    '  "id": 8000000000001,',
-    '  "ko": "한국어", "en": "English", "uz": "(모르면 빈칸)",',
-    '  "concept_category": "[개념분류 목록 중 1개]",',
-    '  "category": "[장기계 목록 중 1개]",',
-    '  "system_tags": "[장기계 값 쉼표, 0~여러개]",',
-    '  "def_ko": "정의(한국어)", "def_en": "definition(English)", "def_uz": "",',
-    '  "usmle": "USMLE 핵심", "ipa": "/발음/"',
-    '} ] }',
-  ].join('\n');
-  blocks.drugs = [
-    '=== drugs (약물) — 필수: generic_name 또는 ko_name. (개념분류는 자동 Pharmacology, 넣지 마라) ===',
-    '{ "drugs": [ {',
-    '  "id": 8000000000001,',
-    '  "generic_name": "성분명(영어)", "ko_name": "한국어명", "brand_name": "",',
-    '  "drug_class": "USMLE 계열(자유)", "same_class_drugs": "", "drug_form": "제형(자유)",',
-    '  "atc_class": "", "target": "표적/수용체", "route": "투여경로(자유)",',
-    '  "category": "[장기계 목록 중 1개]", "system_tags": "[장기계 값 쉼표]",',
-    '  "usmle_yield": "High Yield / Moderate Yield / Low Yield",',
-    '  "ipa": "/발음/", "definition_ko": "", "definition_en": "", "definition_uz": "",',
-    '  "causal_chain": "", "why": "", "moa": "작용기전", "clinical_uses": "",',
-    '  "adverse_effects": "", "precautions": "", "usmle_strategy": "", "memory_line": "한 줄 암기"',
-    '} ] }',
-  ].join('\n');
-  blocks.formulas = [
-    '=== formulas (공식) — 필수: (name 또는 short_name) + formula. (3개국어 없음) ===',
-    '{ "formulas": [ {',
-    '  "id": 8000000000001,',
-    '  "name": "이름", "short_name": "약어", "formula": "계산식",',
-    '  "category": "공식 분야(자유, 예: Acid-base)", "system": "[장기계 목록 중 1개]",',
-    '  "use_case": "", "normal_range": "", "interpretation": "", "example": "",',
-    '  "memory_tip": "", "usmle_trap": "", "variables": "", "tags": "[장기계 값 쉼표]"',
-    '} ] }',
-  ].join('\n');
-  blocks.microbes = [
-    '=== microbes (미생물) — 필수: organism 또는 ko_name. (category만 목록, 나머지 분류칸은 자유텍스트) ===',
-    '{ "microbes": [ {',
-    '  "id": 8000000000001,',
-    '  "organism": "균명(영어/학명)", "ko_name": "한국어명", "latin_name": "학명", "ipa": "/발음/",',
-    '  "microbe_type": "Bacteria/Virus/Fungus/Parasite(자유)", "gram_stain": "(자유)", "shape": "(자유)",',
-    '  "oxygen": "(자유)", "genome": "(자유)", "virulence": "", "diseases": "", "diagnosis": "",',
-    '  "treatment": "", "prevention": "", "usmle_clues": "", "memory_line": "",',
-    '  "category": "[장기계 목록 중 1개, 기본 Infectious Disease]", "system_tags": "[장기계 값 쉼표]"',
-    '} ] }',
-  ].join('\n');
-  const acu = DISEASE_ACUITY_OPTIONS.filter(Boolean).join(' | ');
-  const emg = DISEASE_EMERGENCY_OPTIONS.filter(Boolean).join(' | ');
-  const prog = DISEASE_PROGRESSION_OPTIONS.filter(Boolean).join(' | ');
-  const cont = DISEASE_CONTAGIOUS_OPTIONS.filter(Boolean).join(' | ');
-  const dxItems = DISEASE_DX_ITEMS.join(' | ');
-  const causeCat = DISEASE_CAUSE_CATEGORIES.join(' | ');
-  const causeRole = DISEASE_CAUSE_ROLES.join(' | ');
-  const yieldOpt = DISEASE_YIELD_OPTIONS.filter(Boolean).join(' | ');
-  const asymp = DISEASE_ASYMPTOMATIC_OPTIONS.filter(Boolean).join(' | ');
-  const redCat = DISEASE_REDFLAG_CATEGORIES.join(' | ');
-  blocks.diseases = [
-    '=== diseases (주요 질환) — 필수: ko_name 또는 en_name. body 12섹션 전부 포함 ===',
-    '[질환 선택목록] acuity: ' + acu + '  /  emergency: ' + emg + '  /  progression: ' + prog + '  /  contagious: ' + cont,
-    '[body 행배열 선택목록] cause.category: ' + causeCat,
-    '  cause.role: ' + causeRole + '  /  cause.yield: ' + yieldOpt,
-    '  symptoms.asymptomatic: ' + asymp,
-    '  red_flags.category: ' + redCat,
-    '  diagnosis.item: ' + dxItems,
-    '{ "diseases": [ {',
-    '  "id": 8000000000001,',
-    '  "ko_name": "한국어명", "en_name": "English name", "uz_name": "", "ipa": "",',
-    '  "concept_category": "Diseases", "category": "[장기계 목록 중 1개]", "system_tags": "[장기계 값 쉼표]",',
-    '  "one_line_summary": "한 줄 요약",',
-    '  "acuity": "[위 acuity 목록 또는 \\"\\"]", "emergency": "[emergency 목록 또는 \\"\\"]",',
-    '  "progression": "[progression 목록 또는 \\"\\"]", "contagious": "[contagious 목록 또는 \\"\\"]",',
-    '  "body": {',
-    '    "profile": { "chief_complaints": "주증상(쉼표)", "age_group": "", "sex_tendency": "", "risk_factors": "" },',
-    '    "definition": { "ko": "", "en": "", "uz": "" },',
-    '    "cause": [ { "category": "[cause.category 목록]", "role": "[cause.role 목록]", "item": "세부원인", "yield": "[yield 목록 또는 \\"\\"]" } ],',
-    '    "pathophysiology": { "core_mechanism": "", "causal_chain": "", "cells_tissues": "", "molecules": "", "step1_link": "" },',
-    '    "symptoms": { "main_symptoms": "", "exam_findings": "", "vignette": "", "asymptomatic": "[asymptomatic 목록 또는 \\"\\"]" },',
-    '    "red_flags": [ { "sign": "위험신호", "category": "[red_flags.category 목록]", "action": "즉시행동" } ],',
-    '    "diagnosis": [ { "item": "[diagnosis.item 목록]", "method": "검사방법", "usmle": "USMLE 핵심" } ],',
-    '    "treatment": { "initial": "", "emergency": "", "pharmacologic": "", "surgical": "", "conservative": "", "longterm": "", "followup": "", "contraindications": "", "algorithm": "" },',
-    '    "course": { "untreated": "", "treated": "", "acute_exacerbation": "", "recurrence": "", "chronicity": "", "prognosis": "", "mortality_disability": "" },',
-    '    "complications": { "acute": "", "chronic": "", "life_threatening": "", "treatment_related": "" },',
-    '    "ddx": { "similar_diseases": "", "distinguishing_points": "", "key_tests": "", "common_misdiagnosis": "" },',
-    '    "usmle": { "high_yield": "", "buzzwords": "", "next_best_step": "", "initial_management": "", "best_diagnostic_test": "", "traps": "", "one_line_memory": "" }',
-    '  }',
-    '} ] }',
-  ].join('\n');
+  const NORM = { terms: normalizeTermForStorage, drugs: normalizeDrugForStorage, formulas: normalizeFormulaForStorage, microbes: normalizeMicrobeForStorage, diseases: normalizeDiseaseForStorage };
+  const REQUIRED = { terms: 'ko/en/uz 중 1개 이상', drugs: 'generic_name 또는 ko_name', formulas: '(name 또는 short_name) + formula', microbes: 'organism 또는 ko_name', diseases: 'ko_name 또는 en_name' };
+  // 저장 메타/타임스탬프/외부 API 캐시 칸은 양식에서 제외(사용자가 채울 칸 아님)
+  const EXCLUDE = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'hiddenAt', 'conceptCategory', 'icd11', 'fdaDrug', 'rxclassATC', 'trials', 'refs']);
+  const EXTRA = { drugs: new Set(['concept_category']), diseases: new Set(['body']) };
+
+  function hint(k, d) {
+    if (k === 'category' || k === 'system') return '[장기계 목록 중 1개]';
+    if (k === 'system_tags' || k === 'tags') return '[장기계 값, 쉼표로, 0~여러개]';
+    if (k === 'concept_category') return d === 'diseases' ? 'Diseases (대개 이 값)' : '[개념분류 목록 중 1개]';
+    if (k === 'acuity') return '[' + DISEASE_ACUITY_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
+    if (k === 'emergency') return '[' + DISEASE_EMERGENCY_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
+    if (k === 'progression') return '[' + DISEASE_PROGRESSION_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
+    if (k === 'contagious') return '[' + DISEASE_CONTAGIOUS_OPTIONS.filter(Boolean).join(' | ') + ' | 빈칸]';
+    if (k === 'usmle_yield') return 'High Yield / Moderate Yield / Low Yield';
+    if (k === 'microbe_type') return 'Bacteria / Virus / Fungus / Parasite (자유)';
+    if (k === 'gram_stain') return 'Gram-positive / Gram-negative / 해당없음 (자유)';
+    if (k === 'route') return '투여경로 PO, IV 등 (자유)';
+    if (k === 'drug_form') return '제형 tablet 등 (자유)';
+    if (k === 'drug_class') return 'USMLE 약물 계열 (자유)';
+    if (k === 'ipa') return '/발음기호/';
+    if (k === 'ko' || k === 'ko_name') return '한국어';
+    if (k === 'en' || k === 'en_name' || k === 'generic_name' || k === 'organism') return 'English / 학명';
+    if (k === 'uz' || k === 'uz_name') return '(모르면 빈칸)';
+    return '';
+  }
+
+  function diseaseBody() {
+    const body = {};
+    const opt = f => (f.type === 'select' && Array.isArray(f.options)) ? '[' + f.options.filter(Boolean).join(' | ') + ']' : '';
+    (Array.isArray(DISEASE_SECTIONS) ? DISEASE_SECTIONS : []).forEach(sec => {
+      if (sec.type === 'rows') {
+        const row = {};
+        (sec.rowFields || []).forEach(f => { row[f.k] = opt(f); });
+        body[sec.key] = [row];
+      } else {
+        const o = {};
+        (sec.fields || []).forEach(f => { o[f.k] = opt(f); });
+        body[sec.key] = o;
+      }
+    });
+    return body;
+  }
+
+  function skeleton(d) {
+    const out = { id: 8000000000001 };
+    let sample = {};
+    try { sample = NORM[d]({ id: 1 }); } catch (e) { sample = {}; }
+    Object.keys(sample).forEach(k => {
+      if (EXCLUDE.has(k)) return;
+      if (EXTRA[d] && EXTRA[d].has(k)) return;
+      out[k] = hint(k, d);
+    });
+    if (d === 'diseases') out.body = diseaseBody();
+    return out;
+  }
 
   const order = ['terms', 'drugs', 'formulas', 'microbes', 'diseases'];
-  const pick = domain === 'all' ? order : [domain];
-  const bodyText = pick.map(d => blocks[d]).filter(Boolean).join('\n\n');
+  const pick = domain === 'all' ? order : [order.includes(domain) ? domain : 'terms'];
+  const blocks = pick.map(d => {
+    const wrap = {};
+    wrap[d] = [skeleton(d)];
+    return '=== ' + d + ' — 필수: ' + REQUIRED[d] + ' ===\n' + JSON.stringify(wrap, null, 2);
+  }).join('\n\n');
+
   const tail = '\n\n[가져오기] 출력한 JSON을 .json 파일로 저장 → 앱: 데이터 관리 → "JSON 백업 복원" → 파일 선택 → 가져오기 방식 "신규만 추가". (용어는 TSV 붙여넣기도 가능)';
-  return rules + '\n\n' + bodyText + tail;
+  return rules + '\n\n' + blocks + tail;
 }
 function openAIContentTemplateMenu() {
   const existing = document.getElementById('aiTemplateModal');
@@ -16593,7 +16568,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.80',
+  version: '4.81',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16602,7 +16577,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.80 데이터 관리에 "AI 콘텐츠 양식" 버튼 추가',
+    title: '최신 · v4.81 AI 콘텐츠 양식 = 스키마 완전 자동 연동',
+    items: [
+      'AI 콘텐츠 양식을 앱의 실제 스키마에서 완전 자동 생성하도록 개선 — 각 도메인 필드는 저장 정규화 함수에서, 주요 질환 body는 DISEASE_SECTIONS에서, 드롭다운 값은 옵션 상수에서 그 자리에서 생성',
+      '이제 칸(필드)이 새로 추가되거나 질환 섹션·선택값이 바뀌면 양식이 자동으로 따라옴(이전에는 드롭다운 값만 자동, 필드 목록은 수동이었음)',
+      '저장 메타·타임스탬프·외부 API 캐시 칸은 양식에서 제외, 각 도메인 골격은 항상 유효한 JSON으로 출력',
+    ]
+  },
+  {
+    title: 'v4.80 데이터 관리에 "AI 콘텐츠 양식" 버튼 추가',
     items: [
       'AI(ChatGPT·Claude·Gemini 등)로 용어·약물·공식·미생물·주요 질환을 만들 때 쓰는 JSON 양식을 복사하는 버튼 추가 — 받은 JSON을 "JSON 백업 복원 → 신규만 추가"로 가져오면 됨',
       '양식의 드롭다운 값(장기계·개념분류·질환 섹션 선택목록 등)은 앱의 현재 설정에서 자동 생성돼 항상 최신·정확',
