@@ -3955,6 +3955,30 @@ document.addEventListener('keydown', e => {
   .add-modal-header-ghost:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 560px) { .add-modal-header-ghost { display: none; } }
 
+  /* 중복 처리 정책 버튼(비교/신규만/덮어쓰기) — 의미색은 유지하되 테마 토큰 기반 통일 스타일 */
+  .dup-policy-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    line-height: 1.45;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .dup-policy-btn .sub { display: block; font-size: 10px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
+  .dup-policy-btn:hover { border-color: var(--text3); }
+  .dup-policy-btn.recommend { background: var(--add-active-bg); border-color: var(--add-active-border); color: var(--add-active-text); }
+  .dup-policy-btn.recommend:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .dup-policy-btn.safe { color: var(--accent2); border-color: rgba(63,185,80,0.45); }
+  .dup-policy-btn.safe:hover { background: rgba(63,185,80,0.12); border-color: var(--accent2); }
+  .dup-policy-btn.caution { color: #fbbf24; border-color: rgba(217,119,6,0.5); }
+  html[data-theme="light"] .dup-policy-btn.caution { color: #b45309; }
+  .dup-policy-btn.caution:hover { background: rgba(217,119,6,0.12); }
+
   .add-modal-title {
     font-size: 15px;
     color: var(--text);
@@ -13180,10 +13204,10 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <textarea id="addJsonArea" placeholder='{ "terms": [ { "id": 8000000000001, "en": "Atrial fibrillation", "ko": "심방세동", ... } ] }   ← 또는 TSV' rows="8" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
           </div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:8px">같은 이름이 이미 있을 때 (이름 기준):</div>
-          <button onclick="importAIPasteText('review', document.getElementById('addJsonArea')?.value)" style="width:100%;background:rgba(88,166,255,0.12);border:1px solid #58a6ff;border-radius:8px;padding:11px 8px;color:#74b0ff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4;margin-bottom:8px">🔍 비교 후 선택<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
+          <button class="dup-policy-btn recommend" style="width:100%;margin-bottom:8px" onclick="importAIPasteText('review', document.getElementById('addJsonArea')?.value)">🔍 비교 후 선택<span class="sub">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
           <div style="display:flex;gap:8px">
-            <button onclick="importAIPasteText('skip', document.getElementById('addJsonArea')?.value)" style="flex:1;background:rgba(63,185,80,0.12);border:1px solid #238636;border-radius:8px;padding:11px 8px;color:#7ee787;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">➕ 신규만 추가<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 건너뛰기</span></button>
-            <button onclick="importAIPasteText('overwrite', document.getElementById('addJsonArea')?.value)" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:11px 8px;color:#fbbf24;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">♻️ 중복 덮어쓰기<br><span style="font-size:10px;font-weight:400;opacity:.85">기존 갱신</span></button>
+            <button class="dup-policy-btn safe" style="flex:1" onclick="importAIPasteText('skip', document.getElementById('addJsonArea')?.value)">➕ 신규만 추가<span class="sub">중복 건너뛰기</span></button>
+            <button class="dup-policy-btn caution" style="flex:1" onclick="importAIPasteText('overwrite', document.getElementById('addJsonArea')?.value)">♻️ 중복 덮어쓰기<span class="sub">기존 갱신</span></button>
           </div>
         </div>
         <button class="add-close-wide" onclick="closeAddFormOrReturn()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">← 닫기</button>
@@ -15299,10 +15323,10 @@ function openAIPasteImport() {
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">📥 AI 답변 붙여넣기</div>
       <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:12px">AI가 준 <b>맨 끝 블록</b>(용어=TSV, 그 외=JSON)을 붙여넣으세요. 형식은 자동 인식합니다. 코드블록(\`\`\`)이 붙어와도 괜찮습니다.<br><b>같은 이름이 이미 있을 때</b> 아래에서 처리 방식을 고르세요(이름 기준).</div>
       <textarea id="aiPasteArea" placeholder="여기에 TSV 또는 JSON 붙여넣기" style="width:100%;min-height:160px;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:12px;font-family:monospace;resize:vertical"></textarea>
-      <button onclick="importAIPasteText('review')" style="width:100%;margin-top:12px;background:rgba(88,166,255,0.12);border:1px solid #58a6ff;border-radius:8px;padding:11px 8px;color:#74b0ff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">🔍 비교 후 선택<br><span style="font-size:10px;font-weight:400;opacity:.85">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
+      <button class="dup-policy-btn recommend" style="width:100%;margin-top:12px" onclick="importAIPasteText('review')">🔍 비교 후 선택<span class="sub">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button onclick="importAIPasteText('skip')" style="flex:1;background:rgba(46,160,67,0.15);border:1px solid #2ea043;border-radius:8px;padding:11px 8px;color:#2ea043;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">➕ 신규만 추가<br><span style="font-size:10px;font-weight:400;opacity:.85">중복은 건너뛰기</span></button>
-        <button onclick="importAIPasteText('overwrite')" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:11px 8px;color:#fbbf24;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;line-height:1.4">♻️ 중복 덮어쓰기<br><span style="font-size:10px;font-weight:400;opacity:.85">기존을 갱신</span></button>
+        <button class="dup-policy-btn safe" style="flex:1" onclick="importAIPasteText('skip')">➕ 신규만 추가<span class="sub">중복은 건너뛰기</span></button>
+        <button class="dup-policy-btn caution" style="flex:1" onclick="importAIPasteText('overwrite')">♻️ 중복 덮어쓰기<span class="sub">기존을 갱신</span></button>
       </div>
       <button onclick="document.getElementById('aiPasteModal')?.remove()" style="width:100%;margin-top:8px;background:transparent;border:none;padding:8px;color:var(--text3);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">닫기</button>
     </div>`;
@@ -17383,7 +17407,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.43',
+  version: '1.44',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17392,7 +17416,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.43 — 추가창 헤더에 "AI 콘텐츠 양식" 버튼 + 추가 버튼 톤다운',
+    title: '최신 · v1.44 — 중복 처리 버튼(비교/신규만/덮어쓰기) 디자인 통일',
+    items: [
+      'JSON 붙여넣기의 중복 처리 버튼 3종을 하드코딩 파스텔색에서 테마 안전한 통일 스타일로 정리했습니다. 의미색(권장=파랑·신규만=초록·덮어쓰기=주황 주의)은 유지하되 다크·라이트 모두 또렷하게 보이고, 마우스 hover 시 강조됩니다(추가창·AI 답변 붙여넣기 두 곳 모두 적용).',
+    ]
+  },
+  {
+    title: 'v1.43 — 추가창 헤더에 "AI 콘텐츠 양식" 버튼 + 추가 버튼 톤다운',
     items: [
       '항목 추가창 상단에 "🤖 AI 콘텐츠 양식" 버튼을 추가해, 추가 화면에서 바로 양식을 복사할 수 있습니다.',
       '상단 "추가" 버튼이 솔리드 블루라 튀던 것을 부드러운 accent 톤(테마 토큰)으로 바꿨습니다. 마우스를 올리면 진하게 강조됩니다.',
