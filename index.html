@@ -9703,9 +9703,9 @@ function renderTerms(terms, bookmarkDivider = 0) {
           <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleTermSelection(event, ${termId})">
         </label>
         <div class="term-main">
-          <div class="term-korean"><span onclick="copyTermField(event,${termId},'ko','한국어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(255,255,255,0.08)'" onmouseleave="this.style.background=''">${highlight(t.ko, query)}</span></div>
-          <div class="term-english"><span onclick="copyTermField(event,${termId},'en','영어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(88,166,255,0.12)'" onmouseleave="this.style.background=''">${highlight(t.en, query)}</span></div>
-          ${t.uz ? `<div class="term-uzbek"><span onclick="copyTermField(event,${termId},'uz','우즈베크어')" title="📋 클릭하여 복사" style="cursor:pointer;border-radius:4px;padding:1px 2px;transition:background 0.15s" onmouseenter="this.style.background='rgba(251,191,36,0.12)'" onmouseleave="this.style.background=''"> ${highlight(t.uz, query)}</span></div>` : ''}
+          <div class="term-korean"><span class="copyable-text" onclick="copyTermField(event,${termId},'ko','한국어')" title="📋 클릭하여 복사">${highlight(t.ko, query)}</span></div>
+          <div class="term-english"><span class="copyable-text" onclick="copyTermField(event,${termId},'en','영어')" title="📋 클릭하여 복사">${highlight(t.en, query)}</span></div>
+          ${t.uz ? `<div class="term-uzbek"><span class="copyable-text" onclick="copyTermField(event,${termId},'uz','우즈베크어')" title="📋 클릭하여 복사">${highlight(t.uz, query)}</span></div>` : ''}
         </div>
         <div class="term-meta-row">
           <span class="term-category" title="개념분류">${escapeHtml(conceptDisplay(t.concept_category))}</span>
@@ -17022,7 +17022,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.25',
+  version: '1.26',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17031,7 +17031,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.25 — 질환 대시보드 카드를 상세 개요와 통일',
+    title: '최신 · v1.26 — 일반 용어 클릭 복사 하이라이트를 다른 카드와 통일',
+    items: [
+      '일반 용어 목록의 한/영/우즈 클릭 복사 시 하이라이트가 약했던 문제를 고쳤습니다. 다른 카드(약물·미생물·공식·질환)와 같은 .copyable-text 스타일로 통일해, 클릭 시 동일하게 파란 하이라이트가 들어갑니다(한국어 하이라이트가 라이트 모드에서 거의 안 보이던 것도 함께 해결).',
+    ]
+  },
+  {
+    title: 'v1.25 — 질환 대시보드 카드를 상세 개요와 통일',
     items: [
       '질환 목록(대시보드) 카드를 상세 서랍 개요와 같은 구성으로 맞췄습니다: IPA 칩을 빼고, 한 줄 핵심 아래에 주호소·정의를 함께 표시합니다(v1.22 개요 변경의 수평 전개). 목록에서도 임상 핵심을 바로 볼 수 있습니다.',
     ]
