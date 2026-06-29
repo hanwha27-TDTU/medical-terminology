@@ -7480,7 +7480,7 @@ const DISEASE_ASYMPTOMATIC_OPTIONS = ['', '불가능 / 매우 드묾', '가능 (
 const DISEASE_REDFLAG_CATEGORIES = ['응급', '감염/패혈증', '출혈/허혈', '신경학적 위험', '암 의심', '소아/임신 위험', '즉시 검사 필요', '기타'];
 const DISEASE_SECTIONS = [
   { key: 'profile', title: '질환 기본 프로필', icon: '🧬', fields: [
-    { k: 'chief_complaints', label: '주증상 (핵심 3~5개 · 쉼표 구분 · 마인드맵 가지 · 아래 "주요 증상"과 같은 용어로)', area: true },
+    { k: 'chief_complaints', label: '주호소 (Chief Complaint · 환자가 병원에 온 이유 — 증상/검사 이상/의뢰 목적 등 · 쉼표 구분 · 마인드맵 분기 기준)', area: true },
     { k: 'age_group', label: '주요 연령대' },
     { k: 'sex_tendency', label: '주요 성별 경향' },
     { k: 'risk_factors', label: '대표 위험인자', area: true },
@@ -7505,7 +7505,7 @@ const DISEASE_SECTIONS = [
     { k: 'step1_link', label: 'Step 1 연결 포인트', area: true },
   ]},
   { key: 'symptoms', title: '증상 · 징후', icon: '🩹', fields: [
-    { k: 'main_symptoms', label: '주요 증상 (전체 목록 · 위 "주증상"의 상위집합)', area: true },
+    { k: 'main_symptoms', label: '주요 증상 및 징후 (환자가 느끼는 증상 + 진찰·검사에서 확인되는 객관 소견)', area: true },
     { k: 'exam_findings', label: '주요 신체진찰 소견', area: true },
     { k: 'vignette', label: '전형적 환자 vignette', area: true },
     { k: 'asymptomatic', label: '무증상 가능 여부', type: 'select', options: DISEASE_ASYMPTOMATIC_OPTIONS },
@@ -9083,7 +9083,7 @@ function renderDiseaseTocHtml(active, viewToggle = '') {
       </div>
       <div class="disease-toc-banner">
         <span style="font-size:15px">🗺</span>
-        <span>주증상 마인드맵(2단계 예정) · 주증상 태그가 있는 질환 <b style="color:var(--text2)">${ccCount}</b>/${active.length}개 — 태그를 채우면 여기서 자동 생성됩니다</span>
+        <span>주호소 마인드맵(2단계 예정) · 주호소가 입력된 질환 <b style="color:var(--text2)">${ccCount}</b>/${active.length}개 — 주호소를 채우면 여기서 자동 생성됩니다</span>
       </div>
       ${sections}
     </section>`;
@@ -14900,7 +14900,7 @@ function buildAIContentSpec(domain) {
   }
 
   const diseaseNote = (domain === 'diseases' || domain === 'all')
-    ? '\n\n[주요 질환 — 증상 칸 일관성] body.symptoms.main_symptoms(주요 증상)에 전체 증상을 적고, body.profile.chief_complaints(주증상)에는 그중 핵심 3~5개를 "똑같은 용어"로 추린 부분집합을 적어라. 동의어로 바꾸지 마라(예: main_symptoms가 "운동 시 호흡곤란, 심계항진"이면 chief_complaints도 "운동 시 호흡곤란, 심계항진"; "운동불내성"·"두근거림"처럼 다르게 쓰지 말 것). chief_complaints는 마인드맵 가지로 쓰이므로 짧고 대표적인 증상만.'
+    ? '\n\n[주요 질환 — 주호소 vs 증상·징후 구분] body.profile.chief_complaints(주호소, Chief Complaint)는 "환자가 병원에 온 이유"를 짧게 적어라(보통 1~몇 개). 증상일 수도 있고 검사 이상·의뢰 목적일 수도 있다(예: "흉통 30분", "건강검진상 폐결절", "혈압약 처방"). body.symptoms.main_symptoms(주요 증상 및 징후)에는 환자가 느끼는 주관적 증상(symptom)과 진찰·검사에서 확인되는 객관적 징후(sign)를 함께 적어라(예: 증상=흉통·식은땀, 징후=ST 상승·저혈압). 두 칸은 서로 다른 개념이므로 같은 값으로 강제하지 마라(주호소는 보통 대표 증상 1~2개거나, 증상이 아닐 수도 있다).'
     : '';
   return header + '\n\n' + blockSpec + importNote + diseaseNote;
 }
@@ -16958,7 +16958,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.19',
+  version: '1.20',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16967,7 +16967,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.19 — 편집창 상단에 고정 "저장" 버튼',
+    title: '최신 · v1.20 — 질환 용어 정정: 주호소 vs 주요 증상 및 징후',
+    items: [
+      '의학적으로 다른 개념을 정확히 구분했습니다. 상단 칸은 "주호소(Chief Complaint · 환자가 병원에 온 이유 — 증상/검사 이상/의뢰 목적 등)", 아래 칸은 "주요 증상 및 징후(주관적 증상 + 객관적 소견)"로 명칭을 정정했습니다.',
+      '마인드맵 라벨도 "주호소"로 정정하고, AI 콘텐츠 양식이 주호소(내원 이유)와 증상·징후를 구분해 생성하도록 지침을 바로잡았습니다(이전 v1.18의 "주증상=증상 부분집합" 안내는 개념 오류라 교체).',
+    ]
+  },
+  {
+    title: 'v1.19 — 편집창 상단에 고정 "저장" 버튼',
     items: [
       '용어·약물·미생물·공식·주요 질환 편집창 상단(헤더)에 💾 저장 버튼을 추가해, 길게 스크롤해도 항상 보이고 바로 저장할 수 있게 했습니다. 맨 아래 저장 버튼도 그대로 유지됩니다.',
     ]
