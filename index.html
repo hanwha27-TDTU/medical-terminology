@@ -8104,7 +8104,10 @@ function filterLocalRowsAfterCanonicalFence(localRows, cloudTerms, canonicalMeta
   const rows = (Array.isArray(localRows) ? localRows : []).filter(row => {
     const id = String(row.id);
     if (cloudIds.has(id)) return true;
-    if (row.deletedAt) return false;
+    // 삭제기록(tombstone)은 fence로 거르지 않는다: 기준본 이후의 삭제가 병합에 도달하지
+    // 못하면 다른 기기에서 항목이 되살아난다(삭제 부활). 활성 vs 삭제 우선순위는
+    // mergeXForSync / pickSyncWinner가 updatedAt/deletedAt 기준으로 판정한다.
+    if (row.deletedAt) return true;
     const createdTime = Date.parse(row.createdAt || '') || 0;
     const updatedTime = Date.parse(row.updatedAt || '') || 0;
     return createdTime > canonicalTime && updatedTime > canonicalTime;
@@ -16374,16 +16377,24 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '4.74',
+  version: '4.75',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 6월 27일',
+  updatedAt: '2026년 6월 29일',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v4.74 개발자 정보 디자인 정돈 + 면책/소개 문구 삭제',
+    title: '최신 · v4.75 동기화 데이터 유실 버그 수정 (삭제 부활·노트 링크 소실·노트 로드 레이스)',
+    items: [
+      '동기화 fence(filterLocalRowsAfterCanonicalFence)가 로컬 삭제기록(tombstone)을 버려, 기준본 이후 삭제한 항목이 다른 기기에서 되살아나던 문제 수정 — tombstone은 병합까지 통과시키고 활성/삭제 우선순위는 병합 로직(pickSyncWinner)이 판정한다',
+      '노트 충돌 판정(noteContentDiffers)이 linkedTerms만 비교해, 약물·미생물·공식 링크만 바꾼 편집이 동기화 중 사라지던 문제 수정 — 링크 4종(용어·약물·미생물·공식) 모두 비교',
+      '노트 로드가 끝나기 전 클라우드 push가 실행되면 빈 노트 기준으로 클라우드 노트가 대량 삭제될 수 있던 레이스에 로드 완료 가드 추가',
+    ]
+  },
+  {
+    title: 'v4.74 개발자 정보 디자인 정돈 + 면책/소개 문구 삭제',
     items: [
       '개발자 정보 상단을 아이덴티티 헤더(앱 아이콘·앱명·개발자·소속) + 라운드 카드(최초 개발/코드 최종 수정) + 전체폭 현재 파일명 카드로 재구성 — 빈 셀(회색 블록)·스프레드시트형 격자 제거',
       '1인용 개인 앱이라 불필요한 "개인 의학 학습 노트 소개·의료 면책" 안내문구를 삭제',
@@ -23236,6 +23247,11 @@ initApp();
     if (keys.some(k => String(a[k] || '') !== String(b[k] || ''))) return true;
     if (JSON.stringify(a.tags || []) !== JSON.stringify(b.tags || [])) return true;
     if (JSON.stringify(a.linkedTerms || []) !== JSON.stringify(b.linkedTerms || [])) return true;
+    // 링크 4종 전부 비교(canonicalNoteHashPayload와 동일 필드셋). 일부만 비교하면
+    // 약물/미생물/공식 링크만 바꾼 로컬 편집이 충돌 사본 없이 클라우드본에 덮여 사라진다.
+    if (JSON.stringify(a.linkedDrugs || []) !== JSON.stringify(b.linkedDrugs || [])) return true;
+    if (JSON.stringify(a.linkedMicrobes || []) !== JSON.stringify(b.linkedMicrobes || [])) return true;
+    if (JSON.stringify(a.linkedFormulas || []) !== JSON.stringify(b.linkedFormulas || [])) return true;
     if (JSON.stringify(a.originalMcq || {}) !== JSON.stringify(b.originalMcq || {})) return true;
     if (JSON.stringify(a.images || []) !== JSON.stringify(b.images || [])) return true;
     return false;
@@ -23243,6 +23259,9 @@ initApp();
   async function pushNotesToCloud() {
     const cfg = getSupabaseConfig();
     if (!cfg) return false;
+    // 로드 전 가드: NOTEBOOK이 아직 비어 있을 때 push하면 클라우드의 모든 활성 노트가
+    // removed로 분류돼 대량 soft-delete된다. 로드 완료 전에는 push하지 않는다.
+    if (!_notebookLoaded) throw new Error('노트가 아직 로드되지 않아 클라우드 저장을 건너뜁니다(빈 노트로 덮어쓰기 방지).');
     const cleanNotes = dedupeNotesById(NOTEBOOK).filter(n => !n.deletedAt);
     const cloudNotes = await sbLoadAllNotes();
     if (cloudNotes === null) throw new Error('노트 테이블을 읽지 못했습니다. 노트 SQL을 먼저 실행해주세요.');
@@ -23275,6 +23294,9 @@ initApp();
     return true;
   }
   async function syncNotesWithCloud() {
+    // 로드 전 가드: 미로드 상태에서 병합/push하면 빈 NOTEBOOK 기준으로 클라우드 노트가
+    // 삭제될 수 있다. 로드 완료 후의 다음 동기화에서 정상 처리된다.
+    if (!_notebookLoaded) return false;
     const cloud = await sbLoadAllNotes();
     if (cloud === null) return false;
     const tombstones = loadIntegratedNoteTombstones();
