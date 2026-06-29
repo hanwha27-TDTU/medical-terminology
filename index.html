@@ -10088,6 +10088,7 @@ function openDrugEditModal(e, id) {
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">USMLE 계열</label><input id="drug_edit_class" value="${esc(d.drug_class)}" placeholder="예: IL-4Rα antagonist" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(영어)</label><input id="drug_edit_generic" value="${esc(d.generic_name)}" placeholder="예: dupilumab" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(한국어)</label><input id="drug_edit_ko" value="${esc(d.ko_name)}" placeholder="예: 두필루맙" style="${IS}"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(상품)</label><input id="drug_edit_brand" value="${esc(d.brand_name)}" placeholder="예: Tenormin" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">같은 계열 약물명</label><input id="drug_edit_same_class" value="${esc(d.same_class_drugs)}" placeholder="예: mepolizumab, reslizumab, benralizumab" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물형태</label><input id="drug_edit_form" value="${esc(d.drug_form)}" placeholder="human monoclonal antibody / biologic" style="${IS}"></div>
           <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Target</label><input id="drug_edit_target" value="${esc(d.target)}" style="${IS}"></div>
@@ -12972,6 +12973,10 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
                 <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(한국어)</label>
                 <input id="add_drug_ko" type="text" placeholder="예: 두필루맙" style="${inputStyle()}">
               </div>
+              <div>
+                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">약물명(상품)</label>
+                <input id="add_drug_brand" type="text" placeholder="예: Tenormin" style="${inputStyle()}">
+              </div>
             </div>
             <div style="margin-bottom:10px">
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">같은 계열 약물명</label>
@@ -13643,9 +13648,9 @@ function mergeDrugAiSuggestion(seed, enriched) {
 async function submitAddDrug() {
   const generic = document.getElementById('add_drug_generic')?.value.trim() || '';
   const koName = document.getElementById('add_drug_ko')?.value.trim() || '';
-  // 추가 폼에는 상품명(brand) 입력칸이 의도적으로 없다(편집 폼에만 존재). 저장/백업
-  // 호환을 위해 brand_name 필드 구조는 유지하되, 추가 시에는 빈 값으로 둔다.
-  const brand = '';
+  // 상품명(brand)은 카드·드로어에 "한국어명 · 상품명"으로 표시되므로 추가/편집 폼 모두에서
+  // 직접 입력·수정·삭제할 수 있게 한다(입력칸: add_drug_brand / drug_edit_brand).
+  const brand = document.getElementById('add_drug_brand')?.value.trim() || '';
   if (!generic && !koName) {
     showToast('⚠️ 약물명(영어) 또는 약물명(한국어) 중 하나 이상 입력해주세요');
     return;
@@ -16728,7 +16733,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.06',
+  version: '1.07',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16737,7 +16742,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.06 — 동기화 안전성: 부분 로드 시 기준본 전진 차단 + 백업 판정 보정',
+    title: '최신 · v1.07 — 약물 상품명(brand) 입력칸 추가 (보이는데 못 고치던 문제)',
+    items: [
+      '약물 카드·상세에 "한국어명 · 상품명(예: 아테놀롤 · Tenormin)"으로 표시되던 상품명을, 추가·편집 화면에서 직접 입력·수정·삭제할 수 있게 입력칸을 추가했습니다. 이전에는 가져오기/API 보강으로만 채워지고 화면에선 보이나 편집은 불가했습니다.',
+      '"무료 API로 보강"도 이제 상품명 칸을 채울 수 있습니다.',
+    ]
+  },
+  {
+    title: 'v1.06 — 동기화 안전성: 부분 로드 시 기준본 전진 차단 + 백업 판정 보정',
     items: [
       '코드 리뷰 반영(2건). ① 동기화 중 일부 도메인(약물·공식·미생물·질환) 로드에 실패하면 기준본 버전을 전진시키지 않도록 고쳤습니다. 이전에는 실패해도 "최신 적용 완료"로 표시되어 그 도메인의 오래된 로컬 데이터가 다음 동기화에서 다시 올라갈(부활) 위험이 있었습니다.',
       '② "전체 JSON 백업" 판정에 주요 질환 도메인을 포함했습니다. 질환이 빠진 구버전 4도메인 백업이 전체 백업으로 오판되지 않습니다.',
