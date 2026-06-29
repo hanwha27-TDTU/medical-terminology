@@ -9149,13 +9149,16 @@ function renderDiseaseFrame(diseases = []) {
         const emergencyChip = d.emergency
           ? `<span class="drug-chip" style="border-color:${diseaseEmergencyColor(d.emergency)};color:${diseaseEmergencyColor(d.emergency)}">${escapeHtml(d.emergency)}</span>`
           : '';
-        const subtitle = [d.en_name, d.uz_name].filter(Boolean).join(' · ');
+        const subtitleHtml = [
+          d.en_name ? `<span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'en')" title="클릭하여 복사">${escapeHtml(d.en_name)}</span>` : '',
+          d.uz_name ? `<span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'uz')" title="클릭하여 복사">${escapeHtml(d.uz_name)}</span>` : ''
+        ].filter(Boolean).join(' · ');
         return `
         <article class="drug-card" id="disease-card-${Number(d.id)}" onclick="openDiseaseDrawer(event, ${Number(d.id)})" title="질환 상세 보기">
           <div class="drug-head">
             <div>
-              <div class="drug-name">${escapeHtml(diseaseDisplayName(d))}</div>
-              ${subtitle ? `<div class="drug-sub">${escapeHtml(subtitle)}</div>` : ''}
+              <div class="drug-name"><span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'ko')" title="클릭하여 복사">${escapeHtml(diseaseDisplayName(d))}</span></div>
+              ${subtitleHtml ? `<div class="drug-sub">${subtitleHtml}</div>` : ''}
             </div>
             <div style="display:flex;gap:6px;align-items:center">
               <button class="speak-btn compact" id="speak-disease-card-${Number(d.id)}" onclick="speakDiseaseName(event, ${Number(d.id)}, 'disease-card')" title="질환명 영어 발음 듣기" aria-label="질환명 영어 발음 듣기">
@@ -11161,6 +11164,15 @@ function copyFormulaDisplay(event, id, part = 'title') {
       ? [f?.short_name, f?.use_case].filter(Boolean).join(' · ')
       : (f?.name || f?.short_name || ''));
   const label = part === 'expression' ? '계산식' : (part === 'subtitle' ? '공식 보조 정보' : '공식명');
+  copyTermText(event, text, label);
+}
+
+function copyDiseaseDisplay(event, id, part = 'ko') {
+  const d = DISEASES.find(x => Number(x.id) === Number(id));
+  const text = part === 'en' ? (d?.en_name || '')
+    : part === 'uz' ? (d?.uz_name || '')
+    : (d?.ko_name || diseaseDisplayName(d) || '');
+  const label = part === 'en' ? '영어 질환명' : (part === 'uz' ? '우즈벡 질환명' : '한국어 질환명');
   copyTermText(event, text, label);
 }
 
@@ -16958,7 +16970,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.20',
+  version: '1.21',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -16967,7 +16979,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.20 — 질환 용어 정정: 주호소 vs 주요 증상 및 징후',
+    title: '최신 · v1.21 — 주요 질환 카드 이름 클릭 복사(한/영/우즈 각각)',
+    items: [
+      '주요 질환 카드의 한국어명·영어명·우즈벡어명을 각각 클릭하면 클립보드에 복사됩니다(용어·약물·미생물·공식에 이미 있던 기능을 질환에도 수평 전개).',
+    ]
+  },
+  {
+    title: 'v1.20 — 질환 용어 정정: 주호소 vs 주요 증상 및 징후',
     items: [
       '의학적으로 다른 개념을 정확히 구분했습니다. 상단 칸은 "주호소(Chief Complaint · 환자가 병원에 온 이유 — 증상/검사 이상/의뢰 목적 등)", 아래 칸은 "주요 증상 및 징후(주관적 증상 + 객관적 소견)"로 명칭을 정정했습니다.',
       '마인드맵 라벨도 "주호소"로 정정하고, AI 콘텐츠 양식이 주호소(내원 이유)와 증상·징후를 구분해 생성하도록 지침을 바로잡았습니다(이전 v1.18의 "주증상=증상 부분집합" 안내는 개념 오류라 교체).',
