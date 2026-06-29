@@ -7553,8 +7553,8 @@ const DISEASE_SECTIONS = [
     { k: 'step1_link', label: 'Step 1 연결 포인트', area: true },
   ]},
   { key: 'symptoms', title: '증상 · 징후', icon: '🩹', fields: [
-    { k: 'main_symptoms', label: '주요 증상 및 징후 (환자가 느끼는 증상 + 진찰·검사에서 확인되는 객관 소견)', area: true },
-    { k: 'exam_findings', label: '주요 신체진찰 소견', area: true },
+    { k: 'symptoms', label: '증상 (Symptom · 주관적 · 환자가 느끼고 호소하는 것 — 병력청취 · 쉼표 구분)', area: true },
+    { k: 'signs', label: '징후 (Sign · 객관적 · 진찰·활력징후·검사로 확인되는 것 — 신체진찰 소견 포함 · 쉼표 구분)', area: true },
     { k: 'vignette', label: '전형적 환자 vignette', area: true },
     { k: 'asymptomatic', label: '무증상 가능 여부', type: 'select', options: DISEASE_ASYMPTOMATIC_OPTIONS },
   ]},
@@ -7677,6 +7677,12 @@ function normalizeDiseaseBody(rawBody) {
       const secSrc = (src[sec.key] && typeof src[sec.key] === 'object') ? src[sec.key] : {};
       const out = {};
       sec.fields.forEach(f => { out[f.k] = cleanTermString(secSrc[f.k]); });
+      // 구버전 이관(v1.30): '주요 증상 및 징후'(혼재) → 증상, '신체진찰 소견' → 징후로 흡수.
+      // 새 키가 비어 있을 때만 옛 값을 옮긴다(이미 분리 입력된 데이터는 보존).
+      if (sec.key === 'symptoms') {
+        if (!out.symptoms && secSrc.main_symptoms) out.symptoms = cleanTermString(secSrc.main_symptoms);
+        if (!out.signs && secSrc.exam_findings) out.signs = cleanTermString(secSrc.exam_findings);
+      }
       body[sec.key] = out;
     }
   });
@@ -15032,7 +15038,7 @@ function buildAIContentSpec(domain) {
   }
 
   const diseaseNote = (domain === 'diseases' || domain === 'all')
-    ? '\n\n[주요 질환 — 주호소 vs 증상·징후 구분] body.profile.chief_complaints(주호소, Chief Complaint)는 "환자가 병원에 온 이유"를 짧게 적어라(보통 1~몇 개). 증상일 수도 있고 검사 이상·의뢰 목적일 수도 있다(예: "흉통 30분", "건강검진상 폐결절", "혈압약 처방"). body.symptoms.main_symptoms(주요 증상 및 징후)에는 환자가 느끼는 주관적 증상(symptom)과 진찰·검사에서 확인되는 객관적 징후(sign)를 함께 적어라(예: 증상=흉통·식은땀, 징후=ST 상승·저혈압). 두 칸은 서로 다른 개념이므로 같은 값으로 강제하지 마라(주호소는 보통 대표 증상 1~2개거나, 증상이 아닐 수도 있다).'
+    ? '\n\n[주요 질환 — 주호소 / 증상 / 징후 3단 구분] ① body.profile.chief_complaints(주호소, Chief Complaint)는 "환자가 병원에 온 이유"를 짧게 적어라(보통 1~몇 개). 증상일 수도 있고 검사 이상·의뢰 목적일 수도 있다(예: "흉통 30분", "건강검진상 폐결절", "혈압약 처방"). ② body.symptoms.symptoms(증상, Symptom)에는 "환자가 느끼고 호소하는 주관적인 것"만 적어라(병력청취로 알 수 있는 것 · 예: 흉통, 식은땀, 메스꺼움, 어지럼, 피로). ③ body.symptoms.signs(징후, Sign)에는 "의료진이 진찰·활력징후·검사로 확인하는 객관적인 것"을 적어라(예: 발열 38.8℃, ST 상승, 저혈압, 청진 crackles, 창백한 결막, 발한 관찰). 핵심 원칙: 증상=주관적(환자가 말해야 앎) · 징후=객관적(환자가 몰라도 발견). 같은 항목을 두 칸에 중복하지 말고 성격에 맞게 나눠라(혈뇨처럼 "환자가 붉다고 호소"=증상, "요검사 적혈구 확인"=징후로 상황에 따라 둘 다 가능).'
     : '';
   return header + '\n\n' + blockSpec + importNote + diseaseNote;
 }
@@ -17090,7 +17096,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.29',
+  version: '1.30',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17099,7 +17105,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.29 — 주호소 칩 클릭 → 같은 주호소 질환 모아보기(감별진단)',
+    title: '최신 · v1.30 — 질환 증상(주관적)·징후(객관적) 필드 분리',
+    items: [
+      '"주요 증상 및 징후" 한 칸을 의학적 정의대로 증상(Symptom · 환자가 느끼는 주관적)과 징후(Sign · 진찰·검사로 확인되는 객관적)로 분리했습니다. 기존 "신체진찰 소견"은 징후의 일부라 징후로 통합했습니다.',
+      '기존에 입력된 내용은 자동 이관됩니다(옛 "증상 및 징후"→증상, 옛 "신체진찰 소견"→징후). 혼재돼 있던 항목은 직접 증상/징후로 옮겨 정리하면 됩니다. AI 콘텐츠 양식도 증상·징후를 구분해 생성하도록 갱신했습니다.',
+    ]
+  },
+  {
+    title: 'v1.29 — 주호소 칩 클릭 → 같은 주호소 질환 모아보기(감별진단)',
     items: [
       '질환 상세의 주호소 칩(🔍)을 클릭하면, 그 주호소로 내원할 수 있는 질환들을 별도 창으로 모아 보여줍니다. 감별진단을 한눈에 비교하고 각 질환으로 바로 이동할 수 있습니다.',
     ]
