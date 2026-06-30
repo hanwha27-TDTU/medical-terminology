@@ -1316,6 +1316,28 @@ function microbeDetailLine(label, value, extraClass = '') {
   ].join('');
 }
 
+// 드로어용 '대표 질환' 줄 — 토큰을 칩으로 보여주고, 등록된 주요 질환과 이름이 맞으면 그 질환 드로어로 링크.
+// (미생물 드로어를 닫고 질환 드로어를 연다 — 별개 오버레이라 겹침/스크롤락 충돌 방지.) ddx 칩 스타일 재사용.
+function microbeDiseaseDetailLine(label, value, extraClass = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const tokens = text.split(/[,;]/).map(t => t.trim()).filter(Boolean);
+  if (!tokens.length) return microbeDetailLine(label, value, extraClass);
+  const all = getActiveDiseases();
+  const pills = tokens.map(tok => {
+    const hit = findDiseaseByName(tok, all);
+    return hit
+      ? `<span class="disease-ddx-link" onclick="closeMicrobeDrawer();openDiseaseDrawer(null, ${Number(hit.id)})" title="주요 질환 카드 열기">${escapeHtml(tok)} ↗</span>`
+      : `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`;
+  }).join('');
+  return [
+    `<div class="microbe-info-card ${extraClass}">`,
+    `<div class="microbe-info-label">${escapeHtml(label)}</div>`,
+    `<div class="disease-ddx-links" style="margin-top:6px">${pills}</div>`,
+    `</div>`
+  ].join('');
+}
+
 function _renderMicrobeDrawerContent(m) {
   const title = microbeDisplayName(m);
   const subtitle = [m.ko_name, m.latin_name].filter(Boolean).join(' · ');
@@ -1370,7 +1392,7 @@ function _renderMicrobeDrawerContent(m) {
       <div class="microbe-section-title">임상 단서 · 시험 포인트</div>
       <div class="microbe-clinical-stack">
         ${microbeDetailLine('병독성 / 핵심 인자', m.virulence)}
-        ${microbeDetailLine('대표 질환 / 임상 단서', m.diseases)}
+        ${microbeDiseaseDetailLine('대표 질환 / 임상 단서', m.diseases)}
         ${microbeDetailLine('진단', m.diagnosis)}
         ${microbeDetailLine('치료', m.treatment)}
         ${microbeDetailLine('예방', m.prevention)}
@@ -17548,7 +17570,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.52',
+  version: '1.53',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17557,7 +17579,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.52 — 미생물 카드의 "대표 질환" 칩 클릭 → 주요 질환 카드 연결',
+    title: '최신 · v1.53 — 미생물 상세창의 "대표 질환"도 칩 + 질환 카드 연결',
+    items: [
+      '미생물 상세창(드로어)의 "대표 질환 / 임상 단서"도 칩으로 표시하고, 등록된 주요 질환과 이름이 맞는 칩(파랑 + ↗)을 클릭하면 그 질환 카드로 바로 이동합니다(상세창은 닫힙니다). 카드뿐 아니라 상세창에서도 같은 흐름으로 연결됩니다.',
+    ]
+  },
+  {
+    title: 'v1.52 — 미생물 카드의 "대표 질환" 칩 클릭 → 주요 질환 카드 연결',
     items: [
       '미생물 카드의 "대표 질환 · 임상 단서" 칩 중 등록된 주요 질환과 이름이 맞는 칩을 클릭하면 그 질환 카드(상세 드로어)로 바로 이동합니다. 연결되는 칩은 파란색 + ↗ 표시로 구분되고, 등록된 질환이 없는 임상 단서 칩은 평소대로 표시됩니다.',
     ]
