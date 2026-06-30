@@ -3391,6 +3391,17 @@ document.addEventListener('keydown', e => {
     font-weight: 750;
   }
 
+  .microbe-disease-chip.linkable {
+    cursor: pointer;
+    color: var(--accent);
+    border-color: rgba(88,166,255,0.5);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .microbe-disease-chip.linkable:hover {
+    background: var(--add-active-bg);
+    border-color: var(--accent);
+  }
+
   .microbe-disease-text {
     color: var(--text);
     font-size: 13px;
@@ -9096,8 +9107,18 @@ function microbeDiseaseCueHtml(value) {
     .filter(Boolean);
   const cues = firstPass.length > 1 ? firstPass.slice(0, 8) : [];
   const more = firstPass.length > cues.length ? firstPass.length - cues.length : 0;
+  // 등록된 주요 질환과 이름이 매칭되는 칩은 그 질환 카드(드로어)로 연결한다.
+  // 카드 onclick(미생물 드로어)과 겹치지 않도록 stopPropagation. 목록 조회는 카드당 1회.
+  const allDiseases = cues.length ? getActiveDiseases() : [];
+  const chipHtml = cue => {
+    const hit = findDiseaseByName(cue, allDiseases);
+    if (hit) {
+      return `<span class="microbe-disease-chip linkable" onclick="event.stopPropagation();openDiseaseDrawer(event, ${Number(hit.id)})" title="주요 질환 카드 열기">${escapeHtml(cue)} ↗</span>`;
+    }
+    return `<span class="microbe-disease-chip">${escapeHtml(cue)}</span>`;
+  };
   const cueBody = cues.length
-    ? `<div class="microbe-disease-chips">${cues.map(cue => `<span class="microbe-disease-chip">${escapeHtml(cue)}</span>`).join('')}${more ? `<span class="microbe-disease-more">+${more}</span>` : ''}</div>`
+    ? `<div class="microbe-disease-chips">${cues.map(chipHtml).join('')}${more ? `<span class="microbe-disease-more">+${more}</span>` : ''}</div>`
     : `<div class="microbe-disease-text">${escapeHtml(compactDrugText(raw, 180))}</div>`;
   return `
     <div class="microbe-disease-panel">
@@ -9338,14 +9359,23 @@ function renderDiseaseTocHtml(active, viewToggle = '') {
       ${sections}
     </section>`;
 }
-function diseaseLinkifySimilar(text) {
+// 이름(영문/한글/우즈벡)으로 등록된 활성 질환 1건을 찾는다.
+// 정규화: 소문자 + 공백·괄호 제거. 정확 일치 우선, 없으면 4자 이상일 때 부분 일치.
+// 한 화면에서 여러 번 부를 땐 미리 받은 목록(all)을 넘겨 중복 조회를 피한다.
+function findDiseaseByName(name, all) {
   const norm = s => String(s || '').toLowerCase().replace(/[\s()]/g, '');
+  const nk = norm(name);
+  if (!nk) return null;
+  const list = all || getActiveDiseases();
+  let hit = list.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n) === nk));
+  if (!hit && nk.length >= 4) hit = list.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
+  return hit || null;
+}
+function diseaseLinkifySimilar(text) {
   const tokens = String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
   const all = getActiveDiseases();
   return tokens.map(tok => {
-    const nk = norm(tok);
-    let hit = nk ? all.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n) === nk)) : null;
-    if (!hit && nk.length >= 4) hit = all.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
+    const hit = findDiseaseByName(tok, all);
     if (hit && Number(hit.id) !== Number(_drawerDiseaseId)) {
       return `<span class="disease-ddx-link" onclick="openDiseaseDrawer(event, ${Number(hit.id)})" title="질환 상세 열기">${escapeHtml(tok)} ↗</span>`;
     }
@@ -17518,7 +17548,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.51',
+  version: '1.52',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17527,7 +17557,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.51 — 확인창 버튼 라벨 정정 (추가/교체인데 "삭제"로 보이던 문제)',
+    title: '최신 · v1.52 — 미생물 카드의 "대표 질환" 칩 클릭 → 주요 질환 카드 연결',
+    items: [
+      '미생물 카드의 "대표 질환 · 임상 단서" 칩 중 등록된 주요 질환과 이름이 맞는 칩을 클릭하면 그 질환 카드(상세 드로어)로 바로 이동합니다. 연결되는 칩은 파란색 + ↗ 표시로 구분되고, 등록된 질환이 없는 임상 단서 칩은 평소대로 표시됩니다.',
+    ]
+  },
+  {
+    title: 'v1.51 — 확인창 버튼 라벨 정정 (추가/교체인데 "삭제"로 보이던 문제)',
     items: [
       'AI 붙여넣기에서 "중복 없음 · 신규 N건을 추가합니다" 확인창의 버튼이 빨간 "삭제"로 보이던 문제를 고쳤습니다. 동작에 맞게 초록 "추가" 버튼으로 바꿨습니다.',
       '"클라우드 최종본으로 교체할까요?" 확인창도 버튼이 "삭제"로 보이던 것을 "교체"로 바로잡았습니다. (다른 확인창들은 이미 올바른 라벨이라 그대로 둠.)',
