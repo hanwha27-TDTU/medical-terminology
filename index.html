@@ -4075,9 +4075,17 @@ document.addEventListener('keydown', e => {
   }
 
   .add-kind-btn {
-    padding: 11px;
+    padding: 11px 10px;
     font-size: 13px;
     font-weight: 800;
+    /* 균등 높이·중앙정렬 + 한국어 단어 단위 줄바꿈(마지막 글자만 줄바뀌는 고아 방지) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.3;
+    min-height: 48px;
+    word-break: keep-all;
   }
 
   .add-tab-btn.active,
@@ -13273,7 +13281,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <input id="add_kind" type="hidden" value="term">
         <div class="add-section-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div class="add-section-title" style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px">저장 항목 선택</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
             <button id="addKind_term" class="add-kind-btn active" onclick="switchAddKind('term')" style="background:var(--add-active-bg);border:1px solid var(--add-active-border);border-radius:10px;padding:11px;color:var(--add-active-text);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📘 일반 용어</button>
             <button id="addKind_microbe" class="add-kind-btn" onclick="switchAddKind('microbe')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🧫 미생물</button>
             <button id="addKind_drug" class="add-kind-btn" onclick="switchAddKind('drug')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💊 약물명 및 정보</button>
@@ -17438,7 +17446,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.45',
+  version: '1.46',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17447,7 +17455,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.45 — 버튼 디자인 전수 통일(1차): 표준 체계 + 튀는 버튼 정리',
+    title: '최신 · v1.46 — 추가창 "저장 항목 선택" 버튼 정렬·줄바꿈 정리',
+    items: [
+      '항목 종류 선택 버튼(일반 용어/미생물/약물/의학계산공식/주요 질환)을 균등 높이·중앙 정렬로 다듬고, "의학계산공식"처럼 긴 라벨의 마지막 글자만 줄바뀌던 고아 줄바꿈을 단어 단위 줄바꿈(word-break:keep-all)으로 없앴습니다. 그리드 폭도 키워 더 고르게 배치됩니다.',
+    ]
+  },
+  {
+    title: 'v1.45 — 버튼 디자인 전수 통일(1차): 표준 체계 + 튀는 버튼 정리',
     items: [
       '앱 전체에서 솔리드 밝은색으로 튀던 1차 버튼(편집창 💾 저장 5종, 추가, TSV 가져오기, AI 설정 저장, 중복검토 "선택대로 가져오기"와 새것/기존 토글, 데이터 관리 주요/초록 버튼, 복사 버튼)을 공용 버튼 체계(ui-btn)로 통일했습니다.',
       '1차=소프트 accent 틴트+hover 강조, 유지=초록, 덮어쓰기=주황 주의, 삭제=빨강으로 의미는 유지하되 다크·라이트 모두 또렷한 테마 토큰 기반으로 정리했습니다. (1차 통일 — 남은 보조/소프트 버튼은 점진 적용 예정)',
