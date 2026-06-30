@@ -1533,8 +1533,8 @@ function diseaseDetailLine(label, value, extraClass = '') {
 // 토큰·필드를 data-* 에 escape해 넣고 this.dataset 로 읽어 onclick 문자열 주입을 피한다.
 function diseaseChipifyTokens(text, clickField = '') {
   const tip = { chief_complaints: '이 주호소로 내원하는', symptoms: '이 증상을 보이는', signs: '이 징후가 나타나는' }[clickField] || '';
-  return String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i)
-    .map(t => t.trim()).filter(Boolean)
+  // 분리 규칙은 _findingSplit(쉼표·줄바꿈)과 공유 — 칩과 역탐색 매칭이 항상 같은 토큰을 보게 한다.
+  return _findingSplit(text)
     .map(tok => clickField
       ? `<span class="disease-ddx-link" data-find="${escapeHtml(tok)}" data-field="${escapeHtml(clickField)}" onclick="openFindingDiseaseList(event, this.dataset.find, this.dataset.field)" title="${tip} 질환 모아보기 (감별진단)">${escapeHtml(tok)} 🔍</span>`
       : `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`).join('');
@@ -9492,7 +9492,10 @@ function buildFindingConceptIndex() {
 let _findingFilter = [];     // [{field, value}] — AND 조건
 let _findingView = 'list';   // 'list' | 'table'
 function _findingNorm(s) { return String(s || '').toLowerCase().replace(/\s/g, ''); }
-function _findingSplit(s) { return String(s || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean); }
+// 주호소·증상·징후는 "쉼표 구분"이 계약 — 오직 쉼표(와 줄바꿈)로만 토큰을 나눈다.
+// 슬래시·가운뎃점·및/vs/와/과로 나누면 "오심·구토(Nausea/vomiting)" 같은 한 용어가 깨진다.
+// 칩 표시(diseaseChipifyTokens)와 매칭(_diseaseHasFinding)이 반드시 같은 규칙을 쓰도록 이 함수를 공유한다.
+function _findingSplit(s) { return String(s || '').split(/[,\n]/).map(t => t.trim()).filter(Boolean); }
 function _diseaseHasFinding(d, cond, idx) {
   const cfg = FINDING_FIELDS[cond.field]; if (!cfg) return false;
   const target = _findingNorm(cond.value);
@@ -17635,7 +17638,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.57',
+  version: '1.58',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17644,7 +17647,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.57 — 질환 편집/추가 폼, 모든 섹션 접힌 상태로 시작',
+    title: '최신 · v1.58 — 증상·징후·주호소 칩, 오직 쉼표로만 분리',
+    items: [
+      '"오심·구토(Nausea/vomiting)"처럼 가운뎃점(·)이나 슬래시(/)가 든 항목이 잘못 쪼개져 깨지던 문제를 고쳤습니다. 이제 증상·징후·주호소 칩은 오직 쉼표(와 줄바꿈)로만 나뉘어 한 용어가 통째로 유지됩니다.',
+      '역탐색(같은 소견 질환 모아보기) 매칭도 같은 규칙을 쓰도록 통일해, 칩과 검색이 항상 같은 토큰을 봅니다.',
+    ]
+  },
+  {
+    title: 'v1.57 — 질환 편집/추가 폼, 모든 섹션 접힌 상태로 시작',
     items: [
       '주요 질환 편집·추가 폼에서 정의·원인 등 일부 섹션만 펼쳐져 있던 것을 모두 접힌 상태로 통일했습니다. 필요한 섹션만 펼쳐 입력하면 돼 한눈에 들어옵니다. (드로어 상세창은 이미 접힘, 목록의 장기계 그룹은 그대로 펼침.)',
     ]
