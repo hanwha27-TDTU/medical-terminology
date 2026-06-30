@@ -1534,10 +1534,18 @@ function diseaseDetailLine(label, value, extraClass = '') {
 function diseaseChipifyTokens(text, clickField = '') {
   const tip = { chief_complaints: '이 주호소로 내원하는', symptoms: '이 증상을 보이는', signs: '이 징후가 나타나는' }[clickField] || '';
   // 분리 규칙은 _findingSplit(쉼표·줄바꿈)과 공유 — 칩과 역탐색 매칭이 항상 같은 토큰을 보게 한다.
+  // 토큰이 등록된 일반용어와 매칭되면 칩 안에 📖(용어 카드 열기)를 덧붙인다(🔍 역탐색은 그대로).
+  const idx = buildFindingConceptIndex();
   return _findingSplit(text)
-    .map(tok => clickField
-      ? `<span class="disease-ddx-link" data-find="${escapeHtml(tok)}" data-field="${escapeHtml(clickField)}" onclick="openFindingDiseaseList(event, this.dataset.find, this.dataset.field)" title="${tip} 질환 모아보기 (감별진단)">${escapeHtml(tok)} 🔍</span>`
-      : `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`).join('');
+    .map(tok => {
+      const termId = findTermIdByFinding(tok, idx);
+      const termIco = termId != null
+        ? ` <span class="ddx-term-ico" data-term="${escapeHtml(String(termId))}" onclick="event.stopPropagation();closeDiseaseDrawer();openDrawer(this.dataset.term)" title="일반용어 카드 열기">📖</span>`
+        : '';
+      return clickField
+        ? `<span class="disease-ddx-link" data-find="${escapeHtml(tok)}" data-field="${escapeHtml(clickField)}" onclick="openFindingDiseaseList(event, this.dataset.find, this.dataset.field)" title="${tip} 질환 모아보기 (감별진단)">${escapeHtml(tok)} 🔍${termIco}</span>`
+        : `<span class="disease-ddx-plain">${escapeHtml(tok)}${termIco}</span>`;
+    }).join('');
 }
 function diseaseChipLine(label, value, extraClass = '', clickField = '') {
   const text = String(value || '').trim();
@@ -2871,6 +2879,8 @@ document.addEventListener('keydown', e => {
     padding: 3px 10px; cursor: pointer;
   }
   .disease-ddx-link:hover { background: var(--accent); color: #fff; }
+  .ddx-term-ico { cursor: pointer; opacity: 0.7; font-size: 11px; padding: 0 2px; border-radius: 6px; }
+  .ddx-term-ico:hover { opacity: 1; background: var(--add-active-bg); }
   .disease-ddx-plain {
     display: inline-flex; align-items: center;
     font-size: 12px; color: var(--text2);
@@ -9487,6 +9497,16 @@ function buildFindingConceptIndex() {
     forms.forEach(f => { const n = normFindingConcept(f); if (n && !idx.has(n)) idx.set(n, t.id); });
   });
   return idx;
+}
+// 소견 토큰("우하복부통증(RLQ pain)" 등)을 등록된 일반용어 id로 해석.
+// 토큰 전체 → 괄호 앞(보통 한국어) → 괄호 안(보통 영어/약어) 순으로 개념 인덱스를 조회한다.
+function findTermIdByFinding(token, idx) {
+  if (!idx) return null;
+  const tries = [String(token || '')];
+  const m = String(token || '').match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+  if (m) { if (m[1].trim()) tries.push(m[1].trim()); if (m[2].trim()) tries.push(m[2].trim()); }
+  for (const p of tries) { const id = idx.get(normFindingConcept(p)); if (id != null) return id; }
+  return null;
 }
 // ── 감별 워크벤치 상태(조건 AND 누적 + 목록/표 토글) ──
 let _findingFilter = [];     // [{field, value}] — AND 조건
@@ -17638,7 +17658,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.58',
+  version: '1.59',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17647,7 +17667,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.58 — 증상·징후·주호소 칩, 오직 쉼표로만 분리',
+    title: '최신 · v1.59 — 주호소·증상·징후 칩 → 일반용어 카드로 연결(📖)',
+    items: [
+      '질환 상세창의 주호소·증상·징후 칩 중 등록된 일반용어와 이름이 맞는 것에 📖 아이콘이 붙습니다. 클릭하면 그 용어 카드(정의·발음 등)로 바로 이동합니다. 기존 🔍(같은 소견 질환 모아보기)은 그대로입니다.',
+      '"우하복부통증(RLQ pain)"처럼 한국어(영어) 형태도 괄호 앞 한국어·괄호 안 영어를 각각 용어 사전과 대조해 매칭하며, 동의어·다국어 개념 인덱스를 활용합니다. 등록된 용어가 없으면 📖는 표시되지 않습니다.',
+    ]
+  },
+  {
+    title: 'v1.58 — 증상·징후·주호소 칩, 오직 쉼표로만 분리',
     items: [
       '"오심·구토(Nausea/vomiting)"처럼 가운뎃점(·)이나 슬래시(/)가 든 항목이 잘못 쪼개져 깨지던 문제를 고쳤습니다. 이제 증상·징후·주호소 칩은 오직 쉼표(와 줄바꿈)로만 나뉘어 한 용어가 통째로 유지됩니다.',
       '역탐색(같은 소견 질환 모아보기) 매칭도 같은 규칙을 쓰도록 통일해, 칩과 검색이 항상 같은 토큰을 봅니다.',
