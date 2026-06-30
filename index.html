@@ -9396,6 +9396,32 @@ function findDiseaseByName(name, all) {
   if (!hit && nk.length >= 4) hit = list.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
   return hit || null;
 }
+// 이름으로 등록된 활성 미생물 1건을 찾는다(findDiseaseByName과 같은 정규화·매칭 규칙).
+function findMicrobeByName(name, all) {
+  const norm = s => String(s || '').toLowerCase().replace(/[\s()]/g, '');
+  const nk = norm(name);
+  if (!nk) return null;
+  const list = all || getActiveMicrobes();
+  let hit = list.find(m => [m.organism, m.ko_name, m.latin_name].some(n => n && norm(n) === nk));
+  if (!hit && nk.length >= 4) hit = list.find(m => [m.organism, m.ko_name, m.latin_name].some(n => n && norm(n).includes(nk)));
+  return hit || null;
+}
+// 적응증 등 쉼표 나열 텍스트에서 등록된 질환(우선)·미생물 이름을 칩으로 보여주고, 매칭되면 그 드로어로 링크.
+// openerPrefix: 링크 클릭 시 현재 드로어를 먼저 닫는 JS(드로어↔드로어 오버레이 겹침 방지, 예 'closeDrugDrawer();').
+function entityLinkPillsHtml(text, openerPrefix = '') {
+  const tokens = String(text || '').split(/[,;]| 및 /).map(t => t.trim()).filter(Boolean);
+  if (!tokens.length) return escapeHtml(String(text || ''));
+  const allD = getActiveDiseases();
+  const allM = getActiveMicrobes();
+  const pills = tokens.map(tok => {
+    const d = findDiseaseByName(tok, allD);
+    if (d) return `<span class="disease-ddx-link" onclick="${openerPrefix}openDiseaseDrawer(null, ${Number(d.id)})" title="주요 질환 카드 열기">${escapeHtml(tok)} ↗</span>`;
+    const m = findMicrobeByName(tok, allM);
+    if (m) return `<span class="disease-ddx-link" onclick="${openerPrefix}openMicrobeDrawer(null, ${Number(m.id)})" title="미생물 카드 열기">${escapeHtml(tok)} ↗</span>`;
+    return `<span class="disease-ddx-plain">${escapeHtml(tok)}</span>`;
+  }).join('');
+  return `<div class="disease-ddx-links">${pills}</div>`;
+}
 function diseaseLinkifySimilar(text) {
   const tokens = String(text || '').split(/[,;/·\n]| 및 | vs | 와 | 과 /i).map(t => t.trim()).filter(Boolean);
   const all = getActiveDiseases();
@@ -10486,10 +10512,13 @@ function speakDrugName(event, id, slot = 'drug-card') {
 function drugInfoBox(label, value, options = {}) {
   const clean = String(value || '').trim();
   if (!clean && !options.includeEmpty) return '';
+  const body = !clean
+    ? '<span style="color:var(--text3)">미입력</span>'
+    : (options.linkEntities ? entityLinkPillsHtml(clean, 'closeDrugDrawer();') : escapeHtml(clean));
   return `
     <div class="drug-section-box ${options.emphasis ? 'drug-section-box-emphasis' : ''}">
       <div class="drug-section-label">${escapeHtml(label)}</div>
-      <div class="drug-section-text">${clean ? escapeHtml(clean) : '<span style="color:var(--text3)">미입력</span>'}</div>
+      <div class="drug-section-text">${body}</div>
     </div>`;
 }
 
@@ -10508,7 +10537,7 @@ function drugBasicCardHtml(d) {
     drugInfoBox('System', systemText, { includeEmpty: true }),
     drugInfoBox('같은 계열 약물명', d.same_class_drugs, { includeEmpty: false }),
     drugInfoBox('④ MOA', d.moa, { includeEmpty: false }),
-    drugInfoBox('⑤ 임상 사용', d.clinical_uses, { includeEmpty: false }),
+    drugInfoBox('⑤ 임상 사용', d.clinical_uses, { includeEmpty: false, linkEntities: true }),
     drugInfoBox('⑥ 대표 부작용', d.adverse_effects, { includeEmpty: false }),
     drugInfoBox('⑧ USMLE 함정', d.usmle_strategy, { includeEmpty: false }),
   ].filter(Boolean).join('');
@@ -17573,7 +17602,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.54',
+  version: '1.55',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17582,7 +17611,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.54 — 도메인 탭 + 정렬/UMLS를 헤더에 고정 (스크롤해도 항상 보임)',
+    title: '최신 · v1.55 — 약물 상세창 "임상 사용"의 질환·미생물 연결',
+    items: [
+      '약물 상세창의 "⑤ 임상 사용(적응증)"을 칩으로 표시하고, 등록된 주요 질환·미생물과 이름이 맞는 칩(파랑 + ↗)을 클릭하면 그 카드로 이동합니다. 약물 → 질환/미생물로 학습 그래프가 이어집니다.',
+      '미생물 카드의 질환 연결(v1.52~53)과 같은 방식 — 매칭되는 칩만 링크되고, 등록 안 된 항목은 평범하게 표시됩니다. (질환을 우선 찾고, 없으면 미생물로 매칭.)',
+    ]
+  },
+  {
+    title: 'v1.54 — 도메인 탭 + 정렬/UMLS를 헤더에 고정 (스크롤해도 항상 보임)',
     items: [
       '자료 종류 탭(일반용어·미생물·약물·공식·질환·노트)과 "NIH UMLS 검색·정렬"을 헤더에 고정했습니다. 이제 목록을 길게 내려도 탭이 항상 보여 바로 전환할 수 있습니다.',
       '공간을 덜 차지하도록 컴팩트하게 다듬었습니다 — 탭을 살짝 줄이고, 정렬/UMLS 줄을 탭과 같은 줄 오른쪽으로 합쳐 한 줄을 절약했습니다. 좁은 화면(모바일)에선 탭이 가로로 스르륵 넘어가는 한 줄로 표시됩니다.',
