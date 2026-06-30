@@ -15539,23 +15539,22 @@ function openDuplicateReviewModal(parsed) {
   overlay.className = 'developer-modal-overlay';
   overlay.innerHTML = `
     <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
-      <div class="developer-modal-head">
-        <div>
-          <div style="font-size:17px;font-weight:900;color:var(--text)">🔍 중복 항목 비교 검토 (칸별 선택)</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px">신규 ${totalNew}건은 그대로 추가. 중복 ${totalDup}건은 <b>바뀌는 칸마다</b> 체크=새것 / 해제=기존 유지. 질환 본문은 섹션별로 고릅니다.</div>
+      <div class="developer-modal-head" style="flex-direction:column;align-items:stretch;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="font-size:17px;font-weight:900;color:var(--text)">🔍 중복 항목 비교 검토 (칸별 선택)</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">신규 ${totalNew}건은 그대로 추가. 중복 ${totalDup}건은 <b>바뀌는 칸마다</b> 체크=새것 / 해제=기존 유지. 질환 본문은 섹션별로 고릅니다.</div>
+          </div>
+          <button onclick="document.getElementById('dupReviewModal').remove()" title="닫기" aria-label="검토창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
         </div>
-        <button onclick="document.getElementById('dupReviewModal').remove()" title="닫기" aria-label="검토창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="ui-btn caution" style="flex:1 1 130px" onclick="_dupSetAll(true)">전부 새것으로</button>
+          <button class="ui-btn safe" style="flex:1 1 130px" onclick="_dupSetAll(false)">전부 기존 유지</button>
+          <button class="ui-btn primary" style="flex:1 1 130px" onclick="applyDuplicateReview()">✅ 선택대로 가져오기</button>
+        </div>
       </div>
       <div style="padding:16px">
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <button class="ui-btn caution" style="flex:1" onclick="_dupSetAll(true)">전부 새것으로</button>
-          <button class="ui-btn safe" style="flex:1" onclick="_dupSetAll(false)">전부 기존 유지</button>
-        </div>
         ${groupsHtml}
-        <div style="display:flex;gap:8px;margin-top:14px">
-          <button class="ui-btn primary" style="flex:2" onclick="applyDuplicateReview()">✅ 선택대로 가져오기</button>
-          <button class="ui-btn" style="flex:1" onclick="document.getElementById('dupReviewModal').remove()">취소</button>
-        </div>
       </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -17455,7 +17454,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.47',
+  version: '1.48',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17464,7 +17463,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.47 — 추가창 탭 등 버튼 줄바꿈·정렬 마무리 점검',
+    title: '최신 · v1.48 — 중복 검토창 3개 버튼을 상단 한 줄로',
+    items: [
+      '붙여넣기 중복 검토창에서 "전부 새것으로 · 전부 기존 유지 · 선택대로 가져오기" 3개 버튼을 상단 헤더에 나란히 고정 배치했습니다. 목록을 길게 스크롤해도 버튼이 항상 보여 곧바로 적용할 수 있고, 닫기(×)와 중복되던 하단 취소 버튼은 정리했습니다.',
+    ]
+  },
+  {
+    title: 'v1.47 — 추가창 탭 등 버튼 줄바꿈·정렬 마무리 점검',
     items: [
       '추가창 상단 탭(단어 하나/TSV/Excel/JSON 붙여넣기)도 좁은 화면에서 단어 단위로 줄바뀌고 높이가 고르게 중앙 정렬되도록 다듬었습니다. 데이터 관리 버튼 라벨의 고아 줄바꿈도 예방(word-break) 처리했습니다. (필터 칩·도메인 탭은 이미 한 줄 고정이라 이상 없음 확인.)',
     ]
