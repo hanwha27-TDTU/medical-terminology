@@ -9912,7 +9912,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
         initial = sec.seed.map(s => ({ [seedKey]: s }));
       }
       const rowsHtml = initial.map(r => diseaseRowHtml(sec, r)).join('');
-      return `<details class="disease-acc" open><summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
+      return `<details class="disease-acc"><summary>${sec.icon} ${escapeHtml(sec.title)}</summary>
         <div style="padding:12px">
           <div id="${prefix}_rowsbody_${sec.key}">${rowsHtml}</div>
           <button type="button" class="speak-btn" style="margin-top:8px;justify-content:center;width:100%" onclick="addDiseaseRow('${prefix}','${sec.key}')">+ ${escapeHtml(sec.addLabel || '행 추가')}</button>
@@ -9930,7 +9930,7 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
         ? `<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><textarea id="${fid}" rows="2" style="${TA}">${escapeHtml(val)}</textarea></div>`
         : `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(f.label)}</label><input id="${fid}" value="${escVal(val)}" style="${IS}"></div>`;
     }).join('');
-    return `<details class="disease-acc"${sec.key === 'definition' ? ' open' : ''}><summary>${sec.icon} ${escapeHtml(sec.title)}</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
+    return `<details class="disease-acc"><summary>${sec.icon} ${escapeHtml(sec.title)}</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px">${fields}</div></details>`;
   };
   return `
     <div class="note-inline-search" onclick="event.stopPropagation()" style="margin-bottom:12px">
@@ -17635,7 +17635,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.56',
+  version: '1.57',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17644,7 +17644,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.56 — 치료 → 약물 카드 역방향 연결 (미생물·질환 상세창)',
+    title: '최신 · v1.57 — 질환 편집/추가 폼, 모든 섹션 접힌 상태로 시작',
+    items: [
+      '주요 질환 편집·추가 폼에서 정의·원인 등 일부 섹션만 펼쳐져 있던 것을 모두 접힌 상태로 통일했습니다. 필요한 섹션만 펼쳐 입력하면 돼 한눈에 들어옵니다. (드로어 상세창은 이미 접힘, 목록의 장기계 그룹은 그대로 펼침.)',
+    ]
+  },
+  {
+    title: 'v1.56 — 치료 → 약물 카드 역방향 연결 (미생물·질환 상세창)',
     items: [
       '미생물 상세창의 "치료"와 질환 상세창의 "약물치료"에서 등록된 약물과 이름이 맞는 칩(파랑 + ↗)을 클릭하면 그 약물 카드로 이동합니다. 미생물·질환 → 약물로 학습 그래프가 양방향으로 이어집니다.',
       '이름 해석은 질환 → 미생물 → 약물 순으로 자동 판단하며, 매칭되는 칩만 링크됩니다(미등록 항목은 평범하게 표시).',
