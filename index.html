@@ -846,13 +846,15 @@
   @media (max-width: 640px) {
     .library-mode-switch {
       width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .library-mode-switch::-webkit-scrollbar { display: none; }
     .library-mode-btn {
-      width: 100%;
+      flex: 0 0 auto;
       min-width: 0;
-      white-space: normal;
+      white-space: nowrap;
       line-height: 1.25;
     }
     .note-frame-title,
@@ -1766,7 +1768,7 @@ document.addEventListener('keydown', e => {
   header {
     background: var(--header-bg);
     border-bottom: 1px solid var(--border);
-    padding: 20px 24px 16px;
+    padding: 16px 24px 12px;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -1777,7 +1779,7 @@ document.addEventListener('keydown', e => {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .developer-header-btn {
@@ -2728,28 +2730,28 @@ document.addEventListener('keydown', e => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-    padding: 10px 24px 0;
+    padding: 8px 0 0;
   }
 
   .library-mode-switch {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     background: rgba(13,17,23,0.68);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 4px;
+    border-radius: 11px;
+    padding: 3px;
   }
 
   .library-mode-btn {
     border: 0;
-    border-radius: 9px;
+    border-radius: 8px;
     background: transparent;
     color: var(--text3);
-    padding: 7px 12px;
-    font-size: 12px;
+    padding: 5px 11px;
+    font-size: 11.5px;
     font-weight: 800;
     font-family: 'Noto Sans KR', sans-serif;
     cursor: pointer;
@@ -2966,14 +2968,16 @@ document.addEventListener('keydown', e => {
   @media (max-width: 640px) {
     .library-mode-switch {
       width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .library-mode-switch::-webkit-scrollbar { display: none; }
 
     .library-mode-btn {
-      width: 100%;
+      flex: 0 0 auto;
       min-width: 0;
-      white-space: normal;
+      white-space: nowrap;
       line-height: 1.25;
     }
   }
@@ -2982,7 +2986,7 @@ document.addEventListener('keydown', e => {
     display: flex;
     gap: 6px;
     align-items: center;
-    padding: 6px 24px 0;
+    padding: 0;
     flex-wrap: wrap;
   }
 
@@ -5678,8 +5682,6 @@ document.addEventListener('keydown', e => {
       padding-right: 10px;
     }
 
-    .library-mode-bar,
-    .top-tool-row,
     .filter-group,
     .stats-bar {
       padding-left: 10px;
@@ -5688,14 +5690,16 @@ document.addEventListener('keydown', e => {
 
     .library-mode-switch {
       width: 100%;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .library-mode-switch::-webkit-scrollbar { display: none; }
 
     .library-mode-btn {
-      width: 100%;
-      padding-left: 8px;
-      padding-right: 8px;
+      flex: 0 0 auto;
+      padding-left: 9px;
+      padding-right: 9px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -5748,27 +5752,26 @@ document.addEventListener('keydown', e => {
     <button class="search-clear" id="sourceSearchClear" onclick="clearSourceSearch()" aria-label="출처 검색어 지우기">✕</button>
   </div>
   </div>
+  <div class="library-mode-bar" role="region" aria-label="자료 모드 선택">
+    <div class="library-mode-switch" role="tablist" aria-label="자료 유형 전환">
+      <button id="libraryModeTermsBtn" class="library-mode-btn active" role="tab" aria-selected="true" onclick="setLibraryMode('terms')">📘 일반용어</button>
+      <button id="libraryModeMicrobesBtn" class="library-mode-btn microbe" role="tab" aria-selected="false" onclick="setLibraryMode('microbes')">🧫 미생물</button>
+      <button id="libraryModeDrugsBtn" class="library-mode-btn drug" role="tab" aria-selected="false" onclick="setLibraryMode('drugs')">💊 약물명 및 정보</button>
+      <button id="libraryModeFormulasBtn" class="library-mode-btn formula" role="tab" aria-selected="false" onclick="setLibraryMode('formulas')">∑ 주요 의학계산공식</button>
+      <button id="libraryModeDiseasesBtn" class="library-mode-btn disease" role="tab" aria-selected="false" onclick="setLibraryMode('diseases')">🩺 주요 질환</button>
+    </div>
+    <div class="top-tool-row">
+      <button class="ui-btn sm" onclick="searchUMLSFromInput()" style="white-space:nowrap">🏥 NIH UMLS 검색</button>
+      <select id="sortSelect" onchange="setSort(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
+        <option value="default">정렬: 완성 우선 · A→Z</option>
+        <option value="en_asc">A→Z (영어만)</option>
+        <option value="ko_asc">가→나 (한국어)</option>
+        <option value="uz_asc">A→Z (우즈베크)</option>
+      </select>
+    </div>
+  </div>
 </header>
 
-<div class="library-mode-bar" role="region" aria-label="자료 모드 선택">
-  <div class="library-mode-switch" role="tablist" aria-label="자료 유형 전환">
-    <button id="libraryModeTermsBtn" class="library-mode-btn active" role="tab" aria-selected="true" onclick="setLibraryMode('terms')">📘 일반용어</button>
-    <button id="libraryModeMicrobesBtn" class="library-mode-btn microbe" role="tab" aria-selected="false" onclick="setLibraryMode('microbes')">🧫 미생물</button>
-    <button id="libraryModeDrugsBtn" class="library-mode-btn drug" role="tab" aria-selected="false" onclick="setLibraryMode('drugs')">💊 약물명 및 정보</button>
-    <button id="libraryModeFormulasBtn" class="library-mode-btn formula" role="tab" aria-selected="false" onclick="setLibraryMode('formulas')">∑ 주요 의학계산공식</button>
-    <button id="libraryModeDiseasesBtn" class="library-mode-btn disease" role="tab" aria-selected="false" onclick="setLibraryMode('diseases')">🩺 주요 질환</button>
-  </div>
-</div>
-
-<div class="top-tool-row">
-  <button onclick="searchUMLSFromInput()" style="background:rgba(88,166,255,0.1);border:1px solid #1d4ed8;border-radius:8px;padding:6px 12px;color:#74b0ff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🏥 NIH UMLS 검색</button>
-  <select id="sortSelect" onchange="setSort(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;cursor:pointer">
-    <option value="default">정렬: 완성 우선 · A→Z</option>
-    <option value="en_asc">A→Z (영어만)</option>
-    <option value="ko_asc">가→나 (한국어)</option>
-    <option value="uz_asc">A→Z (우즈베크)</option>
-  </select>
-</div>
 <div class="filter-group">
   <div class="filter-group-title" id="primaryFilterTitle">🧭 개념분류 <span>무엇인가?</span></div>
   <div class="filter-row" id="conceptFilterRow">
@@ -17570,7 +17573,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.53',
+  version: '1.54',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17579,7 +17582,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.53 — 미생물 상세창의 "대표 질환"도 칩 + 질환 카드 연결',
+    title: '최신 · v1.54 — 도메인 탭 + 정렬/UMLS를 헤더에 고정 (스크롤해도 항상 보임)',
+    items: [
+      '자료 종류 탭(일반용어·미생물·약물·공식·질환·노트)과 "NIH UMLS 검색·정렬"을 헤더에 고정했습니다. 이제 목록을 길게 내려도 탭이 항상 보여 바로 전환할 수 있습니다.',
+      '공간을 덜 차지하도록 컴팩트하게 다듬었습니다 — 탭을 살짝 줄이고, 정렬/UMLS 줄을 탭과 같은 줄 오른쪽으로 합쳐 한 줄을 절약했습니다. 좁은 화면(모바일)에선 탭이 가로로 스르륵 넘어가는 한 줄로 표시됩니다.',
+    ]
+  },
+  {
+    title: 'v1.53 — 미생물 상세창의 "대표 질환"도 칩 + 질환 카드 연결',
     items: [
       '미생물 상세창(드로어)의 "대표 질환 / 임상 단서"도 칩으로 표시하고, 등록된 주요 질환과 이름이 맞는 칩(파랑 + ↗)을 클릭하면 그 질환 카드로 바로 이동합니다(상세창은 닫힙니다). 카드뿐 아니라 상세창에서도 같은 흐름으로 연결됩니다.',
     ]
