@@ -1552,6 +1552,18 @@ function diseaseChipLine(label, value, extraClass = '', clickField = '') {
   if (!text) return '';
   return `<div class="microbe-info-card ${extraClass}"><div class="microbe-info-label">${escapeHtml(label)}</div><div class="microbe-info-value disease-ddx-links">${diseaseChipifyTokens(text, clickField)}</div></div>`;
 }
+// 카드 미리보기용 — 주호소 토큰을 텍스트로 보여주되, 등록된 일반용어와 매칭되는 토큰엔 📖(용어 카드)만 붙인다.
+// 매칭은 괄호 앞 한국어로도 성립(findTermIdByFinding). 카드가 질환 드로어 onclick이라 📖는 stopPropagation,
+// 🔍 역탐색은 카드에선 생략해 가볍게 유지. idx는 프레임당 한 번만 빌드해 넘긴다.
+function diseaseFindingTermText(text, idx) {
+  const ix = idx || buildFindingConceptIndex();
+  return _findingSplit(text).map(tok => {
+    const termId = findTermIdByFinding(tok, ix);
+    return termId != null
+      ? `${escapeHtml(tok)}<span class="ddx-term-ico" data-term="${escapeHtml(String(termId))}" onclick="event.stopPropagation();openDrawer(this.dataset.term)" title="일반용어 카드 열기">📖</span>`
+      : escapeHtml(tok);
+  }).join(', ');
+}
 
 function _renderDiseaseDrawerContent(d) {
   const title = diseaseDisplayName(d);
@@ -9673,6 +9685,7 @@ function renderDiseaseFrame(diseases = []) {
     updateCounts(active.length, active.length, 'diseases');
     return;
   }
+  const _fIdx = buildFindingConceptIndex(); // 카드 주호소 → 용어 매칭용, 프레임당 1회
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
@@ -9712,7 +9725,7 @@ function renderDiseaseFrame(diseases = []) {
             ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
           </div>
           ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
-          ${(d.body?.profile?.chief_complaints) ? `<div class="microbe-memory-line"><span>주호소</span>${escapeHtml(d.body.profile.chief_complaints)}</div>` : ''}
+          ${(d.body?.profile?.chief_complaints) ? `<div class="microbe-memory-line"><span>주호소</span>${diseaseFindingTermText(d.body.profile.chief_complaints, _fIdx)}</div>` : ''}
           ${(d.body?.definition?.ko) ? `<div class="microbe-memory-line"><span>정의</span>${escapeHtml(d.body.definition.ko)}</div>` : ''}
         </article>
       `; }).join('')}
@@ -17658,7 +17671,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.59',
+  version: '1.60',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17667,7 +17680,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.59 — 주호소·증상·징후 칩 → 일반용어 카드로 연결(📖)',
+    title: '최신 · v1.60 — 질환 목록 카드의 주호소도 일반용어 카드로 연결(📖)',
+    items: [
+      '질환 목록 카드의 "주호소"에서도 등록된 일반용어와 이름이 맞는 항목에 📖가 붙어 용어 카드로 바로 이동합니다(상세창 v1.59에 이어 카드까지 확장). "우하복부통증(RLQ pain)"처럼 괄호가 있어도 괄호 앞 한국어가 용어와 맞으면 연결됩니다.',
+    ]
+  },
+  {
+    title: 'v1.59 — 주호소·증상·징후 칩 → 일반용어 카드로 연결(📖)',
     items: [
       '질환 상세창의 주호소·증상·징후 칩 중 등록된 일반용어와 이름이 맞는 것에 📖 아이콘이 붙습니다. 클릭하면 그 용어 카드(정의·발음 등)로 바로 이동합니다. 기존 🔍(같은 소견 질환 모아보기)은 그대로입니다.',
       '"우하복부통증(RLQ pain)"처럼 한국어(영어) 형태도 괄호 앞 한국어·괄호 안 영어를 각각 용어 사전과 대조해 매칭하며, 동의어·다국어 개념 인덱스를 활용합니다. 등록된 용어가 없으면 📖는 표시되지 않습니다.',
