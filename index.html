@@ -2314,6 +2314,9 @@ document.addEventListener('keydown', e => {
   .data-action-btn.outline { color:#74b0ff;background:rgba(88,166,255,0.08);border:1px solid #1d4ed8; }
   .data-action-btn.purple { color:#c4b5fd;background:rgba(167,139,250,0.1);border:1px solid #5b21b6; }
   .data-action-btn.red { color:#f87171;background:rgba(248,81,73,0.1);border:1px solid #b91c1c; }
+  html[data-theme="light"] .data-action-btn.outline { color:#1d4ed8;background:rgba(37,99,235,0.08); }
+  html[data-theme="light"] .data-action-btn.purple { color:#6d28d9;background:rgba(124,58,237,0.1); }
+  html[data-theme="light"] .data-action-btn.red { color:#b91c1c;background:rgba(220,38,38,0.09); }
 
   .edit-modal-actions {
     display: flex;
@@ -14787,7 +14790,7 @@ function showGuide() {
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:12px">
           ${chips.map(chip => `<span style="background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:10px;color:var(--text2);font-weight:750">${escapeHtml(chip)}</span>`).join('')}
         </div>
-        <button onclick="showDeploymentGuideModal(event)" style="margin-top:14px;background:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
+        <button onclick="showDeploymentGuideModal(event)" class="ui-btn primary" style="margin-top:14px;font-weight:850">
           설정·배포 가이드
         </button>
       </div>
@@ -17454,7 +17457,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.48',
+  version: '1.49',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17463,7 +17466,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.48 — 중복 검토창 3개 버튼을 상단 한 줄로',
+    title: '최신 · v1.49 — 버튼 디자인 전수점검 마무리 (라이트 모드 대비 · 솔리드 통일)',
+    items: [
+      '데이터 관리 화면 버튼(저장본 확인·복원·동기화 등)의 파란/보라/빨강 계열이 라이트 모드에서 옅은 글자라 잘 안 보이던 문제를 고쳤습니다. 라이트 모드에서는 글자색을 진하게 내려 대비를 확보했습니다.',
+      '아직 남아 있던 진한 단색(솔리드) 버튼 5곳(퀴즈 시작·정답 보기·같은 세션 다시·설정 SQL 복사·배포 가이드)을 공용 버튼 체계로 통일했습니다. 평소엔 은은한 강조색, 마우스를 올리면 또렷해지도록 바뀝니다.',
+    ]
+  },
+  {
+    title: 'v1.48 — 중복 검토창 3개 버튼을 상단 한 줄로',
     items: [
       '붙여넣기 중복 검토창에서 "전부 새것으로 · 전부 기존 유지 · 선택대로 가져오기" 3개 버튼을 상단 헤더에 나란히 고정 배치했습니다. 목록을 길게 스크롤해도 버튼이 항상 보여 곧바로 적용할 수 있고, 닫기(×)와 중복되던 하단 취소 버튼은 정리했습니다.',
     ]
@@ -18728,7 +18738,7 @@ function showDeveloperInfo() {
           </div>
           <div style="font-size:10px;color:var(--text3);line-height:1.6;margin:9px 0">Supabase SQL Editor에서 한 번 실행해야 새 동기화 기능을 사용할 수 있습니다.</div>
           <pre style="white-space:pre-wrap;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:10px;line-height:1.55">${escapeHtml(SUPABASE_SCHEMA_SQL)}</pre>
-          <button onclick="copySupabaseSchema()" style="width:100%;background:#1f6feb;border:none;border-radius:8px;padding:9px;color:white;font-size:11px;font-weight:700;cursor:pointer">📋 설정 SQL 복사</button>
+          <button onclick="copySupabaseSchema()" class="ui-btn primary" style="width:100%;border-radius:8px;padding:9px;font-size:11px">📋 설정 SQL 복사</button>
         </details>
       </div>
       </div>
@@ -19316,7 +19326,7 @@ function showQuizSetup() {
         </div>
       </div>
 
-      <button onclick="startQuizFromSetup()" style="width:100%;background:var(--accent);border:1px solid var(--accent);border-radius:12px;padding:14px;color:#fff;font-size:15px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px">
+      <button onclick="startQuizFromSetup()" class="ui-btn primary" style="width:100%;border-radius:12px;padding:14px;font-size:15px;font-weight:850;margin-bottom:8px">
         퀴즈 시작
       </button>
       <button onclick="switchTab('search', document.querySelector('.nav-btn'))" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
@@ -19432,7 +19442,7 @@ function renderQuizStep() {
         <button onclick="speakTermField(event,${Number(t.id) || 0},'en','en')" style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;color:var(--text2);font-size:12px;cursor:pointer;margin:6px 0;font-family:'Noto Sans KR',sans-serif">발음 듣기</button>
         <div style="font-size:13px;color:var(--text2);margin-top:12px;font-weight:750">${escapeHtml(step.question)}</div>
       </section>
-      <button id="revealBtn" onclick="revealQuizStep()" style="width:100%;background:var(--accent);border:1px solid var(--accent);border-radius:12px;padding:14px;color:#fff;font-size:14px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">정답 보기</button>
+      <button id="revealBtn" onclick="revealQuizStep()" class="ui-btn primary" style="width:100%;border-radius:12px;padding:14px;font-size:14px;font-weight:850;margin-bottom:10px">정답 보기</button>
       <div id="quizAnswer" style="display:none">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:17px;margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3);font-weight:850;margin-bottom:9px">${escapeHtml(step.ansLabel)}</div>
@@ -19521,7 +19531,7 @@ function showQuizResult() {
         <div style="font-size:12px;color:var(--text3);margin-top:8px">통과 ${quizScore.termsPassed}개 · 다시 볼 항목 ${quizScore.termsFailed}개 · 남은 복습 ${nextDue}개</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-        <button onclick="startQuiz()" style="background:var(--accent);border:1px solid var(--accent);border-radius:11px;padding:13px;color:#fff;font-size:13px;font-weight:850;cursor:pointer;font-family:'Noto Sans KR',sans-serif">같은 세션 다시</button>
+        <button onclick="startQuiz()" class="ui-btn primary" style="border-radius:11px;padding:13px;font-weight:850">같은 세션 다시</button>
         <button onclick="showQuizSetup()" style="background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:13px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">다른 세션 선택</button>
         <button onclick="showCategoryStats()" style="background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:13px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">학습 현황 보기</button>
       </div>
