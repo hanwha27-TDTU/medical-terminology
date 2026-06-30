@@ -2306,8 +2306,10 @@ document.addEventListener('keydown', e => {
 
   .data-action-btn:hover { filter: brightness(1.12); }
   .data-action-btn:active { transform: translateY(1px); }
-  .data-action-btn.primary { color:#07111f;background:#58a6ff;border:1px solid #58a6ff; }
-  .data-action-btn.green { color:#07110a;background:#3fb950;border:1px solid #3fb950; }
+  .data-action-btn.primary { color:var(--add-active-text);background:var(--add-active-bg);border:1px solid var(--add-active-border); }
+  .data-action-btn.primary:hover { background:var(--accent);color:#fff;border-color:var(--accent);filter:none; }
+  .data-action-btn.green { color:var(--accent2);background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.45); }
+  .data-action-btn.green:hover { background:rgba(63,185,80,0.2);filter:none; }
   .data-action-btn.outline { color:#74b0ff;background:rgba(88,166,255,0.08);border:1px solid #1d4ed8; }
   .data-action-btn.purple { color:#c4b5fd;background:rgba(167,139,250,0.1);border:1px solid #5b21b6; }
   .data-action-btn.red { color:#f87171;background:rgba(248,81,73,0.1);border:1px solid #b91c1c; }
@@ -3954,6 +3956,35 @@ document.addEventListener('keydown', e => {
   }
   .add-modal-header-ghost:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 560px) { .add-modal-header-ghost { display: none; } }
+
+  /* 공용 버튼 체계(ui-btn) — 솔리드 밝은색이 튀어, 1차 액션은 소프트 accent 틴트+솔리드 hover로 통일.
+     의미 변형: primary(권장/저장/적용)·safe(유지/신규)·caution(덮어쓰기/주의)·danger(삭제)·ghost(보조). 모두 테마 토큰. */
+  .ui-btn {
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .ui-btn:hover { border-color: var(--text3); }
+  .ui-btn.sm { padding: 4px 10px; font-size: 11px; border-radius: 8px; }
+  .ui-btn.primary { background: var(--add-active-bg); border-color: var(--add-active-border); color: var(--add-active-text); }
+  .ui-btn.primary:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ui-btn.safe { border-color: rgba(63,185,80,0.45); color: var(--accent2); }
+  .ui-btn.safe:hover { background: rgba(63,185,80,0.12); border-color: var(--accent2); }
+  .ui-btn.copied { background: rgba(63,185,80,0.2); border-color: var(--accent2); color: var(--accent2); }
+  .ui-btn.caution { border-color: rgba(217,119,6,0.5); color: #fbbf24; }
+  html[data-theme="light"] .ui-btn.caution { color: #b45309; }
+  .ui-btn.caution:hover { background: rgba(217,119,6,0.12); }
+  .ui-btn.danger { border-color: rgba(248,81,73,0.5); color: #f87171; }
+  html[data-theme="light"] .ui-btn.danger { color: #dc2626; }
+  .ui-btn.danger:hover { background: rgba(248,81,73,0.12); }
 
   /* 중복 처리 정책 버튼(비교/신규만/덮어쓰기) — 의미색은 유지하되 테마 토큰 기반 통일 스타일 */
   .dup-policy-btn {
@@ -9593,7 +9624,7 @@ function openMicrobeEditModal(e, id) {
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(m.organism || m.ko_name || '')}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button onclick="saveMicrobeEdit(${Number(m.id)})" title="저장" style="background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💾 저장</button>
+          <button onclick="saveMicrobeEdit(${Number(m.id)})" title="저장" class="ui-btn primary">💾 저장</button>
           <button onclick="document.getElementById('microbeEditModal').remove()" title="닫기" aria-label="미생물 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
         </div>
       </div>
@@ -9815,7 +9846,7 @@ function openDiseaseEditModal(e, id) {
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(diseaseDisplayName(d))}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button onclick="saveDiseaseEdit(${Number(d.id)})" title="저장" style="background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💾 저장</button>
+          <button onclick="saveDiseaseEdit(${Number(d.id)})" title="저장" class="ui-btn primary">💾 저장</button>
           <button onclick="document.getElementById('diseaseEditModal').remove()" title="닫기" aria-label="질환 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
         </div>
       </div>
@@ -10422,7 +10453,7 @@ function openDrugEditModal(e, id) {
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(drugDisplayName(d))}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button onclick="saveDrugEdit(${Number(d.id)})" title="저장" style="background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💾 저장</button>
+          <button onclick="saveDrugEdit(${Number(d.id)})" title="저장" class="ui-btn primary">💾 저장</button>
           <button onclick="document.getElementById('drugEditModal').remove()" title="닫기" aria-label="약물 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
         </div>
       </div>
@@ -11086,7 +11117,7 @@ function openFormulaEditModal(e, id) {
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${escapeHtml(f.name || f.short_name || '')}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button onclick="saveFormulaEdit(${Number(f.id)})" title="저장" style="background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💾 저장</button>
+          <button onclick="saveFormulaEdit(${Number(f.id)})" title="저장" class="ui-btn primary">💾 저장</button>
           <button onclick="document.getElementById('formulaEditModal').remove()" title="닫기" aria-label="공식 편집창 닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
         </div>
       </div>
@@ -12490,7 +12521,7 @@ function showAISettings() {
       </div>
 
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button onclick="saveAIConfigFromForm()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:12px;color:#0d1117;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💾 저장</button>
+        <button class="ui-btn primary" style="flex:1" onclick="saveAIConfigFromForm()">💾 저장</button>
         <button onclick="testAIConnection()" style="flex:1;background:var(--surface2);border:1px solid var(--accent2);border-radius:8px;padding:12px;color:var(--accent2);font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🧪 전체 테스트</button>
       </div>
       <button onclick="clearAIConfig()" style="width:100%;background:var(--surface2);border:1px solid var(--red);border-radius:8px;padding:10px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">API 설정 삭제</button>
@@ -13175,8 +13206,8 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
           </div>
           <div style="display:flex;gap:8px">
             <button onclick="previewTsvPaste()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔍 미리보기</button>
-            <button id="tsvImportBtn" onclick="importTsvPaste('merge')" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:11px;color:#0d1117;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✅ 갱신+추가</button>
-            <button id="tsvAddOnlyBtn" onclick="importTsvPaste('add_only')" style="flex:1;background:rgba(63,185,80,0.12);border:1px solid #238636;border-radius:8px;padding:11px;color:#7ee787;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">➕ 신규만</button>
+            <button id="tsvImportBtn" class="ui-btn primary" style="flex:1" onclick="importTsvPaste('merge')">✅ 갱신+추가</button>
+            <button id="tsvAddOnlyBtn" class="ui-btn safe" style="flex:1" onclick="importTsvPaste('add_only')">➕ 신규만</button>
           </div>
           <div style="font-size:10px;color:var(--text3);line-height:1.5;margin-top:8px">
             갱신+추가: 같은 용어는 새 내용으로 갱신 · 신규만: 기존 용어는 그대로 두고 새 용어만 추가
@@ -13480,7 +13511,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         </div><!-- /diseaseAddFields -->
 
       <!-- Submit -->
-      <button id="addSubmitBtn" class="add-submit-btn" onclick="submitAddTerm()" style="width:100%;background:var(--accent);border:none;border-radius:10px;padding:14px;color:#0d1117;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px">
+      <button id="addSubmitBtn" class="add-submit-btn ui-btn primary" onclick="submitAddTerm()" style="width:100%;padding:14px;font-size:14px;margin-bottom:8px">
         ➕ 용어 추가
       </button>
       <div id="addKeyHint" style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;line-height:1.5"></div>
@@ -14150,7 +14181,7 @@ function openEditModal(e, id) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 -20px 16px;padding:14px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:5">
         <div style="font-family:'Noto Serif KR',serif;font-size:15px;color:var(--text)">✏️ 용어 편집</div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button onclick="saveEdit(${id})" title="저장" style="background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💾 저장</button>
+          <button onclick="saveEdit(${id})" title="저장" class="ui-btn primary">💾 저장</button>
           <button onclick="document.getElementById('editModal').remove()" title="닫기" aria-label="용어 편집창 닫기" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
         </div>
       </div>
@@ -15477,8 +15508,8 @@ function openDuplicateReviewModal(parsed) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div style="font-size:13px;color:var(--text);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</div>
           ${d.changes.length ? `<div style="display:flex;gap:4px;flex-shrink:0">
-            <button onclick="_dupSetItem('${g.domain}',${d.idx},true)" style="background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:6px;padding:3px 8px;color:#fbbf24;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">새것 전체</button>
-            <button onclick="_dupSetItem('${g.domain}',${d.idx},false)" style="background:rgba(46,160,67,0.12);border:1px solid #2ea043;border-radius:6px;padding:3px 8px;color:#2ea043;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">기존 전체</button>
+            <button class="ui-btn sm caution" onclick="_dupSetItem('${g.domain}',${d.idx},true)">새것 전체</button>
+            <button class="ui-btn sm safe" onclick="_dupSetItem('${g.domain}',${d.idx},false)">기존 전체</button>
           </div>` : ''}
         </div>
         <div style="margin-top:4px">${fieldRows}</div>
@@ -15500,13 +15531,13 @@ function openDuplicateReviewModal(parsed) {
       </div>
       <div style="padding:16px">
         <div style="display:flex;gap:8px;margin-bottom:10px">
-          <button onclick="_dupSetAll(true)" style="flex:1;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:8px;padding:9px;color:#fbbf24;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전부 새것으로</button>
-          <button onclick="_dupSetAll(false)" style="flex:1;background:rgba(46,160,67,0.12);border:1px solid #2ea043;border-radius:8px;padding:9px;color:#2ea043;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전부 기존 유지</button>
+          <button class="ui-btn caution" style="flex:1" onclick="_dupSetAll(true)">전부 새것으로</button>
+          <button class="ui-btn safe" style="flex:1" onclick="_dupSetAll(false)">전부 기존 유지</button>
         </div>
         ${groupsHtml}
         <div style="display:flex;gap:8px;margin-top:14px">
-          <button onclick="applyDuplicateReview()" style="flex:2;background:var(--accent);border:none;border-radius:8px;padding:12px;color:#0d1117;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✅ 선택대로 가져오기</button>
-          <button onclick="document.getElementById('dupReviewModal').remove()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
+          <button class="ui-btn primary" style="flex:2" onclick="applyDuplicateReview()">✅ 선택대로 가져오기</button>
+          <button class="ui-btn" style="flex:1" onclick="document.getElementById('dupReviewModal').remove()">취소</button>
         </div>
       </div>
     </section>`;
@@ -17407,7 +17438,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.44',
+  version: '1.45',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17416,7 +17447,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.44 — 중복 처리 버튼(비교/신규만/덮어쓰기) 디자인 통일',
+    title: '최신 · v1.45 — 버튼 디자인 전수 통일(1차): 표준 체계 + 튀는 버튼 정리',
+    items: [
+      '앱 전체에서 솔리드 밝은색으로 튀던 1차 버튼(편집창 💾 저장 5종, 추가, TSV 가져오기, AI 설정 저장, 중복검토 "선택대로 가져오기"와 새것/기존 토글, 데이터 관리 주요/초록 버튼, 복사 버튼)을 공용 버튼 체계(ui-btn)로 통일했습니다.',
+      '1차=소프트 accent 틴트+hover 강조, 유지=초록, 덮어쓰기=주황 주의, 삭제=빨강으로 의미는 유지하되 다크·라이트 모두 또렷한 테마 토큰 기반으로 정리했습니다. (1차 통일 — 남은 보조/소프트 버튼은 점진 적용 예정)',
+    ]
+  },
+  {
+    title: 'v1.44 — 중복 처리 버튼(비교/신규만/덮어쓰기) 디자인 통일',
     items: [
       'JSON 붙여넣기의 중복 처리 버튼 3종을 하드코딩 파스텔색에서 테마 안전한 통일 스타일로 정리했습니다. 의미색(권장=파랑·신규만=초록·덮어쓰기=주황 주의)은 유지하되 다크·라이트 모두 또렷하게 보이고, 마우스 hover 시 강조됩니다(추가창·AI 답변 붙여넣기 두 곳 모두 적용).',
     ]
@@ -19003,7 +19041,7 @@ function showExportViewer(text, filename) {
       <div style="font-size:11px;color:var(--text3);margin-bottom:14px">${lineCount}줄 · TSV 형식</div>
 
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button id="evCopyBtn" onclick="evCopyAll()" style="flex:1;background:#238636;border:none;border-radius:8px;padding:11px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
+        <button id="evCopyBtn" class="ui-btn safe" style="flex:1" onclick="evCopyAll()">
           📋 전체 복사
         </button>
         <button onclick="evSelectAll()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--text3);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">
@@ -19036,8 +19074,8 @@ function evCopyAll() {
     const btn = document.getElementById('evCopyBtn');
     if (btn) {
       btn.textContent = '✅ 복사됨!';
-      btn.style.background = '#1a7f37';
-      setTimeout(() => { btn.textContent = '📋 전체 복사'; btn.style.background = '#238636'; }, 2500);
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '📋 전체 복사'; btn.classList.remove('copied'); }, 2500);
     }
     showToast('📋 클립보드에 복사됐습니다!');
   };
@@ -19855,7 +19893,7 @@ function showUMLSResults(results, query, umlsKey) {
 
     const btn = document.createElement('button');
     btn.textContent = '➕ 용어에 추가';
-    btn.style.cssText = 'background:#238636;border:none;border-radius:6px;padding:7px 14px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:"Noto Sans KR",sans-serif';
+    btn.className = 'ui-btn sm safe';
     btn.dataset.cui  = r.ui;
     btn.dataset.name = r.name;
     btn.onclick = (e) => {
