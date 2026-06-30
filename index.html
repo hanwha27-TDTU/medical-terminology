@@ -15564,7 +15564,9 @@ function openDuplicateReviewModal(parsed) {
   const totalNew = groups.reduce((s, g) => s + g.newCount, 0);
   if (!totalDup) {
     window._dupReview = { parsed, groups };
-    showConfirm(`중복 없음 · 신규 ${totalNew}건을 추가합니다.`, () => applyDuplicateReview());
+    showConfirm(`중복 없음 · 신규 ${totalNew}건을 추가합니다.`, () => applyDuplicateReview(), null, {
+      okText: '추가', okColor: 'var(--accent2)', okBg: 'rgba(63,185,80,0.15)', okBorder: 'var(--accent2)',
+    });
     return;
   }
   window._dupReview = { parsed, groups };
@@ -16569,7 +16571,9 @@ function confirmCloudReplaceLocal() {
     async () => {
       await pullFromCloud();
       showExportMenu();
-    }
+    },
+    null,
+    { okText: '교체', cancelText: '취소', okColor: '#fbbf24', okBg: 'rgba(210,153,34,0.12)', okBorder: '#92400e' }
   );
 }
 
@@ -17514,7 +17518,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.50',
+  version: '1.51',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17523,7 +17527,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.50 — 쉼표 나열 용어 필드, 토큰마다 첫 글자 대문자 자동 통일',
+    title: '최신 · v1.51 — 확인창 버튼 라벨 정정 (추가/교체인데 "삭제"로 보이던 문제)',
+    items: [
+      'AI 붙여넣기에서 "중복 없음 · 신규 N건을 추가합니다" 확인창의 버튼이 빨간 "삭제"로 보이던 문제를 고쳤습니다. 동작에 맞게 초록 "추가" 버튼으로 바꿨습니다.',
+      '"클라우드 최종본으로 교체할까요?" 확인창도 버튼이 "삭제"로 보이던 것을 "교체"로 바로잡았습니다. (다른 확인창들은 이미 올바른 라벨이라 그대로 둠.)',
+    ]
+  },
+  {
+    title: 'v1.50 — 쉼표 나열 용어 필드, 토큰마다 첫 글자 대문자 자동 통일',
     items: [
       '미생물·약물·질환의 "용어 나열형" 필드(쉼표로 구분되는 목록)를 추가·편집·가져오기 할 때 각 토큰의 첫 글자를 자동으로 대문자로 맞춥니다. 예: "Lobar pneumonia, otitis media, ..." → "Lobar pneumonia, Otitis media, ...".',
       '의학 표기는 보존합니다 — mRNA·pH·tPA·cAMP·eGFR·IgA처럼 첫 단어 안에 대문자가 있거나, 5-HT·α-처럼 숫자·기호로 시작하는 토큰은 그대로 둡니다. 정의·기전·한 줄 암기 같은 산문 필드는 적용 대상이 아닙니다.',
