@@ -307,4 +307,12 @@
 - `showSavedVersionInfo / showDeveloperInfo / showSyncDiagnostics` — 진단/정보 패널.
 - `getDeviceId / getDeviceReadableLabel` — 기기 식별.
 
+### 12.1 업로드 전용 정규화는 `normalize*ForStorage`에 넣지 말 것 (v1.50)
+
+쉼표 나열형 용어 필드의 "토큰별 첫 글자 대문자 통일" 같은 **업로드 시점에만 적용할 변환**은
+`normalize*ForStorage`에 넣으면 안 된다 — 그 함수는 `dedupe*ById`를 통해 **로드/저장 시 기존 데이터 전체에도 실행**되므로, 넣으면 "기존 데이터까지 일괄 변경"이 돼버린다(사용자가 "앞으로 저장되는 것만" 원할 때 위반).
+- 적용 지점은 **업로드 chokepoint뿐**: `upsertMicrobeFromForm`/`upsertDiseaseFromForm`(add·edit 공용), `submitAddDrug`/`saveDrugEdit`(약물), 그리고 가져오기 — 모든 import 경로(파일·JSON·AI 붙여넣기·중복검토 `applyDuplicateReview`)는 결국 `applyPendingDataImport`로 수렴하므로 거기서 `incoming*`(dedupe가 만든 **새 클론**, 라이브 배열 아님)에만 `.map(applyListInitialCaps)` 적용 → 기존 데이터 무손상.
+- 안전 휴리스틱: `capitalizeListInitials`는 쉼표로 나눠 각 토큰을 기존 `capitalizeTermInitial`에 통과 → **첫 단어 안에 (첫 글자 이후) 대문자가 있으면 보존**(pH·mRNA·tPA·cAMP·eGFR·IgA), 첫 글자가 비-ASCII/숫자면 그 다음 라틴 문자를 올린다(5-HT는 'HT' 내부 대문자라 보존, α-/β-는 라틴 문자가 대문자화됨). 쉼표 주변 공백 포맷 유지.
+- 적용 필드는 **용어 나열형만**(산문 제외): 미생물 `virulence/diseases/diagnosis/treatment/prevention`, 약물 `same_class_drugs/clinical_uses/adverse_effects/precautions`, 질환 body `profile.{chief_complaints,risk_factors}·pathophysiology.{cells_tissues,molecules}·symptoms.{symptoms,signs}·ddx.{similar_diseases,key_tests}·usmle.buzzwords`. 정의·기전·vignette·한 줄 암기 등 산문 필드는 제외(쉼표가 문법 쉼표라 매 토큰 대문자화하면 망가짐). 필드 목록은 `LIST_CAP_FIELDS`/`DISEASE_LIST_CAP_FIELDS` 상수.
+
 > 동봉 SQL 파일(`medical_note_supabase_schema.sql`)이 데이터 구조의 단일 진실 소스(SoT)다. 이 문서와 SQL을 함께 보관하라.
