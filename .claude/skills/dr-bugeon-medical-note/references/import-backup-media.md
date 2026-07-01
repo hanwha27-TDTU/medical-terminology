@@ -22,7 +22,7 @@
 
 ### 8.1.1 도메인에 선택 필드(컬럼) 추가 시 parity 체크리스트 (v1.36 finding_type 사례)
 
-> **자동 안전장치(v1.63):** `computeSchemaDrift(SUPABASE_SCHEMA_SQL)`가 각 `xToRow({id:1})` 출력 키(=코드가 쓰는 DB 컬럼)를 SQL의 `create table`/`add column`에서 뽑은 컬럼과 대조한다. 누락되면 **개발자 정보 모달의 SQL 섹션에 ⚠️ 배너**(누락 테이블·컬럼 나열)와, 로드 시 **"개발자" 헤더 버튼에 ⚠️**·콘솔 경고로 드러난다(문제 없으면 ✅). 그래도 이 체크는 `create table` 컬럼 유무만 보므로 **배지·날짜·Schema version 주석(3번)까지 자동 검사하진 않는다** — 아래 체크리스트는 여전히 사람이 지킨다. 컬럼 추출은 `_sqlColumnsForTable`(테이블별 create 블록 첫 토큰 + alter add column). 대상은 최상위 `xToRow`가 있는 5개 도메인(notes는 nested라 제외).
+> **자동 안전장치 — "데이터 보관" 2겹 점검(v1.63 저장 + v1.65 전파):** 목적은 데이터가 손실 없이 저장·전파되는 것이므로 두 축을 함께 본다. ① **저장 드리프트** `computeSchemaDrift`: 각 `xToRow({id:1})` 출력 키(코드가 쓰는 DB 컬럼)를 SQL `create table`/`add column` 컬럼과 대조(`_sqlColumnsForTable`). ② **전파 누락** `computePropagationGaps`: `normalize*ForStorage({id:1})`의 내용 필드가 `canonical*HashPayload`에 모두 있는지 대조 — 빠지면 그 필드만 수정 시 스냅샷 해시가 그대로라 "변경 없음" 오판→ 다른 기기로 **전파 안 되는 조용한 유실**(v1.37의 미생물 ipa·공식 tags 누락이 이 유형). 페이로드 키는 `stableForHash`가 정렬된 **객체**를 반환하므로 `canonical*HashPayload([base])[0]`의 `Object.keys`로 런타임 추출. 제외 키: `id`·타임스탬프·`conceptCategory`(camel 별칭). 둘 중 하나라도 걸리면 **개발자 정보 모달 SQL 섹션 ⚠️ 배너** + 로드 시 **"개발자" 버튼 ⚠️**·콘솔 경고(둘 다 통과면 ✅). 대상은 최상위 함수가 있는 5개 도메인(notes 제외). ⚠️ 자동 점검이 못 보는 것: **배지·날짜·Schema version 주석(아래 3번)**, rowTo 읽기·백업/내보내기 — 그 손실 축은 여전히 사람이 체크리스트로 챙긴다.
 
 
 

@@ -17706,7 +17706,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.64',
+  version: '1.65',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17715,7 +17715,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.64 — 한국어 이름 띄어쓰기/붙여쓰기 통일 (다른 단어 오인식 제거)',
+    title: '최신 · v1.65 — 자기점검을 "데이터 보관" 관점으로 확장 (전파 누락까지 감지)',
+    items: [
+      '스키마 점검(v1.63)의 목적이 결국 데이터 안전 보관이라, 점검을 한 겹 더 넣었습니다. 편집 가능한 필드가 "동기화 해시"에 빠져 있으면(그 필드만 고쳤을 때 다른 기기로 전파되지 않는 조용한 유실) 개발자 정보에 ⚠️로 표시합니다.',
+      '즉 이제 두 가지를 함께 점검합니다 — ① 저장: 코드가 쓰는 컬럼이 SQL에 있는가, ② 전파: 편집 필드가 동기화 해시에 반영되는가. 현재 5개 도메인 모두 통과(✅) 상태입니다.',
+    ]
+  },
+  {
+    title: 'v1.64 — 한국어 이름 띄어쓰기/붙여쓰기 통일 (다른 단어 오인식 제거)',
     items: [
       '"동 기능부전증후군"과 "동기능부전증후군"처럼 띄어쓰기만 다른 이름을 이제 같은 항목으로 인식합니다(중복 판정·동기화·검색·연결 전반). 기존에 저장된 데이터에도 바로 적용됩니다.',
       '추가·편집·가져오기로 한국어 이름(용어·질환·약물·미생물)을 저장할 때 자동으로 붙여쓰기로 통일합니다(쉼표로 구분한 동의어는 그대로 유지). 예: "동 기능부전증후군, 굴 기능부전증후군" → "동기능부전증후군, 굴기능부전증후군".',
@@ -19060,27 +19067,55 @@ function computeSchemaDrift(sql) {
   });
   return drift;
 }
+// 목적(데이터 보관)에서 역산한 2번째 점검: 편집 가능한 내용 필드가 "동기화 해시 페이로드"에 빠지면
+// 그 필드만 수정했을 때 스냅샷 해시가 그대로라 "변경 없음"으로 오판→ 다른 기기로 전파 안 됨(조용한 유실).
+// normalize*ForStorage의 내용 필드가 canonical*HashPayload에 모두 있는지 대조한다(stableForHash가 객체라 키 추출 가능).
+function computePropagationGaps() {
+  const EXCL = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'hiddenAt', 'conceptCategory']);
+  const domains = [
+    { label: '일반용어', norm: normalizeTermForStorage, payload: canonicalTermHashPayload },
+    { label: '약물', norm: normalizeDrugForStorage, payload: canonicalDrugHashPayload },
+    { label: '공식', norm: normalizeFormulaForStorage, payload: canonicalFormulaHashPayload },
+    { label: '미생물', norm: normalizeMicrobeForStorage, payload: canonicalMicrobeHashPayload },
+    { label: '주요 질환', norm: normalizeDiseaseForStorage, payload: canonicalDiseaseHashPayload },
+  ];
+  const gaps = [];
+  domains.forEach(d => {
+    let base, pay;
+    try { base = d.norm({ id: 1 }); pay = d.payload([base]); } catch (e) { return; }
+    const payloadKeys = new Set(Object.keys((pay && pay[0]) || {}));
+    if (!payloadKeys.size) return;
+    const missing = Object.keys(base).filter(f => !EXCL.has(f) && !payloadKeys.has(f));
+    if (missing.length) gaps.push({ label: d.label, missing });
+  });
+  return gaps;
+}
 function _schemaDriftBannerHtml() {
-  let drift;
-  try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) { return ''; }
-  if (!drift.length) {
-    return `<div style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);color:var(--accent2);font-size:11px;font-weight:700">✅ 스키마 자기점검 통과 — 코드가 쓰는 컬럼이 SQL에 모두 있습니다.</div>`;
+  let drift = [], gaps = [];
+  try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) {}
+  try { gaps = computePropagationGaps(); } catch (e) {}
+  if (!drift.length && !gaps.length) {
+    return `<div style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);color:var(--accent2);font-size:11px;font-weight:700;line-height:1.6">✅ 데이터 보관 자기점검 통과 — 저장 컬럼이 SQL에 모두 있고, 편집 가능한 필드가 모두 동기화 해시에 반영됩니다.</div>`;
   }
-  const rows = drift.map(d => d.tableMissing
-    ? `<li><b>${escapeHtml(d.label)}</b> — 테이블 <code>${escapeHtml(d.table)}</code>가 SQL에 없음</li>`
-    : `<li><b>${escapeHtml(d.label)}</b> (<code>${escapeHtml(d.table)}</code>) 누락 컬럼: <b>${escapeHtml(d.missing.join(', '))}</b></li>`).join('');
-  return `<div class="schema-drift-warn" style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.5);font-size:11px;line-height:1.6"><b>⚠️ 스키마 드리프트 감지</b> — 코드가 저장하는데 SQL엔 없는 컬럼이 있습니다. 아래 SQL에 <code>add column</code>을 넣고 Schema version 라벨을 올리세요.<ul style="margin:6px 0 0;padding-left:18px">${rows}</ul></div>`;
+  const driftRows = drift.map(d => d.tableMissing
+    ? `<li><b>${escapeHtml(d.label)}</b> — 테이블 <code>${escapeHtml(d.table)}</code>가 SQL에 없음 (저장 실패 위험)</li>`
+    : `<li><b>${escapeHtml(d.label)}</b> (<code>${escapeHtml(d.table)}</code>) SQL 누락 컬럼: <b>${escapeHtml(d.missing.join(', '))}</b> → <code>add column</code> 필요</li>`).join('');
+  const gapRows = gaps.map(g => `<li><b>${escapeHtml(g.label)}</b> — <b>${escapeHtml(g.missing.join(', '))}</b> 필드가 <b>동기화 해시에서 누락</b> → 이 필드만 수정하면 다른 기기로 전파 안 됨. <code>canonical${'*'}HashPayload</code>에 추가하세요</li>`).join('');
+  return `<div class="schema-drift-warn" style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.5);font-size:11px;line-height:1.6"><b>⚠️ 데이터 보관 위험 감지</b> — 데이터가 저장·전파되지 않을 수 있습니다.<ul style="margin:6px 0 0;padding-left:18px">${driftRows}${gapRows}</ul></div>`;
 }
 
 // 앱 로드 시 1회 — 드리프트가 있으면 개발자 버튼에 ⚠️를 붙이고 콘솔 경고(클릭 없이 화면에 드러남).
 function _schemaDriftLoadCheck() {
   try {
-    const drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL);
-    if (!drift.length) return;
-    console.warn('⚠️ 스키마 드리프트: 코드가 쓰는데 SQL에 없는 컬럼', drift);
+    let drift = [], gaps = [];
+    try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) {}
+    try { gaps = computePropagationGaps(); } catch (e) {}
+    if (!drift.length && !gaps.length) return;
+    if (drift.length) console.warn('⚠️ 스키마 드리프트: 코드가 쓰는데 SQL에 없는 컬럼', drift);
+    if (gaps.length) console.warn('⚠️ 전파 누락: 편집 가능한데 동기화 해시에 없는 필드(전파 안 됨)', gaps);
     document.querySelectorAll('.developer-header-btn').forEach(btn => {
       if (!/⚠️/.test(btn.textContent)) btn.textContent = '⚠️ ' + btn.textContent.trim();
-      btn.title = '스키마 드리프트 감지 — 개발자 정보에서 확인하세요';
+      btn.title = '데이터 보관 위험 감지 — 개발자 정보에서 확인하세요';
     });
   } catch (e) { /* 자기점검 실패는 앱 동작에 영향 주지 않음 */ }
 }
