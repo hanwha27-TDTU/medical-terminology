@@ -14041,7 +14041,9 @@ function showConfirm(message, onOk, onCancel, options = {}) {
 
   const modal = document.createElement('div');
   modal.id = 'confirmModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(6px);padding:24px;';
+  // z-index는 .developer-modal-overlay(1200)·연구노트/트리 모달보다 위여야 한다 — 그 모달들 안에서
+  // 띄운 확인창이 뒤에 숨어 클릭 불가가 되던 문제(예: 연구노트 "끊김 경위 주석" 확인창) 방지.
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:1900;backdrop-filter:blur(6px);padding:24px;';
   modal.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:320px;text-align:center">
       <div style="font-size:22px;margin-bottom:12px">⚠️</div>
@@ -18516,7 +18518,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.04',
+  version: '2.05',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18525,7 +18527,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.04 — 연구노트: 체인 "끊김 경위 주석"(오염 흔적을 소급 수정 없이 증거로 각인)',
+    title: '최신 · v2.05 — 연구노트: "해시 검증" 결과 화면 + 확인창이 뒤에 숨던 문제 수정',
+    items: [
+      '"🔒 해시 검증"이 결과를 잠깐 뜨는 토스트로만 보여주고 사라져 "결과 화면이 안 뜬다"는 문제를 고쳤습니다. 이제 전용 결과 모달로 요약(내용 해시·전자서명·공인 타임스탬프·체인 링크 통계)과 문제 기록 목록(어느 기록이 끊겼는지·시각·EC번호)을 보여줍니다. 기록이 많아 검증에 몇 초 걸릴 때도 "검증 중…" 로딩 상태가 먼저 떠서 멈춘 것처럼 보이지 않습니다.',
+      '체인 링크 불연속이 있을 때 결과 화면에서 바로 "🧷 끊김 경위 주석 남기기"로 이어갈 수 있습니다.',
+      '확인창(showConfirm)이 연구노트 등 큰 모달(z-index 1200) 안에서 뜨면 뒤에 가려 클릭이 안 되던 문제를 고쳤습니다(확인창을 위 레이어로). "끊김 경위 주석" 확인창이 안 보이던 원인입니다.',
+    ]
+  },
+  {
+    title: 'v2.04 — 연구노트: 체인 "끊김 경위 주석"(오염 흔적을 소급 수정 없이 증거로 각인)',
     items: [
       '공유테이블 오염 시기에 생긴 체인 링크 불연속(previous_entry_hash가 지금은 격리된 자매 앱 엔트리를 가리킴)을, 기존 기록을 하나도 고치지 않고 새 "정정 기록"으로 경위를 설명·각인하는 기능을 추가했습니다. 연구노트 창의 "🧷 끊김 경위 주석" 버튼.',
       '이 정정 기록은 끊김 목록(내 엔트리 id·해시, 끊긴 previous 해시)과 함께, 클라우드가 있으면 그 끊김이 가리키는 외부(자매 앱) 엔트리를 옛 공유 테이블에서 조회해 신원·시각까지 담습니다. 그리고 이 기록 자체가 해시·전자서명·타임스탬프를 받아 "끊김=변조가 아니라 오염 흔적"임을 불변 증거로 고정합니다.',
@@ -21258,16 +21268,79 @@ async function rnCloudRestore() {
   if (r.ok) { showToast(`✅ 합치기 완료 · 새로 ${r.added}건 추가${r.enriched ? ` · ${r.enriched}건에 타임스탬프/서명 전파` : ''}(총 ${r.total}건)`); rnRenderList(); }
   else showToast(`⚠️ 불러오기 실패 · ${r.reason || ''}`);
 }
+// 검증 결과 모달 — 토스트는 잠깐 떴다 사라져 "결과 화면이 없다"는 문제 + 기록이 많으면(수백 건)
+// 검증에 몇 초 걸리는데 피드백이 없어 "로딩 안 됨"으로 보이던 문제를 해결. 로딩 상태 → 상세 결과.
+function rnOpenVerifyModal() {
+  document.getElementById('rnVerifyModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'rnVerifyModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:1300;backdrop-filter:blur(6px);padding:24px;'; // 노트북(1200) 위
+  modal.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:580px;max-height:86vh;overflow:auto;box-shadow:0 18px 60px rgba(0,0,0,0.45)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:16px;font-weight:800;color:var(--text)">🔒 해시 검증 결과</div>
+        <button onclick="document.getElementById('rnVerifyModal')?.remove()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:16px;cursor:pointer">×</button>
+      </div>
+      <div id="rnVerifyBody"><div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">⏳ 검증 중… 기록이 많으면 몇 초 걸릴 수 있습니다.</div></div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+function rnVerifyResultHtml(issues) {
+  const notes = _rnLoad();
+  const total = notes.length;
+  const byId = new Map(notes.map(n => [String(n.id), n]));
+  const tamper = issues.filter(i => i.type === 'hash_mismatch');
+  const sig = issues.filter(i => i.type === 'signature_invalid');
+  const breaks = issues.filter(i => i.type === 'chain_break');
+  const tamperIds = new Set(tamper.map(i => String(i.id)));
+  const signedCount = notes.filter(n => n.entry_hash_signature).length;
+  const tsaCount = notes.filter(n => n.tsa_token).length;
+  const banner = tamper.length
+    ? `<div style="border:1px solid #f85149;background:rgba(248,81,73,0.12);color:#f85149;border-radius:10px;padding:12px 14px;font-size:12px;font-weight:700;line-height:1.6">⚠️ 변조 의심 ${tamper.length}건 — 저장된 기록이 원본 해시와 다릅니다. 즉시 확인이 필요합니다.</div>`
+    : sig.length
+    ? `<div style="border:1px solid #f85149;background:rgba(248,81,73,0.12);color:#f85149;border-radius:10px;padding:12px 14px;font-size:12px;font-weight:700;line-height:1.6">⚠️ 전자서명 불일치 ${sig.length}건 — 서명이 entry_hash와 맞지 않습니다.</div>`
+    : breaks.length
+    ? `<div style="border:1px solid rgba(88,166,255,0.4);background:rgba(88,166,255,0.1);color:var(--text);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.6">ℹ️ 각 기록의 <b>내용 해시·전자서명은 무결</b>합니다. 체인 <b>링크만 ${breaks.length}건 불연속</b> — 격리 이전 공유테이블 오염 흔적일 가능성이 큽니다(변조 아님).</div>`
+    : `<div style="border:1px solid var(--accent2);background:rgba(63,185,80,0.12);color:var(--accent2);border-radius:10px;padding:12px 14px;font-size:12px;font-weight:700;line-height:1.6">✅ 전부 통과 — ${total}건의 내용 해시·전자서명·체인 링크가 모두 무결합니다.</div>`;
+  const stat = (label, val, sub, color) => `<div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 11px"><div style="font-size:10.5px;color:var(--text3)">${label}</div><div style="font-size:17px;font-weight:800;color:${color};margin:1px 0">${val}</div><div style="font-size:10px;color:var(--text3)">${sub}</div></div>`;
+  const stats = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+    ${stat('내용 해시', `${total - tamperIds.size}/${total}`, tamper.length ? `변조의심 ${tamper.length}` : '전부 무결', tamper.length ? '#f85149' : 'var(--accent2)')}
+    ${stat('전자서명', `${signedCount - sig.length}/${signedCount}`, sig.length ? `불일치 ${sig.length}` : '유효', sig.length ? '#f85149' : 'var(--accent2)')}
+    ${stat('공인 타임스탬프', `${tsaCount}건`, `TSA 부착 / 전체 ${total}`, 'var(--text)')}
+    ${stat('체인 링크', breaks.length ? `불연속 ${breaks.length}` : '연속', breaks.length ? '오염 흔적?' : '정상', breaks.length ? 'var(--accent)' : 'var(--accent2)')}
+  </div>`;
+  const row = (i, label, color) => {
+    const n = byId.get(String(i.id)) || {};
+    return `<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-top:6px;background:var(--surface2)">
+      <span style="font-size:10px;font-weight:800;color:${color};border:1px solid ${color};border-radius:6px;padding:2px 6px;white-space:nowrap;flex-shrink:0">${label}</span>
+      <div style="font-size:11px;color:var(--text2);line-height:1.5;min-width:0">
+        <div style="font-weight:700;color:var(--text);overflow-wrap:anywhere">${escapeHtml(n.feature_name || n.event_type || String(i.id).slice(0, 8))}</div>
+        <div style="color:var(--text3)">${escapeHtml(n.created_at || '')} · ${escapeHtml(n.evidence_chain_id || String(i.id).slice(0, 8))}</div>
+        ${i.type === 'chain_break' ? `<div style="color:var(--text3);overflow-wrap:anywhere">previous=${escapeHtml((n.previous_entry_hash || '(genesis)').slice(0, 20))}… → 이 앱에 없는 앞 기록(외부/오염)</div>` : ''}
+      </div></div>`;
+  };
+  let details = '';
+  if (tamper.length) details += `<div style="margin-top:12px;font-size:12px;font-weight:800;color:#f85149">변조 의심 (${tamper.length})</div>` + tamper.slice(0, 50).map(i => row(i, '변조', '#f85149')).join('');
+  if (sig.length) details += `<div style="margin-top:12px;font-size:12px;font-weight:800;color:#f85149">서명 불일치 (${sig.length})</div>` + sig.slice(0, 50).map(i => row(i, '서명', '#f85149')).join('');
+  if (breaks.length) details += `<div style="margin-top:12px;font-size:12px;font-weight:800;color:var(--accent)">체인 링크 불연속 (${breaks.length})</div>` + breaks.slice(0, 50).map(i => row(i, '끊김', 'var(--accent)')).join('') + (breaks.length > 50 ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">… 외 ${breaks.length - 50}건</div>` : '');
+  const action = (breaks.length && !tamper.length && !sig.length)
+    ? `<div style="margin-top:14px;padding:12px;border:1px solid rgba(88,166,255,0.35);background:rgba(88,166,255,0.08);border-radius:10px;font-size:11px;color:var(--text2);line-height:1.6">이 불연속은 격리 이전 공유 테이블 오염의 흔적일 수 있습니다. 기존 기록은 <b>소급 수정하지 않고</b> 새 정정 기록으로 경위를 남길 수 있습니다.<div style="margin-top:8px"><button class="ui-btn sm" onclick="document.getElementById('rnVerifyModal')?.remove(); rnAnnotateChainBreaks();">🧷 끊김 경위 주석 남기기</button></div></div>`
+    : '';
+  return banner + stats + details + action;
+}
 async function rnRunVerify() {
-  const issues = await rnVerifyChain();
-  if (!issues.length) { showToast(`✅ 해시 체인 무결 — ${_rnLoad().length}건 전부 검증 통과`); return; }
-  const tamper = issues.filter(i => i.type === 'hash_mismatch').length;
-  const breaks = issues.filter(i => i.type === 'chain_break').length;
-  const sig = issues.filter(i => i.type === 'signature_invalid').length;
-  console.warn('연구노트 무결성 점검', issues);
-  if (tamper) { showToast(`⚠️ 변조 의심 ${tamper}건 감지 — 저장된 기록이 원본과 다릅니다(콘솔 확인)`); return; }
-  if (sig) { showToast(`⚠️ 서명 불일치 ${sig}건 — 서명이 entry_hash와 맞지 않습니다(콘솔 확인)`); return; }
-  showToast(`ℹ️ 체인 링크 불연속 ${breaks}건 — 각 기록의 해시 자체는 무결(변조 없음). 공유테이블 오염 흔적이면 "🧷 끊김 경위 주석"으로 경위를 기록하세요.`);
+  rnOpenVerifyModal();
+  let issues;
+  try { issues = await rnVerifyChain(); }
+  catch (e) {
+    const b = document.getElementById('rnVerifyBody');
+    if (b) b.innerHTML = `<div style="padding:20px;color:#f85149;font-size:13px">검증 중 오류가 발생했습니다: ${escapeHtml(String(e && e.message || e))}</div>`;
+    return;
+  }
+  if (issues.length) console.warn('연구노트 무결성 점검', issues);
+  const body = document.getElementById('rnVerifyBody');
+  if (body) body.innerHTML = rnVerifyResultHtml(issues); // 사용자가 그새 닫았으면 body null → 무시
 }
 
 
