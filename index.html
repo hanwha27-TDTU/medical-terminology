@@ -10168,7 +10168,12 @@ function buildFindingConceptIndex() {
   (Array.isArray(TERMS) ? TERMS : []).forEach(t => {
     if (!t || t.deletedAt) return;
     const forms = [];
-    String(t.ko || '').split(/[,;/·]/).forEach(s => forms.push(s));
+    const koRaw = String(t.ko || '').trim();
+    // 통째 등록명 먼저 색인 — "오심·구토"처럼 가운뎃점이 한 용어 안에 들어간 경우를 살린다.
+    // (소견 토큰은 _findingSplit이 쉼표·줄바꿈으로만 갈라 "오심·구토"를 통째로 보내므로, 색인도 통째가 있어야 매칭됨.)
+    if (koRaw) forms.push(koRaw);
+    // 동의어 분리(쉼표·세미콜론·슬래시·가운뎃점) — "실신·기절"처럼 ·를 동의어 구분자로 쓴 경우도 각각 색인.
+    koRaw.split(/[,;/·]/).forEach(s => forms.push(s));
     forms.push(t.en, t.uz);
     // 각 표기의 괄호형까지 분해해 색인(질의 측 findTermIdByFinding와 대칭).
     forms.forEach(f => _findingConceptForms(f).forEach(p => {
@@ -18459,7 +18464,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.01',
+  version: '2.02',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18468,7 +18473,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.01 — 소견↔일반용어 연결: "괄호형 동의어" 용어도 인식',
+    title: '최신 · v2.02 — 소견↔일반용어 연결: "오심·구토"처럼 가운뎃점이 든 용어도 인식',
+    items: [
+      'v2.01에 이어, 용어가 "오심·구토 (Nausea/vomiting)"처럼 한 용어 안에 가운뎃점(·)을 담고 있으면 주호소 "오심·구토"가 그 용어를 못 찾던 문제를 고쳤습니다.',
+      '용어 색인이 등록명을 가운뎃점에서 쪼개 넣기만 해서(동의어 구분 목적) 통째 형태("오심·구토")가 색인에 없었던 게 원인입니다. 이제 통째 등록명도 함께 색인해, "오심·구토"는 통째로도 걸리고 "실신·기절"처럼 ·를 동의어 구분자로 쓴 경우도 각각·통째 모두 걸립니다(기존 매칭은 그대로 유지).',
+    ]
+  },
+  {
+    title: 'v2.01 — 소견↔일반용어 연결: "괄호형 동의어" 용어도 인식',
     items: [
       '질환 주호소·증상·징후 토큰과 일반용어 카드를 잇는 📖 링크가, 용어가 "두근거림 (심계항진)"처럼 괄호 안에 동의어를 담아 등록돼 있으면 바로 안 걸리던 문제를 고쳤습니다(예: 주호소 "두근거림"이 등록된 "두근거림 (심계항진)" 용어를 못 찾음).',
       '원인은 비대칭이었습니다 — 소견 토큰 쪽은 괄호를 앞/안으로 갈라 조회했는데, 용어 색인 쪽은 등록명을 통째로만 넣어 "두근거림 (심계항진)"이 하나의 키로만 저장됐습니다. 이제 양쪽 모두 같은 규칙으로 괄호를 분해해(통째·괄호 앞·괄호 안) "두근거림"·"심계항진" 어느 쪽으로도 연결됩니다.',
