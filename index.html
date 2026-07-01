@@ -11149,6 +11149,20 @@ function isDomainFavorite(domain, id) {
 function saveDomainFavorites(next) {
   safeSetItem(DOMAIN_FAVORITE_STORAGE_KEY, JSON.stringify(next));
 }
+// 가져오기 시 북마크 병합 — replace 모드만 통째 교체, merge/append(신규만 추가)는 도메인별 합집합(union).
+// 전엔 모드 무관 통째 교체라 "신규만 추가"로 합쳐도 백업 이후 추가한 북마크가 사라졌다(비파괴 약속 위반).
+function mergeDomainFavoritesImport(inc, mode) {
+  if (!inc || typeof inc !== 'object') return;
+  if (mode === 'replace') { saveDomainFavorites(inc); return; }
+  const cur = loadDomainFavorites();
+  const out = {};
+  new Set([...Object.keys(cur), ...Object.keys(inc)]).forEach(d => {
+    const a = Array.isArray(cur[d]) ? cur[d] : [];
+    const b = Array.isArray(inc[d]) ? inc[d] : [];
+    out[d] = [...new Set([...a, ...b].map(String))];
+  });
+  saveDomainFavorites(out);
+}
 function toggleDomainFavorite(event, domain, id) {
   event?.stopPropagation();
   const favs = loadDomainFavorites();
@@ -17830,7 +17844,8 @@ async function applyPendingDataImport(options = {}) {
   if (Array.isArray(pendingDataImport.researchNotes) && pendingDataImport.researchNotes.length) {
     try {
       const byId = new Map(_rnLoad().map(e => [e.id, e]));
-      pendingDataImport.researchNotes.forEach(e => { if (e && e.id && !byId.has(e.id)) byId.set(e.id, e); });
+      // _rnIsOwnProject 가드: 손댄/섞인 백업이 자매 앱 기록을 특허 증거 체인에 재유입시키지 못하게(v2.03 격리 유지).
+      pendingDataImport.researchNotes.forEach(e => { if (e && e.id && _rnIsOwnProject(e) && !byId.has(e.id)) byId.set(e.id, e); });
       _rnSave([...byId.values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))));
     } catch (e) {}
   }
@@ -18518,7 +18533,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.05',
+  version: '2.06',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18527,7 +18542,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.05 — 연구노트: "해시 검증" 결과 화면 + 확인창이 뒤에 숨던 문제 수정',
+    title: '최신 · v2.06 — 가져오기 데이터 유실 2건 수정(북마크·연구노트 격리)',
+    items: [
+      '전면 코드 검토(6개 차원)에서 찾은 결함을 차근차근 고치는 중 — 이번은 가져오기 데이터 유실 P1 2건.',
+      '북마크(즐겨찾기)가 가져오기 시 모드와 무관하게 통째로 덮어써져, "신규만 추가/합치기"로 가져와도 백업 이후 추가한 약물·미생물·공식·질환 북마크가 사라지던 문제를 고쳤습니다. 이제 합치기/신규추가는 도메인별 합집합, 전체 교체(replace)만 통째 교체합니다.',
+      '연구노트(특허 증거) 복원 시 프로젝트 필터가 없어, 손댄/섞인 백업이 자매 앱(어학 마스터) 기록을 증거 체인에 재유입시킬 수 있던 문제를 고쳤습니다(복원 병합에도 project_name 격리 가드 적용).',
+    ]
+  },
+  {
+    title: 'v2.05 — 연구노트: "해시 검증" 결과 화면 + 확인창이 뒤에 숨던 문제 수정',
     items: [
       '"🔒 해시 검증"이 결과를 잠깐 뜨는 토스트로만 보여주고 사라져 "결과 화면이 안 뜬다"는 문제를 고쳤습니다. 이제 전용 결과 모달로 요약(내용 해시·전자서명·공인 타임스탬프·체인 링크 통계)과 문제 기록 목록(어느 기록이 끊겼는지·시각·EC번호)을 보여줍니다. 기록이 많아 검증에 몇 초 걸릴 때도 "검증 중…" 로딩 상태가 먼저 떠서 멈춘 것처럼 보이지 않습니다.',
       '체인 링크 불연속이 있을 때 결과 화면에서 바로 "🧷 끊김 경위 주석 남기기"로 이어갈 수 있습니다.',
@@ -26078,7 +26101,7 @@ initApp();
     const result = await originalApplyPendingDataImport(options);
     if (result && noteImportData) {
       applyIntegratedNotesImport(noteImportData, mode);
-      if (noteImportData.domainFavorites) saveDomainFavorites(noteImportData.domainFavorites);
+      if (noteImportData.domainFavorites) mergeDomainFavoritesImport(noteImportData.domainFavorites, mode);
       if (currentLibraryMode === 'notes') renderIntegratedNoteFrame();
     }
     return result;
