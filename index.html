@@ -12954,7 +12954,10 @@ function applyFilters() {
       String(t.category || '').toLowerCase().includes(query) ||
       String(t.finding_type || '').toLowerCase().includes(query) ||
       termText(t, 'def_ko').toLowerCase().includes(query) ||
-      termText(t, 'def_en').toLowerCase().includes(query)
+      termText(t, 'def_en').toLowerCase().includes(query) ||
+      termText(t, 'def_uz').toLowerCase().includes(query) ||   // 3개 언어 정의 검색 대칭(ko·en만 되던 것 → uz도)
+      termText(t, 'usmle').toLowerCase().includes(query) ||     // 고득점 USMLE 노트도 검색(저장·표시되나 검색 누락이던 급소)
+      (Array.isArray(t.system_tags) ? t.system_tags.join(' ').toLowerCase().includes(query) : false)  // 태그 검색(타 4도메인과 통일)
     );
   }
 
@@ -18595,7 +18598,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.18',
+  version: '2.19',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18604,7 +18607,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.18 — 개념·오답 노트 ID 충돌 방지(대량 가져오기 시 조용한 덮어쓰기 급소 제거)',
+    title: '최신 · v2.19 — 전면재검증 후속: 용어 검색 누락 3건 + 연구노트 자동백업 실패 조용함 교정',
+    items: [
+      '용어 검색을 손봤습니다. 전엔 용어의 우즈베크어 정의(def_uz)·USMLE 고득점 노트(usmle)·태그(system_tags)가 저장·표시는 되는데 검색에는 안 걸렸습니다(한국어·영어 정의만 검색). 이제 세 가지 모두 검색됩니다 — 특히 USMLE 노트와 우즈베크어 정의로도 용어를 찾을 수 있습니다.',
+      '연구노트 자동 클라우드 백업이 스키마 문제(예: research_notes_med 테이블/컬럼 누락)로 실패할 때 아무 안내 없이 조용히 넘어가던 것을 고쳤습니다. 이제 다른 데이터(용어·약물 등)와 동일하게 "최신 통합 SQL을 실행하세요" 경고를 띄웁니다. 연구노트는 특허 증거라 "로컬엔 있는데 클라우드엔 안 올라간" 상태를 모르고 지나치면 안 됩니다(기록·해시·서명은 그대로, 실패 안내만 추가).',
+      '개념·오답 노트를 저장할 때 클라우드 실패가 스키마 오류인 경우 "나중에 다시 시도"가 아니라 "medical_notes SQL 실행" 안내가 나오도록 오진을 바로잡았습니다.',
+    ],
+  },
+  {
+    title: 'v2.18 — 개념·오답 노트 ID 충돌 방지(대량 가져오기 시 조용한 덮어쓰기 급소 제거)',
     items: [
       '개념·오답 노트의 ID 생성을 다른 5개 도메인(용어·약물·공식·미생물·질환)과 같은 견고한 방식으로 통일했습니다. 전엔 ID가 없거나 숫자가 아닌 노트를 가져오면 모두 "현재 시각(Date.now)"을 ID로 받았는데, 한 번에 여러 개를 가져오면 같은 밀리초에 같은 ID가 생겨 노트끼리 서로 덮어써져 조용히 사라질 수 있었습니다.',
       '이제 그런 노트는 단조 증가하는 충돌 불가 ID(기기 구분값 포함)를 발급받습니다 — 같은 순간에 수백 개를 가져와도 ID가 겹치지 않습니다. 유효한 숫자 ID를 가진 기존 노트는 그대로 유지되어 동기화 identity·기존 데이터에는 아무 영향이 없습니다.',
@@ -20730,7 +20741,13 @@ async function rnPushOne(e) {
   const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return false;
   try {
     const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}`, { method: 'POST', headers: { ...h, Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify([researchNoteRow(e)]) });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      // 자동 백업 실패도 조용히 넘기지 않는다(연구노트=특허 증거, 최고가치 도메인). 5도메인 v2.15와 동일한 스키마 경고.
+      // 엔트리·해시·서명·체인은 건드리지 않음(실패 surfacing만). _warnCloudSchemaError는 30초 스로틀이라 매 엔트리 스팸 없음.
+      const t = await res.text().catch(() => '');
+      if (_isCloudSchemaError(t)) _warnCloudSchemaError('연구노트', t);
+      return false;
+    }
     const rows = await res.json().catch(() => null);
     const srv = Array.isArray(rows) && rows[0] && rows[0].updated_at;
     if (srv) { const notes = _rnLoad(); const idx = notes.findIndex(n => n.id === e.id); if (idx >= 0 && !notes[idx].server_time) { notes[idx].server_time = srv; _rnSave(notes); } }
@@ -25342,6 +25359,8 @@ initApp();
       } catch (e) {
         cloudSaved = false;
         console.warn('note immediate cloud save failed', e);
+        // 스키마 오류(테이블/컬럼 누락)는 "나중에 다시 시도"가 아니라 "SQL 실행" 안내가 맞다(오진 방지).
+        if (_isCloudSchemaError(e && e.message)) _warnCloudSchemaError('노트', e && e.message);
       }
     }
     if (cloudSaved) {
