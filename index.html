@@ -14699,13 +14699,31 @@ function closeAddFormOrReturn() {
   switchTab('search', getNavButton('search'));
 }
 
-function finishAddFlow(openTermId = null, mode = null) {
+function finishAddFlow(openTermId = null, mode = null, showQuery = null) {
   closeAddTermModal();
   // 추가한 항목의 도메인 대시보드로 이동(용어→용어, 약물→약물 …). mode 미지정 시 현재 모드 유지.
   if (mode) setLibraryMode(mode, true);   // silent: 아래 switchTab+applyFilters가 1회 렌더
   switchTab('search', getNavButton('search'));
+  // showQuery가 있으면 "추가한 항목"을 확실히 보이게: 필터 초기화 + 그 이름으로 검색(A→Z 목록에 묻히지 않게).
+  if (showQuery != null) {
+    currentFilter = 'all'; currentConceptFilter = 'all'; currentDrugClassFilter = 'all'; currentDrugSystemFilter = 'all';
+    const si = document.getElementById('searchInput'); if (si) si.value = showQuery;
+    renderFilterControls();
+  }
   applyFilters();
   if (openTermId) setTimeout(() => openDrawer(openTermId), 80);
+}
+// 붙여넣기로 "단일 항목"을 추가했을 때, 그 항목 이름을 뽑아 목록에서 바로 보이게 한다(여러 개면 null → 목록만).
+function _pasteAddedName(parsed, domain) {
+  const items = Array.isArray(parsed?.[domain]) ? parsed[domain] : [];
+  if (items.length !== 1) return null;
+  const r = items[0] || {};
+  const pick = domain === 'drugs' ? (r.generic_name || r.ko_name || r.brand_name)
+    : domain === 'formulas' ? (r.name || r.short_name)
+    : domain === 'microbes' ? (r.organism || r.ko_name)
+    : domain === 'diseases' ? (r.ko_name || r.en_name)
+    : (r.ko || r.en || r.uz);
+  return pick ? String(pick).trim() : null;
 }
 // 붙여넣기/검토 가져오기 후 이동할 도메인: 단일 도메인 페이로드면 그 도메인, 혼합/없음이면 용어.
 function _pasteNavDomain(parsed) {
@@ -16570,7 +16588,7 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
       document.getElementById('aiPasteModal')?.remove();
       document.getElementById('aiTemplateModal')?.remove();
       await applyPendingDataImport({ mode: jsonMode, refresh: false });
-      finishAddFlow(null, _pasteNavDomain(parsed)); // 데이터 관리에 머물지 않고 추가한 도메인 목록으로
+      { const _d = _pasteNavDomain(parsed); finishAddFlow(null, _d, _pasteAddedName(parsed, _d)); } // 추가한 도메인으로 이동 + 단일 추가면 그 항목을 바로 보이게
     } else {
       // TSV(용어): 기존 TSV importer가 이름 기준으로 처리(merge=덮어쓰기 / add_only=건너뛰기)
       document.getElementById('aiPasteModal')?.remove();
@@ -16755,7 +16773,7 @@ async function applyDuplicateReview() {
     document.getElementById('aiPasteModal')?.remove();
     document.getElementById('aiTemplateModal')?.remove();
     await applyPendingDataImport({ mode: 'merge', refresh: false });
-    finishAddFlow(null, _pasteNavDomain(parsed)); // 검토 적용 후 추가한 도메인 목록으로
+    { const _d = _pasteNavDomain(parsed); finishAddFlow(null, _d, _pasteAddedName(parsed, _d)); } // 검토 적용 후 추가한 도메인으로 + 단일 추가면 그 항목을 바로 보이게
   } catch (e) {
     console.warn('duplicate review apply failed', e);
     showToast('⚠️ 적용 실패 · ' + (e && e.message ? String(e.message).slice(0, 60) : '형식 확인'));
@@ -18623,7 +18641,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.23',
+  version: '2.24',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18632,7 +18650,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.23 — 상단 제목·하단 "검색" 버튼 = 홈으로 + 검색 초기화',
+    title: '최신 · v2.24 — 붙여넣기로 추가하면 추가한 항목이 바로 보이게(목록에 묻히지 않게)',
+    items: [
+      'AI 붙여넣기(비교 후 선택/신규만 추가/덮어쓰기)로 항목을 하나 추가하면, 이제 추가한 항목의 화면으로 바로 데려가 그 항목을 검색 결과로 보여줍니다. 전엔 추가만 하고 이전 화면에 머물러 방금 넣은 항목이 A→Z 목록 어딘가에 묻혀 안 보였습니다.',
+      '동작: 추가한 도메인(용어/약물/공식/미생물/질환)으로 이동 + 필터를 초기화하고 그 항목 이름으로 검색해 맨 위에 뜨게 합니다. 한 번에 여러 개를 추가한 경우엔 그 도메인 목록으로만 이동합니다(특정 하나를 지목할 수 없으므로).',
+    ],
+  },
+  {
+    title: 'v2.23 — 상단 제목·하단 "검색" 버튼 = 홈으로 + 검색 초기화',
     items: [
       '상단 앱 제목과 하단 "검색" 탭 버튼을 누르면 이제 검색 화면 맨 위(홈)로 가면서 검색어·필터·정렬이 한 번에 초기화됩니다. 검색 결과나 필터가 걸린 상태에서 빠르게 처음 상태로 돌아갈 수 있습니다.',
       '현재 보고 있던 도메인(일반용어/미생물/약물/공식/질환/노트)은 그대로 유지합니다 — 예: 약물을 보다가 눌러도 약물에 머문 채 검색어·필터만 지워지고 목록 맨 위로 올라갑니다. (도메인까지 바꾸지는 않아 브라우징 흐름을 방해하지 않습니다.)',
