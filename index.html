@@ -2891,6 +2891,8 @@ document.addEventListener('keydown', e => {
     padding: 3px 10px; cursor: pointer;
   }
   .disease-ddx-link:hover { background: var(--accent); color: #fff; }
+  .schema-drift-warn { color: #f87171; }
+  html[data-theme="light"] .schema-drift-warn { color: #b91c1c; }
   .ddx-term-ico { cursor: pointer; opacity: 0.7; font-size: 11px; padding: 0 2px; border-radius: 6px; }
   .ddx-term-ico:hover { opacity: 1; background: var(--add-active-bg); }
   .disease-ddx-plain {
@@ -17680,7 +17682,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.62',
+  version: '1.63',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17689,7 +17691,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.62 — AI 양식: 붙여넣으면 "준비됐습니다" 후 대기 → 항목 주면 생성',
+    title: '최신 · v1.63 — 스키마 드리프트 자기점검 (SQL 누락 컬럼 자동 감지)',
+    items: [
+      '코드가 실제로 저장하는 컬럼과 동봉 SQL을 자동 대조하는 안전장치를 넣었습니다. 필드를 추가하고 SQL 갱신을 깜빡하면, 개발자 정보의 SQL 섹션에 ⚠️로 어느 테이블의 어떤 컬럼이 빠졌는지 표시됩니다(문제 없으면 ✅).',
+      '앱을 열 때도 드리프트가 있으면 상단 "개발자" 버튼에 ⚠️가 붙어 클릭 없이 바로 눈에 띄고, 콘솔에도 경고가 남습니다. 현재는 5개 도메인(일반용어·약물·공식·미생물·주요 질환) 모두 일치 상태입니다.',
+    ]
+  },
+  {
+    title: 'v1.62 — AI 양식: 붙여넣으면 "준비됐습니다" 후 대기 → 항목 주면 생성',
     items: [
       'AI 콘텐츠 양식을 붙여넣으면 AI가 곧바로 예시를 만들지 않고 "✅ 준비됐습니다. 만들 항목과 개수를 알려주세요"라고 답한 뒤 기다립니다. 이어서 "심근경색 5개"처럼 항목을 주면 그때 양식대로 생성합니다. (모든 도메인 양식 공통 적용.)',
     ]
@@ -18985,6 +18994,66 @@ function showCategoryStats() {
   document.body.appendChild(overlay);
 }
 
+// ── 스키마 드리프트 자기점검 ──────────────────────────────
+// 코드가 DB에 쓰는 컬럼(각 xToRow 출력 키)이 동봉 SQL(SUPABASE_SCHEMA_SQL)의 해당 테이블에
+// 모두 있는지 대조한다. 필드를 추가하고 SQL 갱신을 깜빡하면 개발자 정보에 ⚠️로 드러난다.
+function _sqlColumnsForTable(sql, table) {
+  const esc = String(table).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cols = new Set();
+  const m = String(sql || '').match(new RegExp('create table if not exists public\\.' + esc + '\\s*\\(([\\s\\S]*?)\\n\\);', 'i'));
+  if (m) m[1].split('\n').forEach(line => { const mm = line.match(/^\s*([a-z_][a-z0-9_]*)\b/i); if (mm) cols.add(mm[1].toLowerCase()); });
+  (String(sql || '').match(new RegExp('alter table public\\.' + esc + '\\b[\\s\\S]*?;', 'ig')) || []).forEach(block => {
+    (block.match(/add column if not exists\s+([a-z_][a-z0-9_]*)/ig) || []).forEach(a => {
+      const c = (a.match(/add column if not exists\s+([a-z_][a-z0-9_]*)/i) || [])[1];
+      if (c) cols.add(c.toLowerCase());
+    });
+  });
+  return cols.size ? cols : null; // null = 테이블 자체가 SQL에 없음
+}
+function computeSchemaDrift(sql) {
+  const domains = [
+    { table: 'medical_terms', label: '일반용어', toRow: termToRow },
+    { table: 'medical_drugs', label: '약물', toRow: drugToRow },
+    { table: 'medical_formulas', label: '공식', toRow: formulaToRow },
+    { table: 'medical_microbes', label: '미생물', toRow: microbeToRow },
+    { table: 'medical_diseases', label: '주요 질환', toRow: diseaseToRow },
+  ];
+  const drift = [];
+  domains.forEach(d => {
+    let keys;
+    try { keys = Object.keys(d.toRow({ id: 1 })); } catch (e) { return; }
+    const cols = _sqlColumnsForTable(sql, d.table);
+    if (!cols) { drift.push({ label: d.label, table: d.table, tableMissing: true, missing: [] }); return; }
+    const missing = keys.filter(k => !cols.has(String(k).toLowerCase()));
+    if (missing.length) drift.push({ label: d.label, table: d.table, tableMissing: false, missing });
+  });
+  return drift;
+}
+function _schemaDriftBannerHtml() {
+  let drift;
+  try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) { return ''; }
+  if (!drift.length) {
+    return `<div style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);color:var(--accent2);font-size:11px;font-weight:700">✅ 스키마 자기점검 통과 — 코드가 쓰는 컬럼이 SQL에 모두 있습니다.</div>`;
+  }
+  const rows = drift.map(d => d.tableMissing
+    ? `<li><b>${escapeHtml(d.label)}</b> — 테이블 <code>${escapeHtml(d.table)}</code>가 SQL에 없음</li>`
+    : `<li><b>${escapeHtml(d.label)}</b> (<code>${escapeHtml(d.table)}</code>) 누락 컬럼: <b>${escapeHtml(d.missing.join(', '))}</b></li>`).join('');
+  return `<div class="schema-drift-warn" style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.5);font-size:11px;line-height:1.6"><b>⚠️ 스키마 드리프트 감지</b> — 코드가 저장하는데 SQL엔 없는 컬럼이 있습니다. 아래 SQL에 <code>add column</code>을 넣고 Schema version 라벨을 올리세요.<ul style="margin:6px 0 0;padding-left:18px">${rows}</ul></div>`;
+}
+
+// 앱 로드 시 1회 — 드리프트가 있으면 개발자 버튼에 ⚠️를 붙이고 콘솔 경고(클릭 없이 화면에 드러남).
+function _schemaDriftLoadCheck() {
+  try {
+    const drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL);
+    if (!drift.length) return;
+    console.warn('⚠️ 스키마 드리프트: 코드가 쓰는데 SQL에 없는 컬럼', drift);
+    document.querySelectorAll('.developer-header-btn').forEach(btn => {
+      if (!/⚠️/.test(btn.textContent)) btn.textContent = '⚠️ ' + btn.textContent.trim();
+      btn.title = '스키마 드리프트 감지 — 개발자 정보에서 확인하세요';
+    });
+  } catch (e) { /* 자기점검 실패는 앱 동작에 영향 주지 않음 */ }
+}
+
 function showDeveloperInfo() {
   document.getElementById('developerInfoModal')?.remove();
   const overlay = document.createElement('div');
@@ -19045,6 +19114,7 @@ function showDeveloperInfo() {
             <span style="display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:4px 8px;background:var(--surface);color:var(--text);font-size:10px;font-weight:850">${escapeHtml(SUPABASE_SCHEMA_VERSION)}</span>
             <span style="color:var(--text3);font-size:10px">SQL 업데이트: ${escapeHtml(SUPABASE_SCHEMA_UPDATED_AT)}</span>
           </div>
+          ${_schemaDriftBannerHtml()}
           <div style="font-size:10px;color:var(--text3);line-height:1.6;margin:9px 0">Supabase SQL Editor에서 한 번 실행해야 새 동기화 기능을 사용할 수 있습니다.</div>
           <pre style="white-space:pre-wrap;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:10px;line-height:1.55">${escapeHtml(SUPABASE_SCHEMA_SQL)}</pre>
           <button onclick="copySupabaseSchema()" class="ui-btn primary" style="width:100%;border-radius:8px;padding:9px;font-size:11px">📋 설정 SQL 복사</button>
@@ -23722,11 +23792,13 @@ initApp();
     ensureIntegratedNoteShell();
     syncIntegratedNoteModeUi();
     bootstrapIntegratedNotes();
+    if (typeof _schemaDriftLoadCheck === 'function') _schemaDriftLoadCheck();
   });
   if (document.readyState !== 'loading') {
     ensureIntegratedNoteShell();
     syncIntegratedNoteModeUi();
     bootstrapIntegratedNotes();
+    if (typeof _schemaDriftLoadCheck === 'function') _schemaDriftLoadCheck();
   }
 })();
 </script>
