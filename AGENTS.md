@@ -51,10 +51,11 @@ git checkout -b codex/<작업명>
   1. `node scripts/check-index-scripts.mjs` (실행 `<script>` 문법·블록수·`</html>` 절단·핵심 흐름 함수 존재·도메인 parity),
   2. `node scripts/golden-tests.mjs` (순수함수 행위보존 + 해시 직렬화 잠금),
   3. `node scripts/check-schema-drift.mjs` (스키마 드리프트 — normalize 내용 필드 ↔ canonical 해시 payload, 전파 누락 급소),
-  4. `node scripts/sync-instruction-doc.mjs --check` (지시문 드리프트),
-  5. `node scripts/check-skill-docs.mjs` (스킬 문서 정합성 — 참고문서 목록·게이트 목록이 현실과 어긋나면 실패),
-  6. `node scripts/check-version-bump.mjs` (index.html 변경 시 버전 +0.01·새 이력 항목·"최신 ·" 접두사 1개 강제 — base=origin/main),
-  7. JS 로직·데이터·동기화·순수함수를 바꿨으면 그 순수함수를 `golden-tests.mjs`에 케이스로 추가.
+  4. `node scripts/check-restore-drift.mjs` (복원 드리프트 — `<domain>ToRow`가 쓴 컬럼을 `rowTo<Domain>`이 다시 읽는지, 복원/새 기기 유실 급소),
+  5. `node scripts/sync-instruction-doc.mjs --check` (지시문 드리프트),
+  6. `node scripts/check-skill-docs.mjs` (스킬 문서 정합성 — 참고문서 목록·게이트 목록이 현실과 어긋나면 실패),
+  7. `node scripts/check-version-bump.mjs` (index.html 변경 시 버전 +0.01·새 이력 항목·"최신 ·" 접두사 1개 강제 — base=origin/main),
+  8. JS 로직·데이터·동기화·순수함수를 바꿨으면 그 순수함수를 `golden-tests.mjs`에 케이스로 추가.
   하나라도 못 지키면 머지하지 말고 보고한다. (상세: 스킬 `references/regression.md` — (A)자동은 AI 의무, (B)수동 UI는 사용자 실기기 몫.)
 - **PR 분리:** 성격이 다른 작업은 PR을 나눈다(앱 코드 ↔ 스킬/문서).
 - **결과 보고:** 머지했으면 PR 번호·머지 SHA·머지 방식을 보고에 남긴다.
