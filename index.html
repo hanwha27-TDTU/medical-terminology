@@ -18188,7 +18188,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.84',
+  version: '1.85',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18197,7 +18197,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.84 — 연구노트: 카드 버튼을 더 직관적으로(툴팁·라벨·안내 보완)',
+    title: '최신 · v1.85 — 연구노트: CSV를 Excel에서 열 때 한글 깨짐 수정(UTF-8 BOM)',
+    items: [
+      '연구노트 CSV를 다운받아 윈도우 Excel에서 열면 한글이 깨져 보이던 문제를 고쳤습니다.',
+      '원인: 파일은 UTF-8로 정상이었지만, Excel이 UTF-8을 자동 인식하지 못하고 옛 한글 코드(CP949)로 읽어 깨졌습니다. 데이터 자체는 멀쩡했고 JSON·Markdown은 정상이었습니다.',
+      '해결: CSV 파일 앞에 UTF-8 표식(BOM)을 붙여 Excel이 바로 알아보게 했습니다. 앱의 다른 CSV 내보내기는 이미 이 방식을 쓰고 있었는데 연구노트만 빠져 있어 맞췄습니다.',
+    ]
+  },
+  {
+    title: 'v1.84 — 연구노트: 카드 버튼을 더 직관적으로(툴팁·라벨·안내 보완)',
     items: [
       '각 기록 카드의 버튼이 "누르기 전에 뭘 하는지" 바로 보이도록 다듬었습니다.',
       '라벨을 행동형으로: 상세→🔎 상세보기, 🏷️ 특허 후보→🏷️ 특허감으로 표시, ＋ 사람 결정→＋ 내 결정 덧붙이기, ↻ 정정→↻ 정정(수정본 추가), 삭제표시→🗑️ 삭제표시.',
@@ -20244,7 +20252,10 @@ const RN_FORM_FIELDS = [
   { group: '첨부 파일 📎', fields: [['files_note', '첨부 (파일명·설명, 한 줄에 하나)', 'ta']] },
 ];
 function rnDownload(name, text, mime) {
-  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  // CSV는 UTF-8 BOM(﻿)을 앞에 붙인다 → 윈도우 Excel이 UTF-8로 자동 인식(안 붙이면 한글이 CP949로 깨져 보임).
+  let out = String(text);
+  if ((/csv/i.test(mime || '') || /\.csv$/i.test(name)) && out.charCodeAt(0) !== 0xFEFF) out = '\uFEFF' + out;
+  const blob = new Blob([out], { type: mime || 'text/plain;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
