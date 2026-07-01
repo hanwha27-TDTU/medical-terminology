@@ -12,6 +12,7 @@ CONFIG · STORAGE/IDB · SUPABASE SYNC · TERMS · DRUGS · FORMULAS · MICROBES
 - [ ] `node scripts/check-index-scripts.mjs`
 - [ ] `node scripts/golden-tests.mjs`
 - [ ] `node scripts/check-schema-drift.mjs`
+- [ ] `node scripts/check-restore-drift.mjs`
 - [ ] `node scripts/sync-instruction-doc.mjs --check`
 - [ ] `node scripts/check-skill-docs.mjs`
 - [ ] `node scripts/check-version-bump.mjs` (index.html 변경 시)

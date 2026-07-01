@@ -18,6 +18,7 @@
    - [ ] `normalize<Domain>ForStorage` **화이트리스트에 필드 등록** — 안 하면 저장·동기화 때 사라진다(불변조건 2).
    - [ ] localStorage/IndexedDB 저장 경로(`save<Domain>ToLocalStorage`)에 포함.
    - [ ] Supabase **`<domain>ToRow` / `rowTo<Domain>` 왕복**에 포함(+ 컬럼형 도메인이면 SQL `add column` 필요 → 사용자에게 SQL 실행 안내).
+         → **이 왕복 누락도 CI가 잡는다**: `scripts/check-restore-drift.mjs`가 `<domain>ToRow`가 쓴 컬럼을 `rowTo<Domain>`이 다시 읽는지(`r.<col>`) 대조(in-app `computeRestoreGaps`의 헤드리스 미러). toRow에만 넣고 rowTo에서 안 읽으면 CI 실패 = 복원/새 기기 유실 신호.
    - [ ] **`canonical<Domain>HashPayload`에 편집 필드 포함**(불변조건 11) — 누락하면 그 필드 단독 변경이
          동기화에서 "일치"로 오판돼 **다른 기기로 전파 안 됨**(parent_id·favorite가 여기서 샜다). (추가 시 그 도메인 스냅샷 해시 1회 재베이스라인은 정상.)
          → **이 누락은 이제 CI가 잡는다**: `scripts/check-schema-drift.mjs`가 normalize 내용 필드 ↔ canonical payload를 정적 비교(in-app `computePropagationGaps`의 헤드리스 미러). 신규 필드를 normalize에만 넣고 payload에 빠뜨리면 CI 실패 = payload에 추가하라는 신호.
