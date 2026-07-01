@@ -115,8 +115,28 @@ goldenD('diseaseMatchKeys', dz, dzMatchRef,
   }
 }
 
+// ── 🔴 CRITICAL ZONE 잠금: stableForHash(canonical 직렬화) characterization ──
+// 특허 증거 해시는 JSON.stringify(stableForHash(entry))로 만들어진다. 이 직렬화가 "실수로" 바뀌면
+// 과거 모든 엔트리의 entry_hash가 어긋난다(재베이스라인·검증 붕괴). 그래서 현재 출력을 고정 기준으로 못박는다.
+// ⚠️ 이 테스트가 "의도된" 변경으로 실패하면: 직렬화를 정말 바꿔야 하는지 재확인 + 기준값 갱신 + 매니페스트 갱신
+//    + 사용자에게 "전 엔트리 해시 재베이스라인" 고지가 필요하다(불변조건 19 · CRITICAL ZONE).
+{
+  let fn; try { fn = extractFn('stableForHash'); } catch (e) { failures.push(`stableForHash: 추출 실패 — ${e.message}`); }
+  if (fn) {
+    const J = x => JSON.stringify(fn(x));
+    const cases = [
+      [{ b: 2, a: 1, c: { z: 9, y: 8 } }, '{"a":1,"b":2,"c":{"y":8,"z":9}}'],            // 키 정렬(중첩 포함)
+      [{ k: undefined, j: null, i: 'x' }, '{"i":"x","j":null,"k":null}'],                  // undefined→null
+      [[{ q: 1, p: 2 }, 's', null, 3], '[{"p":2,"q":1},"s",null,3]'],                      // 배열 보존 + 내부 정렬
+      [{ previous_entry_hash: 'abc', id: '1', created_at: 't', data: { ko: '동정지' } }, '{"created_at":"t","data":{"ko":"동정지"},"id":"1","previous_entry_hash":"abc"}'],
+      [[0, '', false, null], '[0,"",false,null]'],                                          // 원시값 보존
+    ];
+    for (const [inp, expected] of cases) check(`JSON.stringify(stableForHash(${JSON.stringify(inp)}))`, J(inp), expected);
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 순수함수 13종(정규화 6 + 식별/매칭키 7)이 기준 규칙과 전 케이스 일치(행위보존 확인).');
+console.log('✅ 골든테스트 통과 — 순수함수 14종(정규화 6 + 식별/매칭키 7 + stableForHash canonical 직렬화 고정)이 기준과 일치.');
