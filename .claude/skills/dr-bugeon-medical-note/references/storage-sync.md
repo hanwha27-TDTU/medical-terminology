@@ -389,6 +389,16 @@ Phone · Android · Chrome · id ab12cd34
 - **불변성 존중(소급 수정 금지):** 오염 시기 과거 엔트리의 `previous_entry_hash`가 숨겨진 남의 엔트리를 가리켜 검증 시 `chain_break`가 뜰 수 있으나, 엔트리는 불변(해시에 prev 포함)이라 **고치지 않고 오염의 흔적으로 둔다** — 격리 이후 새 기록부터 정상.
 - **일반 교훈:** 여러 앱이 한 백엔드를 공유할 때 `project_name` 같은 소유 태그는 **박기만 하면 무의미** — **읽기 관문(_rnLoad)·pull·매니페스트·마이그레이션 모두에서 필터**해야 격리다. "우연히 안 섞임"(상대가 먼저 이사)과 "설계상 격리"는 다르다. 소유키는 스탬프와 필터가 **같은 불변 상수**를 공유해야 한다(APP_INFO.name 같은 가변값에 묶으면 향후 리네임에 과거 기록이 숨겨짐).
 
+#### 5.6.2 체인 끊김 "경위 주석" — 오염 흔적을 소급 수정 없이 증거로 각인 (v2.04)
+
+격리(§5.6.1) 후, 오염 시기에 만든 엔트리 일부는 `previous_entry_hash`가 이제 숨겨진 자매 앱 엔트리를 가리켜 `rnVerifyChain`에서 `chain_break`로 뜬다. **절대 소급 수정하지 않는다**(옛 엔트리 재해시 = 서명·TSA 무효 + 변조로 보임). 대신 **새 불변 정정 기록으로 경위만 각인**하는 `rnAnnotateChainBreaks()`를 뒀다.
+
+- **탐지**: `_rnFindChainBreaks(notes)` — `rnVerifyChain`과 **같은 규칙**(`_rnLoad` 순서, `previous_entry_hash !== 앞 엔트리 hash`; 제네시스는 non-null이면 break). 각 break에 `{own_id, own_entry_hash, dangling_previous_hash(끊긴 외부 해시), now_expected_prev_hash}` 스냅샷.
+- **외부 해결(best-effort)**: `_rnResolveHashesInLegacy(hashes)` — 옛 공유 테이블(`RESEARCH_NOTES_TABLE_LEGACY`)을 `entry_hash=in.(…)`로 조회(해시 hex라 인용 불필요, 50개씩 분할)해 외부 엔트리의 `{id, project_name, created_at, server_time}` 확보. 자매 앱이 자기 행을 이미 이전/정리했으면 미해결로 남긴다(해시 자체가 증거).
+- **각인**: `rnAddEntry('correction', {…, chain_annotation}, {source:'chain_break_annotation'})`. 구조화 필드 `chain_annotation`(break 목록 + statement + `break_set_hash` + head hash)은 `_rnBlank`에 **조건부 스프레드**로 실어(있을 때만) 일반 기록의 해시 페이로드는 안 바꾼다. 이 정정 기록 자체가 해시·ECDSA·TSA를 받아 "끊김=오염 흔적"임을 고정. 이 엔트리는 현재 head에 이어 붙어 **깨끗한 체인을 이어가며** 그 안에 과거 끊김을 설명.
+- **멱등**: break-set 서명(`sha256(정렬된 own_id|dangling)`)을 `break_set_hash`로 저장 → 같은 구간을 이미 주석했으면 재생성 안 함. 새 끊김이 생기면(격리 후엔 없어야 정상) 새 주석이 커버.
+- **불변성 존중 원칙(재확인)**: append-only 증거 로그에서 "잘못 연결된 링크"는 고치는 게 아니라 **새 기록으로 경위를 남긴다**. 정정(correction)은 기존을 지우거나 바꾸지 않고 항상 새 불변 엔트리로만 표현한다(이 앱의 correction/tombstone 모델과 동일).
+
 ---
 
 

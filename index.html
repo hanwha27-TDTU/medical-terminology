@@ -18516,7 +18516,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.03',
+  version: '2.04',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18525,7 +18525,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.03 — 연구노트: 자매 앱과 섞이던 문제 해결(전용 테이블로 격리)',
+    title: '최신 · v2.04 — 연구노트: 체인 "끊김 경위 주석"(오염 흔적을 소급 수정 없이 증거로 각인)',
+    items: [
+      '공유테이블 오염 시기에 생긴 체인 링크 불연속(previous_entry_hash가 지금은 격리된 자매 앱 엔트리를 가리킴)을, 기존 기록을 하나도 고치지 않고 새 "정정 기록"으로 경위를 설명·각인하는 기능을 추가했습니다. 연구노트 창의 "🧷 끊김 경위 주석" 버튼.',
+      '이 정정 기록은 끊김 목록(내 엔트리 id·해시, 끊긴 previous 해시)과 함께, 클라우드가 있으면 그 끊김이 가리키는 외부(자매 앱) 엔트리를 옛 공유 테이블에서 조회해 신원·시각까지 담습니다. 그리고 이 기록 자체가 해시·전자서명·타임스탬프를 받아 "끊김=변조가 아니라 오염 흔적"임을 불변 증거로 고정합니다.',
+      '핵심 원칙: 과거 엔트리의 해시·previous 링크는 절대 소급 수정하지 않습니다(고치면 서명·타임스탬프가 무효가 되고 변조로 보임). 각 엔트리의 내용 해시·서명·타임스탬프는 그대로 무결하며, 이 주석은 그 위에 경위 설명만 새로 얹습니다. 같은 끊김 구간을 이미 주석했으면 중복 생성하지 않습니다(멱등).',
+    ]
+  },
+  {
+    title: 'v2.03 — 연구노트: 자매 앱과 섞이던 문제 해결(전용 테이블로 격리)',
     items: [
       '연구노트(특허 증거용 로그)가 자매 앱(어학 마스터)과 같은 Supabase 테이블(research_notes)을 공유해 서로의 기록이 섞이던 문제를 고쳤습니다. 이제 이 앱은 전용 테이블 research_notes_med만 읽고/쓰며, 프로젝트 이름(project_name)으로도 한 번 더 걸러 남의 기록을 아예 취급하지 않습니다.',
       '앱을 열면 옛 공유 테이블에서 "이 앱 기록만" 자동으로 1회 전용 테이블로 이관합니다(옛 테이블은 지우지 않음 · 무손실). 화면·총 건수·내보내기·해시 체인의 previous 연결이 모두 내 프로젝트 기준으로 정상화됩니다.',
@@ -20477,6 +20485,8 @@ function _rnBlank(data) {
     invention_dates: Object.assign({ idea:'', prototype:'', reduction_to_practice:'', public_disclosure:'', filing:'' }, data.invention_dates || {}),
     // 선행기술 조사 로그(차별점 명시). 배열 — {patent_number, source, search_date, keywords, differentiation}
     prior_art: Array.isArray(data.prior_art) ? data.prior_art : [],
+    // 체인 무결성 주석(공유테이블 오염으로 생긴 끊김 경위) — 있을 때만 실어 일반 기록의 해시 페이로드는 그대로 둔다.
+    ...(data.chain_annotation ? { chain_annotation: data.chain_annotation } : {}),
   };
 }
 async function rnAddEntry(eventType, data, opts) {
@@ -20706,6 +20716,93 @@ async function rnVerifyChain() {
   }
   return issues;
 }
+// ── 체인 끊김(공유테이블 오염 흔적) 경위 주석 — 기존 엔트리는 불변, 새 정정 기록으로 경위만 각인 ──
+// 탐지 규칙은 rnVerifyChain과 동일(_rnLoad 순서, previous_entry_hash ≠ 앞 엔트리 hash).
+function _rnFindChainBreaks(notes) {
+  const breaks = [];
+  for (let i = 0; i < notes.length; i++) {
+    const e = notes[i];
+    const expectedPrev = i > 0 ? notes[i - 1].entry_hash : null;
+    if ((e.previous_entry_hash || null) !== (expectedPrev || null)) {
+      breaks.push({
+        own_id: e.id, own_created_at: e.created_at || '', own_entry_hash: e.entry_hash || '', evidence_chain_id: e.evidence_chain_id || '',
+        dangling_previous_hash: e.previous_entry_hash || null, // 지금은 안 보이는(외부) 앞 엔트리 해시
+        now_expected_prev_hash: expectedPrev || null,          // 격리 후 이 위치의 실제 앞 엔트리(내 것)
+      });
+    }
+  }
+  return breaks;
+}
+// 끊김이 가리키는 해시를 옛 공유 테이블에서 best-effort 조회 → 외부 엔트리(자매 앱)의 신원·시각 확보.
+// 자매 앱이 자기 행을 이미 이전/정리했으면 미해결로 남는다(그래도 해시 자체가 증거).
+async function _rnResolveHashesInLegacy(hashes) {
+  const out = {};
+  const cfg = getSupabaseConfig(); const h = sbHeaders();
+  const list = [...new Set((hashes || []).filter(Boolean))];
+  if (!cfg || !h || !list.length) return out;
+  try {
+    const CH = 50; // 너무 긴 in.() 방지 — 나눠 조회. 해시는 hex라 인용 없이 안전.
+    for (let i = 0; i < list.length; i += CH) {
+      const chunk = list.slice(i, i + CH);
+      const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE_LEGACY}?select=data&entry_hash=in.(${chunk.join(',')})`, { headers: h });
+      if (!res.ok) continue;
+      const rows = await res.json();
+      (Array.isArray(rows) ? rows : []).forEach(r => {
+        const d = r.data; if (!d || !d.entry_hash || out[d.entry_hash]) return;
+        out[d.entry_hash] = { id: d.id, project_name: d.project_name || '', created_at: d.created_at || '', server_time: d.server_time || '', entry_hash: d.entry_hash };
+      });
+    }
+  } catch (e) {}
+  return out;
+}
+async function rnAnnotateChainBreaks() {
+  const notes = _rnLoad();
+  const breaks = _rnFindChainBreaks(notes);
+  if (!breaks.length) { showToast('✅ 체인 끊김이 없습니다 — 주석할 구간이 없습니다.'); return; }
+  // 멱등: 같은 끊김 구간을 이미 주석했으면 중복 생성 방지.
+  const setKey = breaks.map(b => `${b.own_id}|${b.dangling_previous_hash || ''}`).sort().join('\n');
+  const breakSetHash = await _rnSha256(setKey);
+  const already = notes.find(e => e.source === 'chain_break_annotation' && e.chain_annotation && e.chain_annotation.break_set_hash === breakSetHash);
+  if (already) { showToast(`ℹ️ 이 끊김 구간(${breaks.length}건)은 이미 주석 기록이 있습니다 · ${already.evidence_chain_id || String(already.id).slice(0, 8)}`); return; }
+  const hasCloud = !!getSupabaseConfig();
+  showConfirm(
+    `체인 링크 불연속 ${breaks.length}건의 "경위"를 설명하는 정정 기록을 새로 추가합니다.\n\n· 기존 기록은 하나도 수정·삭제하지 않습니다(불변).\n· 이 새 기록이 "끊김은 공유테이블 오염 탓"임을 해시·서명·타임스탬프로 각인합니다.${hasCloud ? '\n· 끊김이 가리키는 외부 엔트리를 옛 공유 테이블에서 조회해 함께 기록합니다.' : ''}`,
+    async () => {
+      let resolved = {};
+      if (hasCloud) { showToast('🔎 외부 엔트리 조회 중...'); resolved = await _rnResolveHashesInLegacy(breaks.map(b => b.dangling_previous_hash)); }
+      const brief = breaks.map(b => ({
+        own_id: b.own_id, own_created_at: b.own_created_at, own_entry_hash: b.own_entry_hash, evidence_chain_id: b.evidence_chain_id,
+        dangling_previous_hash: b.dangling_previous_hash, now_expected_prev_hash: b.now_expected_prev_hash,
+        resolved_external: (b.dangling_previous_hash && resolved[b.dangling_previous_hash]) || null,
+      }));
+      const resolvedCount = brief.filter(b => b.resolved_external).length;
+      const chain_annotation = {
+        kind: 'chain_break_contamination_annotation', schema: 1,
+        generated_at: new Date().toISOString(), project_name: RN_PROJECT_NAME,
+        legacy_table: RESEARCH_NOTES_TABLE_LEGACY, own_table: RESEARCH_NOTES_TABLE,
+        own_count_at_annotation: notes.length, own_chain_head_hash: notes.length ? (notes[notes.length - 1].entry_hash || '') : '',
+        break_count: breaks.length, resolved_external_count: resolvedCount, break_set_hash: breakSetHash, breaks: brief,
+        statement: '이 로그의 일부 previous_entry_hash는 격리 이전 공유 테이블에 함께 있던 자매 앱 엔트리를 가리킨다. 프로젝트 격리로 그 외부 엔트리가 이 로그에서 제외되면서 링크가 불연속으로 보이나, 각 엔트리의 내용 해시·전자서명·타임스탬프는 무결하며 어떤 기존 엔트리도 소급 수정되지 않았다. 외부 엔트리는 공유 테이블/자매 앱에 실재하며 해시로 대조 가능하다.',
+      };
+      const summaryText = brief.slice(0, 20).map(b =>
+        `- ${b.own_created_at} · 내 엔트리 ${String(b.own_id).slice(0, 8)}…의 previous=${(b.dangling_previous_hash || '(genesis)').slice(0, 16)}…` +
+        (b.resolved_external ? ` → 외부(${b.resolved_external.project_name || '?'}, ${b.resolved_external.created_at || '?'})` : ' → 외부(미해결/이전됨)')
+      ).join('\n') + (brief.length > 20 ? `\n… 외 ${brief.length - 20}건` : '');
+      await rnAddEntry('correction', {
+        feature_name: '연구노트 체인 무결성 주석 — 공유테이블 오염 구간 경위',
+        problem_statement: `격리 이전 이 앱과 자매 앱(어학 마스터)이 같은 Supabase 테이블(${RESEARCH_NOTES_TABLE_LEGACY})을 공유해, 일부 기록의 previous_entry_hash가 자매 앱 엔트리를 가리켰다. 프로젝트 격리 후 그 외부 엔트리가 제외되며 체인 링크가 ${breaks.length}건 불연속으로 나타난다.`,
+        human_idea: '기존 엔트리를 소급 수정하지 않고(불변성 유지), 끊김의 경위와 외부 엔트리 해시를 새 불변 기록으로 남겨 "끊김=오염 흔적"임을 증거로 각인하기로 결정.',
+        final_decision: `체인 링크 불연속 ${breaks.length}건(외부 해결 ${resolvedCount}건). 각 엔트리의 내용 해시·서명·타임스탬프는 무결. 소급 수정 없음.\n${summaryText}`,
+        technical_effect: '체인 불연속이 변조가 아니라 공유테이블 오염의 산물임을 해시·서명·공인 타임스탬프로 고정 증명. 향후 심사·소송에서 끊김 구간을 이 정정 기록으로 설명 가능.',
+        chain_annotation,
+      }, { source: 'chain_break_annotation' });
+      showToast(`🧷 체인 끊김 경위 주석 완료 · ${breaks.length}건 기록(외부 해결 ${resolvedCount}건)`);
+      rnRenderList();
+    },
+    null,
+    { okText: '기록 추가', okColor: 'var(--accent2)', okBg: 'rgba(63,185,80,0.15)', okBorder: 'var(--accent2)' }
+  );
+}
 // ── 내보내기 ──
 // TSA 토큰을 표준 도구로 검증하는 명령을 자동 생성 — 변리사·심사관이 그대로 붙여넣어 확인.
 function _rnOpensslCmd(entry) {
@@ -20817,6 +20914,7 @@ function rnOpenNotebook() {
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 새 기록</button>
           <button class="ui-btn sm safe" onclick="rnRunVerify()">🔒 해시 검증</button>
+          <button class="ui-btn sm" onclick="rnAnnotateChainBreaks()" title="체인 링크 불연속(공유테이블 오염 흔적) 구간을, 기존 기록 수정 없이 새 정정 기록으로 경위 설명·각인">🧷 끊김 경위 주석</button>
           <button class="ui-btn sm" onclick="rnExport('json')">JSON</button>
           <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
@@ -21169,7 +21267,7 @@ async function rnRunVerify() {
   console.warn('연구노트 무결성 점검', issues);
   if (tamper) { showToast(`⚠️ 변조 의심 ${tamper}건 감지 — 저장된 기록이 원본과 다릅니다(콘솔 확인)`); return; }
   if (sig) { showToast(`⚠️ 서명 불일치 ${sig}건 — 서명이 entry_hash와 맞지 않습니다(콘솔 확인)`); return; }
-  showToast(`ℹ️ 체인 링크 불연속 ${breaks}건 — 여러 기기 기록을 합치면 정상일 수 있습니다. 각 기록의 해시 자체는 무결(변조 없음).`);
+  showToast(`ℹ️ 체인 링크 불연속 ${breaks}건 — 각 기록의 해시 자체는 무결(변조 없음). 공유테이블 오염 흔적이면 "🧷 끊김 경위 주석"으로 경위를 기록하세요.`);
 }
 
 
