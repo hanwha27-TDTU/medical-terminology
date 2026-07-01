@@ -6405,7 +6405,7 @@ document.addEventListener('keydown', e => {
   <div class="header-top">
     <div class="logo-badge">🩺</div>
     <div class="header-titles">
-      <h1 onclick="switchTab('search', document.querySelector('.nav-btn'))" style="cursor:pointer" title="홈으로">Dr. Bugeon의 Medical Note</h1>
+      <h1 onclick="goSearchHome()" style="cursor:pointer" title="홈으로 · 검색 초기화">Dr. Bugeon의 Medical Note</h1>
       <p>Integrated Medical Study Note</p>
     </div>
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleThemeMode()" title="라이트모드로 전환">☀️ <span class="wide-label">라이트모드</span><span class="mobile-label" style="display:none">라이트</span></button>
@@ -6529,7 +6529,7 @@ document.addEventListener('keydown', e => {
 </main>
 
 <div class="bottom-nav">
-  <button class="nav-btn active" onclick="switchTab('search', this)">
+  <button class="nav-btn active" onclick="goSearchHome(this)">
     <span class="nav-icon">🔍</span>검색
   </button>
   <button class="nav-btn" onclick="switchTab('bookmark', this)">
@@ -13036,6 +13036,24 @@ function clearSearch() {
   closeAutocomplete();
 }
 
+// 홈(검색 탭)으로 이동 + 검색 초기화(검색어·필터·정렬 리셋 + 맨 위로). 현재 도메인(일반용어/약물 등)은 유지.
+// 상단 제목·하단 "검색" 탭 버튼 공용. btn 없으면(제목 클릭) 하단 검색 버튼을 활성표시로 잡는다.
+function goSearchHome(btn) {
+  switchTab('search', btn || getNavButton('search'));
+  window.clearTimeout(searchInputDebounceTimer);
+  const si = document.getElementById('searchInput'); if (si) si.value = '';
+  currentFilter = 'all';
+  currentConceptFilter = 'all';
+  currentDrugClassFilter = 'all';
+  currentDrugSystemFilter = 'all';
+  currentSort = 'default';
+  const sortSel = document.getElementById('sortSelect'); if (sortSel) sortSel.value = 'default';
+  closeAutocomplete();
+  renderFilterControls(); // 필터 칩 active 표시를 '전체'로 되돌림(현재 도메인 기준)
+  applyFilters();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function setSort(val) {
   currentSort = val;
   const sel = document.getElementById('sortSelect');
@@ -18605,7 +18623,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.22',
+  version: '2.23',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18614,7 +18632,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.22 — AI 콘텐츠 양식에서 id 제거(앱 동작과 일치): "이름 기준" 등록으로 통일',
+    title: '최신 · v2.23 — 상단 제목·하단 "검색" 버튼 = 홈으로 + 검색 초기화',
+    items: [
+      '상단 앱 제목과 하단 "검색" 탭 버튼을 누르면 이제 검색 화면 맨 위(홈)로 가면서 검색어·필터·정렬이 한 번에 초기화됩니다. 검색 결과나 필터가 걸린 상태에서 빠르게 처음 상태로 돌아갈 수 있습니다.',
+      '현재 보고 있던 도메인(일반용어/미생물/약물/공식/질환/노트)은 그대로 유지합니다 — 예: 약물을 보다가 눌러도 약물에 머문 채 검색어·필터만 지워지고 목록 맨 위로 올라갑니다. (도메인까지 바꾸지는 않아 브라우징 흐름을 방해하지 않습니다.)',
+    ],
+  },
+  {
+    title: 'v2.22 — AI 콘텐츠 양식에서 id 제거(앱 동작과 일치): "이름 기준" 등록으로 통일',
     items: [
       'v2.20에서 앱이 "AI가 준 id를 무시하고 이름으로 매칭 + 신규엔 자동 고유 id 발급"으로 바뀌었는데, AI에게 주는 양식(프롬프트)은 여전히 "id를 8000000000001부터 매겨라"라고 안내해 어긋나 있었습니다. 이 안내가 바로 "매 응답마다 같은 id 재사용 → 앞엣것 덮어쓰기"의 원인이었습니다.',
       '이제 AI 양식에서 id를 아예 뺐습니다. AI는 이름·내용만 채우고, 앱이 자동으로 겹치지 않는 고유 번호를 매깁니다. 양식 안내도 "id는 넣지 마라 · 이름이 같으면 갱신, 다르면 새로 추가"로 바꿔 앱 동작과 정확히 일치시켰습니다. 붙여넣기 예시(placeholder)도 id 없는 형태로 갱신했습니다.',
