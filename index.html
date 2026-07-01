@@ -14199,12 +14199,12 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
         <input id="add_kind" type="hidden" value="term">
         <div class="add-section-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
           <div class="add-section-title" style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px">저장 항목 선택</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-            <button id="addKind_term" class="add-kind-btn active" onclick="switchAddKind('term')" style="background:var(--add-active-bg);border:1px solid var(--add-active-border);border-radius:10px;padding:11px;color:var(--add-active-text);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📘 일반 용어</button>
-            <button id="addKind_microbe" class="add-kind-btn" onclick="switchAddKind('microbe')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🧫 미생물</button>
-            <button id="addKind_drug" class="add-kind-btn" onclick="switchAddKind('drug')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💊 약물명 및 정보</button>
-            <button id="addKind_formula" class="add-kind-btn" onclick="switchAddKind('formula')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">∑ 주요 의학계산공식</button>
-            <button id="addKind_disease" class="add-kind-btn" onclick="switchAddKind('disease')" style="background:transparent;border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text2);font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🩺 주요 질환</button>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:6px">
+            <button id="addKind_term" class="add-kind-btn active" onclick="switchAddKind('term')" style="background:var(--add-active-bg);border:1px solid var(--add-active-border);border-radius:9px;padding:7px 10px;color:var(--add-active-text);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">📘 일반 용어</button>
+            <button id="addKind_microbe" class="add-kind-btn" onclick="switchAddKind('microbe')" style="background:transparent;border:1px solid var(--border);border-radius:9px;padding:7px 10px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🧫 미생물</button>
+            <button id="addKind_drug" class="add-kind-btn" onclick="switchAddKind('drug')" style="background:transparent;border:1px solid var(--border);border-radius:9px;padding:7px 10px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">💊 약물명 및 정보</button>
+            <button id="addKind_formula" class="add-kind-btn" onclick="switchAddKind('formula')" style="background:transparent;border:1px solid var(--border);border-radius:9px;padding:7px 10px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">∑ 주요 의학계산공식</button>
+            <button id="addKind_disease" class="add-kind-btn" onclick="switchAddKind('disease')" style="background:transparent;border:1px solid var(--border);border-radius:9px;padding:7px 10px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🩺 주요 질환</button>
           </div>
         </div>
         <div id="termAddFields">
@@ -18411,7 +18411,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.98',
+  version: '1.99',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18420,7 +18420,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.98 — 카드 라벨 알약 폭을 맞춰 본문 줄맞춤',
+    title: '최신 · v1.99 — 추가창 "저장 항목 선택" 버튼을 컴팩트하게',
+    items: [
+      '추가창의 저장 항목 선택 버튼(일반 용어·미생물·약물·공식·주요 질환)이 커서, 패딩·글자 크기·최소폭을 줄여 더 컴팩트하게 다듬었습니다. 라벨은 한 줄로 유지하고, 5개가 한 줄에 더 잘 들어가 세로 공간도 줄었습니다.',
+    ]
+  },
+  {
+    title: 'v1.98 — 카드 라벨 알약 폭을 맞춰 본문 줄맞춤',
     items: [
       '질환·미생물 카드의 "한 줄 / 주호소 / 정의" 같은 라벨 알약이 글자 수에 따라 폭이 달라, 뒤에 오는 본문 시작점이 줄마다 어긋나 보이던 것을 고쳤습니다.',
       '라벨 알약에 고정 최소폭 + 가운데 정렬을 줘서 모든 라벨이 같은 폭이 되고 본문이 세로로 정렬됩니다. (📖 아이콘·하위 칩 등 다른 요소는 첫 번째 라벨만 겨냥해 영향 없음.)',
