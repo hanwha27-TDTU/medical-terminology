@@ -13,6 +13,7 @@ CONFIG · STORAGE/IDB · SUPABASE SYNC · TERMS · DRUGS · FORMULAS · MICROBES
 - [ ] `node scripts/golden-tests.mjs`
 - [ ] `node scripts/check-schema-drift.mjs`
 - [ ] `node scripts/sync-instruction-doc.mjs --check`
+- [ ] `node scripts/check-skill-docs.mjs`
 
 ## 테스트 (해당 항목)
 - [ ] 각 탭 열림 · [ ] 새 항목 저장/수정 · [ ] 검색/필터 · [ ] JSON export/import · [ ] 새로고침 후 데이터 유지 · [ ] 라이트/다크 모두 정상

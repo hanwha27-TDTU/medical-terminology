@@ -1,0 +1,29 @@
+name: Skill Docs Integrity Check
+
+# 스킬 문서(.claude/skills) · AGENTS.md · 워크플로 · scripts가 서로 어긋나면 실패시킨다.
+# "스킬을 적어만 두면 무슨 의미?" → 문서 자신의 정합성은 100% 기계로 잠근다(참고문서 목록·게이트 목록 드리프트 차단).
+
+on:
+  push:
+    paths:
+      - '.claude/skills/**'
+      - 'AGENTS.md'
+      - '.github/workflows/**'
+      - 'scripts/**'
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - 'AGENTS.md'
+      - '.github/workflows/**'
+      - 'scripts/**'
+
+jobs:
+  check-skill-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 스킬 문서 정합성(참고문서 목록·게이트 목록 ↔ 현실)
+        run: node scripts/check-skill-docs.mjs
