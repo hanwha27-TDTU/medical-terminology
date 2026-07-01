@@ -14301,7 +14301,7 @@ function showAddTermForm(target = document.getElementById('mainContent')) {
             <button type="button" onclick="openAIContentTemplateMenu()" style="margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🤖 AI 콘텐츠 양식 열기</button>
           </div>
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:10px">
-            <textarea id="addJsonArea" placeholder='{ "terms": [ { "id": 8000000000001, "en": "Atrial fibrillation", "ko": "심방세동", ... } ] }   ← 또는 TSV' rows="8" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
+            <textarea id="addJsonArea" placeholder='{ "terms": [ { "en": "Atrial fibrillation", "ko": "심방세동", ... } ] }   ← id 불필요(앱이 자동 부여) · 또는 TSV' rows="8" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:11px;font-family:monospace;resize:vertical;outline:none;padding:8px;box-sizing:border-box;line-height:1.6" spellcheck="false"></textarea>
           </div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:8px">같은 이름이 이미 있을 때 (이름 기준):</div>
           <button class="dup-policy-btn recommend" style="width:100%;margin-bottom:8px" onclick="importAIPasteText('review', document.getElementById('addJsonArea')?.value)">🔍 비교 후 선택<span class="sub">중복 항목마다 기존↔새것 비교해 개별 선택(권장)</span></button>
@@ -16351,7 +16351,7 @@ function buildAIContentSpec(domain) {
   }
 
   function skeleton(d) {
-    const out = { id: 8000000000001 };
+    const out = {}; // id는 양식에서 뺀다 — 앱이 이름 기준으로 매칭하고 신규엔 자동으로 고유 id를 발급(AI가 같은 placeholder id를 반복해 덮어쓰던 문제 원천 차단).
     let sample = {};
     try { sample = NORM[d]({ id: 1 }); } catch (e) { sample = {}; }
     Object.keys(sample).forEach(k => {
@@ -16384,7 +16384,7 @@ function buildAIContentSpec(domain) {
     '[2부 — 붙여넣기 블록(앱 가져오기용)] 그 다음 맨 마지막에, 앱에 그대로 붙여넣을 블록을 아래 [2부 형식]이 지정한 개수·형식대로 코드블록으로 출력해라. 맨 마지막 블록 뒤에는 아무 것도 쓰지 마라.',
     ' · "[ ...목록... ]" 으로 표시된 칸은 그 목록의 값만 그대로 써라(철자·대소문자·띄어쓰기 동일). 없으면 가장 가까운 값, 정 없으면 비워라.',
     ' · 모르는 칸은 비워라. 칸 이름(key)과 열 순서는 절대 바꾸거나 추가/삭제하지 마라.',
-    ' · 각 항목 id는 서로 겹치지 않는 큰 숫자(8000000000001 부터 1씩). 내가 말한 개수만큼 채워라.',
+    ' · id는 넣지 마라 — 앱이 자동으로 겹치지 않는 고유 번호를 매긴다. 항목 구분·갱신은 "이름" 기준이다: 이름이 기존 항목과 같으면 그 항목이 갱신되고, 다르면 새로 추가된다(같은 값을 여러 번 만들어도 서로 덮어쓰지 않는다). 내가 말한 개수만큼 채워라.',
     '',
     '[공통 선택목록] 장기계(category/system/system_tags): ' + cats,
     '[공통 선택목록] 개념분류(concept_category): ' + concepts,
@@ -18605,7 +18605,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.21',
+  version: '2.22',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18614,7 +18614,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.21 — 노트 신규 생성 ID를 다른 도메인과 동일한 충돌 불가 생성기로 통일(수평 일관성)',
+    title: '최신 · v2.22 — AI 콘텐츠 양식에서 id 제거(앱 동작과 일치): "이름 기준" 등록으로 통일',
+    items: [
+      'v2.20에서 앱이 "AI가 준 id를 무시하고 이름으로 매칭 + 신규엔 자동 고유 id 발급"으로 바뀌었는데, AI에게 주는 양식(프롬프트)은 여전히 "id를 8000000000001부터 매겨라"라고 안내해 어긋나 있었습니다. 이 안내가 바로 "매 응답마다 같은 id 재사용 → 앞엣것 덮어쓰기"의 원인이었습니다.',
+      '이제 AI 양식에서 id를 아예 뺐습니다. AI는 이름·내용만 채우고, 앱이 자동으로 겹치지 않는 고유 번호를 매깁니다. 양식 안내도 "id는 넣지 마라 · 이름이 같으면 갱신, 다르면 새로 추가"로 바꿔 앱 동작과 정확히 일치시켰습니다. 붙여넣기 예시(placeholder)도 id 없는 형태로 갱신했습니다.',
+      '효과: AI가 만든 콘텐츠를 하나씩 이어서 붙여넣어도 서로 덮어쓰지 않고 안정적으로 등록됩니다(양식·앱 양쪽에서 원천 차단). TSV(용어) 양식은 원래 이름 기준이라 영향 없습니다.',
+    ],
+  },
+  {
+    title: 'v2.21 — 노트 신규 생성 ID를 다른 도메인과 동일한 충돌 불가 생성기로 통일(수평 일관성)',
     items: [
       'v2.20의 ID 충돌 방지를 수평 점검하다 발견한 잔여 정비입니다. 새 개념·오답 노트를 저장할 때 ID를 현재 시각(Date.now)으로 매기던 것을, 다른 5개 도메인(용어·약물·공식·미생물·질환)과 똑같은 충돌 불가 생성기(nextNoteId)로 통일했습니다. 손으로 한 개씩 만들 때는 사실상 겹칠 일이 없었지만, 모든 도메인이 같은 방식으로 고유 ID를 발급하도록 맞춰 일관성과 안전 여유를 확보했습니다(기존 노트·동기화 identity에는 영향 없음).',
     ],
