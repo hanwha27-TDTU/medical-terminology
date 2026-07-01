@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.69',
+  version: '1.70',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.69 — 연구노트 클라우드 백업 + 지난 개발 이력 소급 가져오기',
+    title: '최신 · v1.70 — 연구노트: 발명자(사람) 귀속 명확화',
+    items: [
+      '연구노트에 "✏️ 발명자 설정"을 추가해 발명자(사람) 이름·소속을 한 번 저장하면, 이후 모든 기록에 자동으로 귀속됩니다. 이름은 각 기록의 해시에 포함되어 변조하면 검증에서 드러납니다.',
+      '모든 기록에 귀속 선언을 명시합니다 — "Human Idea / Human Modification / Final Decision은 발명자(사람)의 착상·판단이고, AI는 도구로서 보조함". 입력 폼·카드·Markdown/CSV 내보내기 모두에 발명자와 이 문구가 나타납니다.',
+    ]
+  },
+  {
+    title: 'v1.69 — 연구노트 클라우드 백업 + 지난 개발 이력 소급 가져오기',
     items: [
       '연구노트를 Supabase에 백업합니다. 새 기록을 저장할 때마다 자동으로 클라우드에 올라가고, "☁️ 클라우드 백업 올리기 / 합치기" 버튼으로 수동 백업·복원도 됩니다. 전체 JSON 백업에도 연구노트가 포함됩니다.',
       '"📜 지난 개발 이력 가져오기"로 이 앱의 전체 버전 이력(v1.01~)을 연구노트에 소급 기록할 수 있습니다. 단 날짜 조작(백데이팅)은 하지 않습니다 — 작성일은 "가져온 시각", 서술은 "버전 로그 재구성"으로 정직하게 표기하며, 실제 타임라인의 권위 원본은 git 커밋 이력입니다.',
@@ -19282,6 +19289,18 @@ let _rnFilter = { event_type: '', feature: '', model: '', patent: false, from: '
 
 function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a : []; }
 function _rnSave(arr) { safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr)); }
+// 발명자(사람) 신원 — 특허 증거에서 "누가 착상했는가"를 명확히 하기 위해 모든 기록에 자동 귀속한다.
+const RN_INVENTOR_KEY = 'drbugeon_rn_inventor';
+function _rnGetInventor() { const v = safeJsonParse(localStorage.getItem(RN_INVENTOR_KEY), null); return (v && typeof v === 'object') ? { name: v.name || '', affiliation: v.affiliation || '' } : { name: '', affiliation: '' }; }
+function rnSetInventor() {
+  const cur = _rnGetInventor();
+  const name = prompt('발명자(사람) 이름 — 이 노트의 착상·결정이 이 사람의 것임을 기록합니다.', cur.name || '');
+  if (name === null) return;
+  const affiliation = prompt('소속(선택)', cur.affiliation || '') || '';
+  safeSetItem(RN_INVENTOR_KEY, JSON.stringify({ name: String(name).trim(), affiliation: String(affiliation).trim() }));
+  showToast('👤 발명자 정보를 저장했습니다 · 이후 기록에 자동 귀속됩니다');
+  if (document.getElementById('researchNoteModal')) { document.getElementById('researchNoteModal').remove(); rnOpenNotebook(); }
+}
 function _rnUuid() {
   try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
   try {
@@ -19341,6 +19360,10 @@ async function rnAddEntry(eventType, data, opts) {
     project_name: (APP_INFO && APP_INFO.name) || 'Dr. Bugeon Medical Note', app_version: (APP_INFO && APP_INFO.version) || '',
     feature_name: data && data.feature_name || '', event_type: RN_EVENT_TYPES.includes(eventType) ? eventType : 'design_decision',
     corrects_id: opts.corrects_id || null, correction_type: opts.correction_type || null, deleted: false,
+    inventor_name: (data && data.inventor_name != null) ? data.inventor_name : (_rnGetInventor().name || ''),
+    inventor_affiliation: (data && data.inventor_affiliation != null) ? data.inventor_affiliation : (_rnGetInventor().affiliation || ''),
+    // 귀속 선언: human_idea·human_modification·final_decision 칸은 발명자(사람)의 착상·판단이고, AI는 도구로서 보조했음을 명시.
+    authorship: 'human_conceived · AI_assisted_tool',
     source: opts.source || null, describes_version: opts.describes_version || null, retrospective: !!opts.source,
     previous_entry_hash: prev ? prev.entry_hash : null, entry_hash: null,
     signature_status: 'unsigned', signed_by: (data && data.signed_by) || '', witness_name: (data && data.witness_name) || '', witness_signed_at: '',
@@ -19420,9 +19443,11 @@ function _rnMd(entry, notes) {
   return [
     `# Research Notebook Entry${del}`, '',
     `Entry ID: ${entry.id}`, `Created At: ${entry.created_at} (${entry.timezone})`, `Project: ${entry.project_name}`,
-    `Version: ${entry.app_version}`, `Feature: ${entry.feature_name}`, `Event Type: ${entry.event_type}${entry.corrects_id ? ` (corrects ${entry.corrects_id} · ${entry.correction_type || ''})` : ''}`, '',
+    `Version: ${entry.app_version}`, `Feature: ${entry.feature_name}`, `Event Type: ${entry.event_type}${entry.corrects_id ? ` (corrects ${entry.corrects_id} · ${entry.correction_type || ''})` : ''}`,
+    `Inventor (human): ${entry.inventor_name || '(미설정)'}${entry.inventor_affiliation ? ' · ' + entry.inventor_affiliation : ''}`,
+    `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`, '',
     `## 1. Problem`, entry.problem_statement || '', '', `## 2. Prior Limitation`, entry.prior_limitation || '', '',
-    `## 3. Human Idea`, entry.human_idea || '', '', `## 4. AI Assistance`, `- Prompt: ${entry.ai_prompt_summary || ''}`, `- Output: ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, '',
+    `## 3. Human Idea (발명자 착상)`, entry.human_idea || '', '', `## 4. AI Assistance (도구 보조)`, `- Prompt: ${entry.ai_prompt_summary || ''}`, `- Output: ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, '',
     `## 5. Human Modification`, entry.human_modification || '', '', `## 6. Final Technical Decision`, entry.final_decision || '', '',
     `## 7. Technical Effect`, entry.technical_effect || '', '', `## 8. Test Method`, entry.test_method || '', '', `## 9. Test Result`, entry.test_result || (entry.failure_reason ? ('실패: ' + entry.failure_reason) : ''), '',
     `## 10. Patent Relevance`, `- Possible claim: ${p.possible_claim || ''}`, `- Novelty: ${p.novelty_point || ''}`, `- Inventive step: ${p.inventive_step_point || ''}`, `- Industrial applicability: ${p.industrial_applicability || ''}`, `- Human contribution: ${p.inventor_human_contribution || ''}`, '',
@@ -19430,7 +19455,7 @@ function _rnMd(entry, notes) {
   ].join('\n');
 }
 function _rnCsv(notes) {
-  const cols = ['id','created_at','timezone','app_version','feature_name','event_type','corrects_id','correction_type','problem_statement','prior_limitation','human_idea','ai_prompt_summary','ai_output_summary','human_modification','final_decision','technical_effect','test_method','test_result','failure_reason','next_action','patent_novelty','patent_inventive','model_name','previous_entry_hash','entry_hash'];
+  const cols = ['id','created_at','timezone','app_version','inventor_name','feature_name','event_type','corrects_id','correction_type','problem_statement','prior_limitation','human_idea','ai_prompt_summary','ai_output_summary','human_modification','final_decision','technical_effect','test_method','test_result','failure_reason','next_action','patent_novelty','patent_inventive','model_name','previous_entry_hash','entry_hash'];
   const esc = v => { const s = String(v == null ? '' : v).replace(/"/g, '""'); return `"${s}"`; };
   const rows = notes.map(e => cols.map(c => {
     if (c === 'patent_novelty') return esc((e.patent_metadata || {}).novelty_point);
@@ -19444,7 +19469,7 @@ function _rnCsv(notes) {
 const RN_FORM_FIELDS = [
   { group: '기본', fields: [['feature_name', '기능/주제명', 'input'], ['event_type', '이벤트 유형', 'select']] },
   { group: '문제·한계', fields: [['problem_statement', '문제 (왜 필요한가)', 'ta'], ['prior_limitation', '기존 한계', 'ta']] },
-  { group: '사람 기여 👤', fields: [['human_idea', '사람의 아이디어', 'ta'], ['human_modification', '사람이 AI 결과를 수정한 점', 'ta'], ['final_decision', '최종 결정 (사람)', 'ta']] },
+  { group: '사람(발명자) 기여 👤 — 아래 3칸은 "내 착상·판단"으로 기록됩니다', fields: [['human_idea', '사람(발명자)의 아이디어·착상', 'ta'], ['human_modification', '사람이 AI 결과를 수정·판단한 점', 'ta'], ['final_decision', '최종 결정 (사람)', 'ta']] },
   { group: 'AI 기여 🤖', fields: [['ai_prompt_summary', 'AI 프롬프트 요약', 'ta'], ['ai_output_summary', 'AI 출력 요약', 'ta'], ['ai_model_name', 'AI 모델명', 'input'], ['ai_provider', 'AI 제공자', 'input'], ['ai_conversation_id', '대화/세션 ID', 'input']] },
   { group: '효과·검증', fields: [['technical_effect', '기술적 효과', 'ta'], ['test_method', '테스트 방법', 'input'], ['test_result', '테스트 결과', 'ta'], ['failure_reason', '실패 원인 (있으면)', 'input'], ['next_action', '다음 행동', 'input']] },
   { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta']] },
@@ -19476,6 +19501,7 @@ function rnOpenNotebook() {
           <div>
             <div style="font-size:17px;font-weight:900;color:var(--text)">📓 연구노트 (특허 증거용 로그)</div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px">AI가 도와줬지만 <b>내가 생각하고 결정한 흔적</b>을 시간순·해시체인으로 남깁니다. <b>법적 보증이 아니라</b> 향후 특허 검토용 구조화 증거 로그입니다.</div>
+            <div style="font-size:11px;margin-top:5px">발명자(사람): <b style="color:var(--accent)">${escapeHtml(_rnGetInventor().name || '(미설정)')}</b>${_rnGetInventor().affiliation ? ` · ${escapeHtml(_rnGetInventor().affiliation)}` : ''} <button class="ui-btn sm" style="padding:2px 8px" onclick="rnSetInventor()">✏️ 발명자 설정</button> <span style="color:var(--text3)">— 이후 모든 기록에 이 사람의 착상·결정으로 자동 귀속됩니다.</span></div>
           </div>
           <button onclick="document.getElementById('researchNoteModal').remove()" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
         </div>
@@ -19538,7 +19564,7 @@ function rnCardHtml(e, notes) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
         <div style="min-width:0">
           <div style="font-weight:800;color:var(--text);font-size:13px${del ? ';text-decoration:line-through' : ''}">${escapeHtml(e.feature_name || '(제목 없음)')} <span style="font-size:10px;color:var(--text3);font-weight:600">· ${escapeHtml(e.event_type)}</span></div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${escapeHtml(String(e.created_at || '').replace('T', ' ').slice(0, 19))} · v${escapeHtml(e.app_version || '')}${del ? ' · <b style="color:#dc2626">삭제표시(원본·해시 보존)</b>' : ''}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${escapeHtml(String(e.created_at || '').replace('T', ' ').slice(0, 19))} · v${escapeHtml(e.app_version || '')} · 👤 ${escapeHtml(e.inventor_name || '(발명자 미설정)')}${del ? ' · <b style="color:#dc2626">삭제표시(원본·해시 보존)</b>' : ''}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">${summary}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">${patentTag}${corr}</div>
