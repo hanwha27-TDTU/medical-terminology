@@ -10152,6 +10152,17 @@ const FINDING_FIELDS = {
 function normFindingConcept(s) {
   return String(s || '').normalize('NFKC').toLowerCase().replace(/\s/g, '').replace(/[()]/g, '');
 }
+// 한 표기 문자열을 개념키 후보로 분해: 통째 → 괄호 앞(보통 한국어) → 괄호 안(보통 영어/약어).
+// 색인(용어 등록명)과 질의(소견 토큰)가 반드시 같은 분해를 써야 "두근거림"↔"두근거림 (심계항진)"이
+// 매칭된다. 전엔 질의만 괄호를 갈랐고 색인은 통째로만 넣어, 괄호형으로 등록된 용어에 바로 소견이 안 걸렸다.
+function _findingConceptForms(s) {
+  const out = [];
+  const raw = String(s || '').trim();
+  if (raw) out.push(raw);
+  const m = raw.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+  if (m) { if (m[1].trim()) out.push(m[1].trim()); if (m[2].trim()) out.push(m[2].trim()); }
+  return out;
+}
 function buildFindingConceptIndex() {
   const idx = new Map();
   (Array.isArray(TERMS) ? TERMS : []).forEach(t => {
@@ -10159,7 +10170,10 @@ function buildFindingConceptIndex() {
     const forms = [];
     String(t.ko || '').split(/[,;/·]/).forEach(s => forms.push(s));
     forms.push(t.en, t.uz);
-    forms.forEach(f => { const n = normFindingConcept(f); if (n && !idx.has(n)) idx.set(n, t.id); });
+    // 각 표기의 괄호형까지 분해해 색인(질의 측 findTermIdByFinding와 대칭).
+    forms.forEach(f => _findingConceptForms(f).forEach(p => {
+      const n = normFindingConcept(p); if (n && !idx.has(n)) idx.set(n, t.id);
+    }));
   });
   return idx;
 }
@@ -10167,10 +10181,7 @@ function buildFindingConceptIndex() {
 // 토큰 전체 → 괄호 앞(보통 한국어) → 괄호 안(보통 영어/약어) 순으로 개념 인덱스를 조회한다.
 function findTermIdByFinding(token, idx) {
   if (!idx) return null;
-  const tries = [String(token || '')];
-  const m = String(token || '').match(/^(.*?)\s*\(([^)]*)\)\s*$/);
-  if (m) { if (m[1].trim()) tries.push(m[1].trim()); if (m[2].trim()) tries.push(m[2].trim()); }
-  for (const p of tries) { const id = idx.get(normFindingConcept(p)); if (id != null) return id; }
+  for (const p of _findingConceptForms(token)) { const id = idx.get(normFindingConcept(p)); if (id != null) return id; }
   return null;
 }
 // ── 감별 워크벤치 상태(조건 AND 누적 + 목록/표 토글) ──
@@ -18448,7 +18459,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.00',
+  version: '2.01',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18457,7 +18468,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.00 — 툴바에 통합 "➕ 추가" 버튼 (6개 도메인 어디서든 추가)',
+    title: '최신 · v2.01 — 소견↔일반용어 연결: "괄호형 동의어" 용어도 인식',
+    items: [
+      '질환 주호소·증상·징후 토큰과 일반용어 카드를 잇는 📖 링크가, 용어가 "두근거림 (심계항진)"처럼 괄호 안에 동의어를 담아 등록돼 있으면 바로 안 걸리던 문제를 고쳤습니다(예: 주호소 "두근거림"이 등록된 "두근거림 (심계항진)" 용어를 못 찾음).',
+      '원인은 비대칭이었습니다 — 소견 토큰 쪽은 괄호를 앞/안으로 갈라 조회했는데, 용어 색인 쪽은 등록명을 통째로만 넣어 "두근거림 (심계항진)"이 하나의 키로만 저장됐습니다. 이제 양쪽 모두 같은 규칙으로 괄호를 분해해(통째·괄호 앞·괄호 안) "두근거림"·"심계항진" 어느 쪽으로도 연결됩니다.',
+    ]
+  },
+  {
+    title: 'v2.00 — 툴바에 통합 "➕ 추가" 버튼 (6개 도메인 어디서든 추가)',
     items: [
       '자료 모드 툴바(NIH UMLS 검색 옆)에 통합 "➕ 추가" 버튼을 넣었습니다. 지금 어느 모드를 보고 있든 이 버튼 하나로 일반용어·미생물·약물·공식·주요 질환·개념 오답 노트 6종을 바로 추가할 수 있습니다.',
       '버튼을 누르면 유형 선택 메뉴가 뜨고, 용어·미생물·약물·공식·질환은 추가창을 해당 유형으로 열고, 노트는 개념·오답 노트 편집창을 엽니다. (기존의 모드별 목록 상단 추가 버튼은 그대로 유지됩니다.)',
