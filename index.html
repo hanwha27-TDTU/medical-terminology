@@ -1101,6 +1101,58 @@ create table if not exists public.research_notes (
 **자기점검:** `computeSchemaDrift`·`checkLiveSchema` 도메인 목록에 `{table:'research_notes', label:'연구노트', toRow:researchNoteRow}` 추가.
 **지난 개발 이력 소급:** `UPDATE_HISTORY`(있으면)를 순회해 `rnAddEntry('design_decision', …, {source:'update_history', describes_version})`. **백데이팅 금지** — created_at=지금, `retrospective:true` 라벨. 재실행 방지: 이미 `source==='update_history'` 있으면 skip.
 
+## 1.8 ⚠️ 멀티-앱 격리 — 전용 테이블 + 프로젝트 필터 (필수)
+
+**여러 앱이 이 템플릿을 각자 쓰면, 같은 이름의 테이블 `research_notes`를 공유해 서로의 연구노트가 섞인다.** 각 엔트리에 `project_name`을 박아도 **읽을 때 거르지 않으면 무의미**하다. 오염은 화면·총 건수·내보내기·공개 해시 매니페스트, 그리고 **해시 체인 `previous_entry_hash`**(새 기록이 남의 엔트리를 물어 체인이 꼬임)까지 번진다. **처음부터 아래를 넣어라.**
+
+**(1) 소유키 — 스탬프·필터 공용의 불변 상수.** `APP_INFO.name` 같은 가변값에 묶지 말 것(리네임 시 과거 자기 기록이 숨겨짐).
+```js
+const RN_PROJECT_NAME = '<이 앱 고유 이름>';           // 불변·고유. 과거/현재 엔트리의 project_name과 정확히 일치.
+function _rnIsOwnProject(e){ return !!e && (e.project_name === RN_PROJECT_NAME || !e.project_name); } // 옛 무명 기록은 관대
+```
+`rnAddEntry`는 `project_name: RN_PROJECT_NAME`로 박는다.
+
+**(2) `_rnLoad`를 단일 관문으로 필터** → 렌더·집계·검증·체인 prev·내보내기·매니페스트·제네시스·중복검사가 자동 격리. `rnPull` incoming도 같은 필터로 남의 행을 애초에 로컬에 안 쓴다.
+```js
+function _rnLoad(){ const a=safeJsonParse(localStorage.getItem(RN_STORAGE_KEY),[]); return Array.isArray(a)?a.filter(_rnIsOwnProject):[]; }
+// rnPull: const incoming = (rows||[]).map(r=>r.data).filter(x=>x && x.id && _rnIsOwnProject(x));
+```
+
+**(3) 전용 테이블로 분리(권장·근본).** 테이블명을 앱 고유로(예 `research_notes_<앱>`). `research_notes`는 이전 공유 테이블로 두고 **1회만 읽어** 자기 프로젝트 행을 회수→전용 테이블로 이관(옛 테이블 **안 지움**·무손실). 완료 플래그는 기기별 localStorage. 전용 테이블 미생성 시 push 실패→플래그 미설정→다음 열람 재시도.
+```js
+const RN_TABLE='research_notes_<앱>', RN_TABLE_LEGACY='research_notes', RN_MIGRATED_KEY='<앱>_rn_migrated_v1';
+async function rnMigrateToOwnTable(){
+  if(localStorage.getItem(RN_MIGRATED_KEY)) return;
+  const c=getSupabaseCfg(); if(!c) return;
+  try{ const res=await fetch(`${c.url}/rest/v1/${RN_TABLE_LEGACY}?select=data&order=created_at.asc`,{headers:sbHeaders()});
+    if(res.ok){ const inc=(await res.json()||[]).map(r=>r.data).filter(x=>x&&x.id&&_rnIsOwnProject(x));
+      if(inc.length){ const byId=new Map(_rnLoad().map(e=>[e.id,e])); let add=0;
+        inc.forEach(e=>{ if(!byId.has(e.id)){byId.set(e.id,e);add++;} });
+        if(add) _rnSave([...byId.values()].sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')))); } }
+  }catch(e){}
+  const r=await rnPushAll(); if(r&&r.ok) localStorage.setItem(RN_MIGRATED_KEY, new Date().toISOString());
+}
+```
+**부트스트랩 순서(중요):** 열 때 → 로컬 즉시 렌더 → (클라우드 있으면) 마이그레이션 → **제네시스는 이관 완료 뒤에만**(신선한 기기에서 옛 기록을 못 받은 채 새 genesis 찍는 중복 사고 방지) → 재렌더 → autoSync.
+
+**(4) 연결 지점 전부 동반 수정(누락 방지):** `computeSchemaDrift`·`checkLiveSchema` 테이블명, 백업 실패 토스트 문구, 위 SQL DDL(전용 테이블명), **공개 매니페스트 CI 스크립트**(테이블명 + `project_name` 필터). 한 곳만 놓치면 "컬럼 없음" 오탐·매니페스트 오염 재발.
+
+**(5) (선택) 옛 공유 테이블 정리 SQL — 복사 전용·가드형.** `project_name = 이 앱` **AND** `id가 전용 테이블에 존재`(`exists`) 2중 가드. 이관 전이면 0건, 남의 앱 행 불건드림. **자동 실행 금지** — 미리보기 count 후 사용자가 직접 실행.
+```sql
+-- 미리보기
+select count(*) from public.research_notes r
+ where r.data->>'project_name' = '<RN_PROJECT_NAME>'
+   and exists (select 1 from public.research_notes_<앱> m where m.id = r.id);
+-- 삭제(개수 확인 후에만)
+delete from public.research_notes r
+ where r.data->>'project_name' = '<RN_PROJECT_NAME>'
+   and exists (select 1 from public.research_notes_<앱> m where m.id = r.id);
+```
+
+**불변성 존중:** 오염 시기 과거 엔트리의 `previous_entry_hash`가 숨겨진 남의 엔트리를 가리켜 검증 시 `chain_break`가 뜰 수 있으나 **소급 수정 금지**(엔트리 불변) — 격리 이후 새 기록부터 정상. 이 잔흔은 오염의 흔적으로 그대로 둔다.
+
+> 두 앱이 공유 테이블을 만지므로 **순서**: ① 각 앱이 전용 테이블 먼저 생성 → ② 각 앱 1회 열어 이관 완료 → ③ 그 뒤에만 각자 정리 SQL. 가드(`exists`) 덕에 순서를 어겨도 0건이라 무손실이지만 이 순서가 가장 깔끔.
+
 ---
 
 # PART 2 — 전자서명(ECDSA) + 서버 타임스탬프 (검토 ①②, 최우선)
@@ -18464,7 +18516,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.02',
+  version: '2.03',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18473,7 +18525,17 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.02 — 소견↔일반용어 연결: "오심·구토"처럼 가운뎃점이 든 용어도 인식',
+    title: '최신 · v2.03 — 연구노트: 자매 앱과 섞이던 문제 해결(전용 테이블로 격리)',
+    items: [
+      '연구노트(특허 증거용 로그)가 자매 앱(어학 마스터)과 같은 Supabase 테이블(research_notes)을 공유해 서로의 기록이 섞이던 문제를 고쳤습니다. 이제 이 앱은 전용 테이블 research_notes_med만 읽고/쓰며, 프로젝트 이름(project_name)으로도 한 번 더 걸러 남의 기록을 아예 취급하지 않습니다.',
+      '앱을 열면 옛 공유 테이블에서 "이 앱 기록만" 자동으로 1회 전용 테이블로 이관합니다(옛 테이블은 지우지 않음 · 무손실). 화면·총 건수·내보내기·해시 체인의 previous 연결이 모두 내 프로젝트 기준으로 정상화됩니다.',
+      '⚠️ Supabase에서 최신 통합 SQL을 한 번 실행해 전용 테이블(research_notes_med)을 만들어 주세요. 안 만들면 클라우드 백업만 실패하고 로컬 기록은 안전합니다(테이블 생성 후 자동 재시도).',
+      '연구노트 창에 "🧹 공유 테이블 정리 SQL" 버튼을 추가했습니다 — 전용 테이블로 이관 완료된 이 앱 행만 옛 공유 테이블에서 안전하게 지우는 SQL을 복사합니다(자동 실행 안 함, 미리보기 후 직접 실행 · 자매 앱 행은 가드로 보호).',
+      '참고: 섞임이 있던 시기에 만들어진 과거 엔트리는 previous_entry_hash가 지금은 숨겨진 남의 엔트리를 가리켜 검증에서 "체인 끊김"으로 보일 수 있습니다. 엔트리는 불변이라 소급 수정하지 않으며, 이는 오염의 흔적으로 그대로 둡니다 — 격리 이후 새 기록부터는 정상입니다.',
+    ]
+  },
+  {
+    title: 'v2.02 — 소견↔일반용어 연결: "오심·구토"처럼 가운뎃점이 든 용어도 인식',
     items: [
       'v2.01에 이어, 용어가 "오심·구토 (Nausea/vomiting)"처럼 한 용어 안에 가운뎃점(·)을 담고 있으면 주호소 "오심·구토"가 그 용어를 못 찾던 문제를 고쳤습니다.',
       '용어 색인이 등록명을 가운뎃점에서 쪼개 넣기만 해서(동의어 구분 목적) 통째 형태("오심·구토")가 색인에 없었던 게 원인입니다. 이제 통째 등록명도 함께 색인해, "오심·구토"는 통째로도 걸리고 "실신·기절"처럼 ·를 동의어 구분자로 쓴 경우도 각각·통째 모두 걸립니다(기존 매칭은 그대로 유지).',
@@ -19633,7 +19695,10 @@ alter table public.medical_term_learning_state
   add column if not exists updated_at timestamptz default now();
 
 -- 연구노트(특허 증거용 append-only 로그) — 엔트리 전체를 data(jsonb)에 통째 저장(append-only·불변).
-create table if not exists public.research_notes (
+-- ⚠️ 전용 테이블 research_notes_med — 예전엔 자매 앱(어학 마스터)과 공유 테이블 research_notes를 써서
+--    서로의 기록이 섞였다. 이제 이 앱은 전용 테이블만 쓴다. 앱이 첫 실행 때 옛 research_notes에서 자기
+--    프로젝트 기록만 1회 자동 이관한다(옛 테이블은 삭제하지 않음 · 무손실).
+create table if not exists public.research_notes_med (
   id text primary key,
   created_at timestamptz default now(),
   app_version text default '',
@@ -19644,7 +19709,7 @@ create table if not exists public.research_notes (
   updated_at timestamptz default now()
 );
 
-alter table public.research_notes
+alter table public.research_notes_med
   add column if not exists created_at timestamptz default now(),
   add column if not exists app_version text default '',
   add column if not exists event_type text default '',
@@ -20123,7 +20188,7 @@ function computeSchemaDrift(sql) {
     { table: 'medical_formulas', label: '공식', toRow: formulaToRow },
     { table: 'medical_microbes', label: '미생물', toRow: microbeToRow },
     { table: 'medical_diseases', label: '주요 질환', toRow: diseaseToRow },
-    { table: 'research_notes', label: '연구노트', toRow: researchNoteRow },
+    { table: 'research_notes_med', label: '연구노트', toRow: researchNoteRow },
   ];
   const drift = [];
   domains.forEach(d => {
@@ -20287,7 +20352,15 @@ const RESEARCH_NOTES_KEY = 'drbugeon_research_notes';
 const RN_EVENT_TYPES = ['idea','prompt','ai_output','human_review','code_change','test','bug','fix','design_decision','patent_claim_candidate','export','correction'];
 let _rnFilter = { event_type: '', feature: '', model: '', patent: false, hideExport: true, from: '', to: '' };
 
-function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a : []; }
+// 프로젝트 격리 — 이 앱과 자매 앱(어학 마스터)이 과거 같은 Supabase 테이블(research_notes)을 공유해
+// 서로의 연구노트가 섞였다. RN_PROJECT_NAME은 스탬프·필터 공용의 "불변·고유" 키(바뀌면 과거 자기 기록을
+// 남의 것으로 오인). 값은 현재/과거 엔트리에 박힌 project_name과 정확히 일치해야 한다(APP_INFO.name과 동일).
+// _rnIsOwnProject: project_name이 없는 아주 옛 기록은 관대하게 자기 것으로 인정(자매 앱은 항상 이름을 박음).
+const RN_PROJECT_NAME = 'Dr. Bugeon의 Medical Note';
+function _rnIsOwnProject(e) { return !!e && (e.project_name === RN_PROJECT_NAME || !e.project_name); }
+// _rnLoad를 단일 관문으로 필터 → 렌더·집계·검증·체인 prev·내보내기·매니페스트·제네시스·중복검사 전 경로가
+// 자동으로 이 프로젝트만 본다. 섞여 저장된 남의 행은 다음 _rnSave 때 자동 정리(내 기록은 유실 0).
+function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a.filter(_rnIsOwnProject) : []; }
 function _rnSave(arr) { safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr)); }
 // 발명자(사람) 신원 — 특허 증거에서 "누가 착상했는가"를 명확히 하기 위해 모든 기록에 자동 귀속한다.
 // 기본 발명자는 앱에 못 박아둔다(모든 기기 공통). 사용자가 바꾸지 않는 한 이 값으로 귀속된다.
@@ -20412,7 +20485,7 @@ async function rnAddEntry(eventType, data, opts) {
   const prev = notes.length ? notes[notes.length - 1] : null;
   const entry = Object.assign({
     id: _rnUuid(), created_at: new Date().toISOString(), timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''),
-    project_name: (APP_INFO && APP_INFO.name) || 'Dr. Bugeon Medical Note', app_version: (APP_INFO && APP_INFO.version) || '',
+    project_name: RN_PROJECT_NAME, app_version: (APP_INFO && APP_INFO.version) || '',
     feature_name: data && data.feature_name || '', event_type: RN_EVENT_TYPES.includes(eventType) ? eventType : 'design_decision',
     corrects_id: opts.corrects_id || null, correction_type: opts.correction_type || null, deleted: false,
     inventor_name: (data && data.inventor_name != null) ? data.inventor_name : (_rnGetInventor().name || ''),
@@ -20436,8 +20509,12 @@ async function rnAddEntry(eventType, data, opts) {
   _rnAttachTsa(entry); // RFC3161 공인 타임스탬프 요청(릴레이 배포됐을 때만) — fire-and-forget
   return entry;
 }
-// ── 연구노트 클라우드 백업(Supabase research_notes · append-only 업서트) ──
-const RESEARCH_NOTES_TABLE = 'research_notes';
+// ── 연구노트 클라우드 백업(Supabase · append-only 업서트) ──
+// 전용 테이블로 격리 — 예전엔 자매 앱과 'research_notes'를 공유해 서로 섞였다. 이제 이 앱은 전용
+// 'research_notes_med'만 읽고/쓴다. 첫 실행 때 옛 공유 테이블에서 자기 프로젝트 기록만 1회 이관(무손실).
+const RESEARCH_NOTES_TABLE = 'research_notes_med';
+const RESEARCH_NOTES_TABLE_LEGACY = 'research_notes'; // 이전 공유 테이블 — 1회 마이그레이션 때만 읽음(쓰지 않음)
+const RN_MIGRATED_KEY = 'drbugeon_rn_migrated_v1';    // 전용 테이블 이관 완료 플래그(기기별 localStorage)
 function researchNoteRow(e) {
   // updated_at은 서버가 default now()로 채우게 두어 "제3자(Supabase) 서버 시각"을 신뢰 타임스탬프로 확보한다.
   return { id: String(e.id), created_at: e.created_at || new Date().toISOString(), app_version: e.app_version || '', event_type: e.event_type || '', entry_hash: e.entry_hash || '', previous_entry_hash: e.previous_entry_hash || null, data: e };
@@ -20512,7 +20589,7 @@ async function rnPull() {
     const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}?select=data&order=created_at.asc&limit=100000`, { headers: h });
     if (!res.ok) return { ok: false, reason: 'HTTP ' + res.status };
     const rows = await res.json();
-    const cloud = (Array.isArray(rows) ? rows : []).map(r => r.data).filter(x => x && x.id);
+    const cloud = (Array.isArray(rows) ? rows : []).map(r => r.data).filter(x => x && x.id && _rnIsOwnProject(x));
     const byId = new Map(_rnLoad().map(e => [e.id, e]));
     let added = 0, enriched = 0;
     cloud.forEach(e => {
@@ -20536,6 +20613,59 @@ async function rnPull() {
     _rnSave(merged);
     return { ok: true, added, enriched, total: merged.length };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+// 1회 자동 마이그레이션: 옛 공유 테이블(research_notes)에서 이 프로젝트 기록만 회수 → 전용 테이블로 이관.
+// 공유 테이블은 읽기만·안 지움(무손실). 전용 테이블이 아직 없으면(SQL 미실행) push 실패 → 플래그 미설정 →
+// 다음 열람 때 재시도. 남의 행은 _rnIsOwnProject로 애초에 안 받는다.
+async function rnMigrateToOwnTable() {
+  if (localStorage.getItem(RN_MIGRATED_KEY)) return;
+  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return;
+  try { // 1) 옛 공유 테이블에서 내 프로젝트 기록만 읽어 로컬에 union 병합(다른 기기가 거기에만 남긴 것 회수)
+    const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE_LEGACY}?select=data&order=created_at.asc&limit=100000`, { headers: h });
+    if (res.ok) {
+      const rows = await res.json();
+      const inc = (Array.isArray(rows) ? rows : []).map(r => r.data).filter(x => x && x.id && _rnIsOwnProject(x));
+      if (inc.length) {
+        const byId = new Map(_rnLoad().map(e => [e.id, e]));
+        let added = 0;
+        inc.forEach(e => { if (!byId.has(e.id)) { byId.set(e.id, e); added++; } });
+        if (added) { const merged = [...byId.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); _rnSave(merged); }
+      }
+    }
+  } catch (e) {}
+  const r = await rnPushAll(); // 2) 로컬 전체를 전용 테이블로 업로드(테이블 없으면 실패 → 플래그 미설정 → 재시도)
+  if (r && r.ok) localStorage.setItem(RN_MIGRATED_KEY, new Date().toISOString());
+}
+// (선택) 옛 공유 테이블에서 "전용 테이블로 이미 이관된 내 프로젝트 행"만 지우는 안전 SQL을 복사.
+// 가드 2중: project_name = 이 앱 AND id가 전용 테이블에 존재. 이관 전이면 0건, 자매 앱 행은 절대 안 건드림.
+// 파괴적 SQL이라 자동 실행하지 않는다 — 미리보기(count)로 개수 확인 후 사용자가 직접 실행.
+function rnCopyLegacyCleanupSql() {
+  const p = String(RN_PROJECT_NAME).replace(/'/g, "''");
+  const sql = `-- 옛 공유 테이블(${RESEARCH_NOTES_TABLE_LEGACY})에서 이 앱(${RESEARCH_NOTES_TABLE})으로 이관된 내 행만 정리
+-- 자매 앱(어학 마스터) 행은 project_name 가드로 절대 안 지워짐. 반드시 (1) 미리보기로 개수 확인 후 (2) 삭제.
+
+-- 1) 미리보기 — 지워질 행 수 먼저 확인 (이관 전이면 0)
+select count(*) as will_delete
+from public.${RESEARCH_NOTES_TABLE_LEGACY} r
+where r.data->>'project_name' = '${p}'
+  and exists (select 1 from public.${RESEARCH_NOTES_TABLE} m where m.id = r.id);
+
+-- 2) 실제 삭제 — 위 개수를 확인한 뒤에만 실행
+delete from public.${RESEARCH_NOTES_TABLE_LEGACY} r
+where r.data->>'project_name' = '${p}'
+  and exists (select 1 from public.${RESEARCH_NOTES_TABLE} m where m.id = r.id);`;
+  _aiCopyToClipboard(sql, '📋 공유 테이블 정리 SQL 복사됨 · Supabase SQL 편집기에서 (1)미리보기 후 (2)삭제 실행');
+}
+// 노트북 열 때 부트스트랩: 로컬 즉시 표시 → (클라우드 있으면) 1회 이관 → 제네시스 보장 → 재렌더 + 자동합치기.
+// 제네시스는 클라우드가 있으면 이관 완료(플래그 set) 뒤에만 만든다 → 네트워크 실패로 아직 이관 못했을 때
+// 성급한 중복 genesis 방지(신선한 기기에서 옛 기록을 못 받은 채 새 genesis를 찍는 사고 예방).
+async function _rnBootstrapNotebook() {
+  rnRenderList();
+  const hasCloud = !!getSupabaseConfig();
+  if (hasCloud) { try { await rnMigrateToOwnTable(); } catch (e) {} }
+  if (!hasCloud || localStorage.getItem(RN_MIGRATED_KEY)) await _rnEnsureGenesis();
+  rnRenderList();
+  _rnAutoSync();
 }
 // ── 지난 개발 이력(UPDATE_HISTORY)을 소급 기록으로 가져오기(백데이팅 아님 — 작성일=지금, 서술=버전 로그 재구성) ──
 async function rnImportUpdateHistory() {
@@ -20700,6 +20830,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm" onclick="rnImportUpdateHistory()">📜 지난 개발 이력 가져오기</button>
           <button class="ui-btn sm" onclick="rnBackfillTsa()" title="RFC3161 공인 타임스탬프(TSA) 요청 — rfc3161-timestamp Edge Function 배포 필요">⏱️ 공인 타임스탬프 받기</button>
           <button class="ui-btn sm" onclick="rnDownloadInstructionDoc()" title="이 연구노트 시스템을 다른 앱에 이식하는 완전 통합 지시문(Markdown) 다운로드">📄 연구노트 지시문 받기</button>
+          <button class="ui-btn sm" onclick="rnCopyLegacyCleanupSql()" title="옛 공유 테이블(research_notes)에서 전용 테이블로 이관 완료된 이 앱 행만 지우는 안전 SQL 복사 — 자동 실행 안 함, 미리보기 후 직접 실행">🧹 공유 테이블 정리 SQL</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <select id="rnFilterType" onchange="rnSetFilter()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px">${['<option value="">모든 유형</option>'].concat(RN_EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`)).join('')}</select>
@@ -20713,7 +20844,7 @@ function rnOpenNotebook() {
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
-  _rnEnsureGenesis().then(() => { rnRenderList(); _rnAutoSync(); });
+  _rnBootstrapNotebook();
 }
 // 연구노트 열 때 자동으로 클라우드와 합치기 → 다른 기기에서 받은 공인 타임스탬프·서명이 알아서 내려온다(사용자가 버튼 누를 필요 없음).
 // 조용히·비차단(fire-and-forget), 20초 throttle로 잦은 재호출 방지, 바뀐 게 있을 때만 알림.
@@ -21020,7 +21151,7 @@ async function rnCloudBackup() {
   if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 클라우드 백업을 못 합니다 · 설정에서 URL·키 저장 후 이용'); return; }
   showToast('☁️ 연구노트 클라우드 백업 중...');
   const r = await rnPushAll();
-  showToast(r.ok ? `✅ 클라우드 백업 완료 · ${r.count}건` : `⚠️ 백업 실패 · ${r.reason || ''} (research_notes 테이블 SQL 실행 여부 확인)`);
+  showToast(r.ok ? `✅ 클라우드 백업 완료 · ${r.count}건` : `⚠️ 백업 실패 · ${r.reason || ''} (research_notes_med 테이블 SQL 실행 여부 확인)`);
 }
 async function rnCloudRestore() {
   if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 불러올 수 없습니다'); return; }

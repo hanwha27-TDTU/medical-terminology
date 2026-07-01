@@ -374,6 +374,21 @@ Phone · Android · Chrome · id ab12cd34
 - **자동 전파(v1.83):** 연구노트 열 때 `_rnAutoSync()`(fire-and-forget, 20초 throttle)로 자동 pull → 사용자가 "합치기" 버튼을 안 눌러도 토큰이 내려온다. added/enriched 있을 때만 toast.
 - **일반화 교훈:** append-only 도메인에서 "생성 후 다른 기기가 붙이는 부가 증거(타임스탬프·서명 등)"가 있으면, 병합은 **신규 id 추가 + 기존 id의 해시-제외 필드 fill-if-empty** 두 갈래로 설계한다. 해시/원문에 들어가는 필드는 절대 병합하지 않는다(불변성 보장).
 
+#### 5.6.1 ⚠️AUDIT 멀티-앱 테이블 공유 오염 → 프로젝트 격리 + 전용 테이블 (v2.03)
+
+이 앱과 자매 앱(어학 마스터)이 **같은 Supabase 테이블 `research_notes`를 공유**해, 각자의 연구노트에 상대 앱 기록이 섞여 들어왔다. 각 엔트리에 `project_name`이 박혀 있었지만 **아무도 그걸로 거르지 않은 것**이 급소. 증상: 목록·총 건수·내보내기(CSV/JSON/MD)·공개 해시 매니페스트가 오염되고, 특히 **해시 체인 `previous_entry_hash`가 남의 엔트리를 물어** 새 기록의 체인이 꼬였다(진행형 오염).
+
+- **근본 원인 2겹:** ① 테이블 이름이 두 앱 모두 `research_notes`(물리적 1저장소 공유) ② `rnPull`/`_rnLoad`가 `project_name`을 안 걸러 전 행을 취급.
+- **조치(옵션 A = 전용 테이블 분리):**
+  - `RN_PROJECT_NAME`(불변·고유, `Dr. Bugeon의 Medical Note`)을 **스탬프·필터 공용** 상수로. `rnAddEntry`가 이 상수로 `project_name`을 박고, `_rnIsOwnProject(e)= e.project_name===RN_PROJECT_NAME || !e.project_name`(옛 무명 기록은 관대하게 자기 것).
+  - **`_rnLoad`를 단일 관문으로 필터** → 렌더·집계·검증·체인 prev·내보내기·`_rnManifest`·`_rnEnsureGenesis`·중복검사 전 경로가 자동 격리. `rnPull` incoming도 같은 필터로 **남의 행을 애초에 로컬에 안 씀**. 섞여 저장됐던 남의 행은 다음 `_rnSave` 때 자동 정리(내 기록 유실 0).
+  - **전용 테이블 `research_notes_med`로 이사**(`RESEARCH_NOTES_TABLE` 변경) + `RESEARCH_NOTES_TABLE_LEGACY='research_notes'`. `rnMigrateToOwnTable()`이 첫 실행 때 옛 공유 테이블에서 **자기 프로젝트 행만** 회수→union 병합→전용 테이블 push(옛 테이블 **안 지움**·무손실). 완료 플래그 `RN_MIGRATED_KEY`(기기별). 전용 테이블 미생성(SQL 미실행)이면 push 실패→플래그 미설정→다음 열람 재시도.
+  - **부트스트랩 순서가 중요**: `_rnBootstrapNotebook`은 로컬 즉시 렌더 → (클라우드 있으면) 마이그레이션 → **제네시스는 이관 완료(플래그 set) 뒤에만** → 재렌더 → autoSync. 신선한 기기에서 옛 기록을 못 받은 채 새 genesis를 찍는 **중복 제네시스 사고**를 막는다.
+  - **연결 지점 전부 동반 수정(도메인 parity처럼):** `computeSchemaDrift`·`checkLiveSchema` 테이블명, 백업 실패 토스트 문구, 임베디드 `SUPABASE_SCHEMA_SQL`(새 테이블 DDL), **CI `scripts/build-research-manifest.mjs`**(테이블+project 필터). 한 곳만 놓치면 "컬럼 없음" 오탐·매니페스트 오염이 재발.
+  - **정리 SQL은 복사 전용:** `rnCopyLegacyCleanupSql()`은 **전용 테이블로 이관된 내 행만**(`exists`) + **내 `project_name`만** 지우는 가드형 DELETE를 클립보드로 준다(자동 실행 금지·미리보기 count 후 직접 실행). 이관 전이면 0건, 자매 앱 행 불건드림.
+- **불변성 존중(소급 수정 금지):** 오염 시기 과거 엔트리의 `previous_entry_hash`가 숨겨진 남의 엔트리를 가리켜 검증 시 `chain_break`가 뜰 수 있으나, 엔트리는 불변(해시에 prev 포함)이라 **고치지 않고 오염의 흔적으로 둔다** — 격리 이후 새 기록부터 정상.
+- **일반 교훈:** 여러 앱이 한 백엔드를 공유할 때 `project_name` 같은 소유 태그는 **박기만 하면 무의미** — **읽기 관문(_rnLoad)·pull·매니페스트·마이그레이션 모두에서 필터**해야 격리다. "우연히 안 섞임"(상대가 먼저 이사)과 "설계상 격리"는 다르다. 소유키는 스탬프와 필터가 **같은 불변 상수**를 공유해야 한다(APP_INFO.name 같은 가변값에 묶으면 향후 리네임에 과거 기록이 숨겨짐).
+
 ---
 
 
