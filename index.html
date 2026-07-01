@@ -17706,7 +17706,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.67',
+  version: '1.68',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17715,7 +17715,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.67 — "실제 DB 점검" 추가 (진짜 Supabase와 대조)',
+    title: '최신 · v1.68 — 연구노트(특허 증거용) 시스템 추가',
+    items: [
+      '개발자 정보에 "📓 연구노트 열기" 버튼을 넣었습니다. AI가 도와줬지만 내가 생각하고 결정한 흔적을 사람/AI/최종결정으로 나눠 기록합니다. 각 기록은 SHA-256 해시 + 이전 기록 해시로 체인을 이뤄 변조하면 검증에서 드러납니다.',
+      '원본은 절대 덮어쓰지 않고(정정·삭제는 원본을 가리키는 새 기록으로 추가), 타임라인·필터·상세 보기, JSON/CSV/Markdown 내보내기와 인쇄(PDF), 해시 검증을 제공합니다. 모두 오프라인로컬에 저장됩니다.',
+      '주의: 법적 보증이 아니라 향후 특허 검토를 위한 "구조화된 증거 로그"입니다. 앱 밖의 AI 대화는 앱이 볼 수 없어 빠른 입력 폼으로 기록합니다.',
+    ]
+  },
+  {
+    title: 'v1.67 — "실제 DB 점검" 추가 (진짜 Supabase와 대조)',
     items: [
       '기존 자기점검은 앱 안의 SQL 텍스트와 대조했는데, 이제 개발자 정보에 "🔄 실제 DB 점검" 버튼을 추가해 진짜 Supabase에 질의하고 실제 클라우드에 컬럼이 있는지 확인합니다. "SQL은 맞는데 그 SQL을 아직 Supabase에서 안 돌린" 경우(=실제 DB엔 컬럼 없음 → 저장 실패)를 잡아줍니다.',
       '없는 컬럼이 있으면 어느 테이블의 어떤 컬럼인지 ⚠️로 알려주고, 아래 SQL을 실행하라고 안내합니다. Supabase 설정이 없으면 점검을 건너뜁니다.',
@@ -19225,6 +19233,333 @@ function _schemaDriftLoadCheck() {
   } catch (e) { /* 자기점검 실패는 앱 동작에 영향 주지 않음 */ }
 }
 
+// ============ 연구노트 (특허 증거용 구조화 로그) — 원본 불변 · 해시 체인 · append-only ============
+// 주의(UI에도 표기): 법적 보증이 아니라, 향후 특허 검토를 위한 "구조화된 증거 로그"다.
+const RESEARCH_NOTES_KEY = 'drbugeon_research_notes';
+const RN_EVENT_TYPES = ['idea','prompt','ai_output','human_review','code_change','test','bug','fix','design_decision','patent_claim_candidate','export','correction'];
+let _rnFilter = { event_type: '', feature: '', model: '', patent: false, from: '', to: '' };
+
+function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a : []; }
+function _rnSave(arr) { safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr)); }
+function _rnUuid() {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  try {
+    const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+    const h = [...b].map(x => x.toString(16).padStart(2, '0'));
+    return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+  } catch (e) { return 'rn-' + Date.now() + '-' + Math.floor(Math.random() * 1e9); }
+}
+function _rnSha256Bytes(bytes) {
+  function rr(v, n) { return (v >>> n) | (v << (32 - n)); }
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const l = bytes.length, total = (((l + 8) >> 6) + 1) << 6;
+  const buf = new Uint8Array(total); buf.set(bytes); buf[l] = 0x80;
+  const dv = new DataView(buf.buffer); const bitLen = l * 8;
+  dv.setUint32(total - 4, bitLen >>> 0); dv.setUint32(total - 8, Math.floor(bitLen / 4294967296) >>> 0);
+  const w = new Uint32Array(64);
+  for (let i = 0; i < total; i += 64) {
+    for (let j = 0; j < 16; j++) w[j] = dv.getUint32(i + j * 4);
+    for (let j = 16; j < 64; j++) { const s0 = rr(w[j-15],7)^rr(w[j-15],18)^(w[j-15]>>>3); const s1 = rr(w[j-2],17)^rr(w[j-2],19)^(w[j-2]>>>10); w[j] = (w[j-16]+s0+w[j-7]+s1)|0; }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for (let j = 0; j < 64; j++) { const S1=rr(e,6)^rr(e,11)^rr(e,25); const ch=(e&f)^(~e&g); const t1=(h+S1+ch+K[j]+w[j])|0; const S0=rr(a,2)^rr(a,13)^rr(a,22); const maj=(a&b)^(a&c)^(b&c); const t2=(S0+maj)|0; h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0; }
+    h0=(h0+a)|0;h1=(h1+b)|0;h2=(h2+c)|0;h3=(h3+d)|0;h4=(h4+e)|0;h5=(h5+f)|0;h6=(h6+g)|0;h7=(h7+h)|0;
+  }
+  return [h0,h1,h2,h3,h4,h5,h6,h7].map(x => (x>>>0).toString(16).padStart(8,'0')).join('');
+}
+async function _rnSha256(str) {
+  const bytes = new TextEncoder().encode(String(str));
+  try { if (typeof crypto !== 'undefined' && crypto.subtle) { const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); } } catch (e) {}
+  return _rnSha256Bytes(bytes);
+}
+// entry_hash와 서명 블록(사후 추가)을 제외한 내용으로 해시 → 원본 변조 시 재계산값이 달라져 드러난다.
+async function _rnComputeHash(entry) {
+  const clone = { ...entry };
+  delete clone.entry_hash; delete clone.signature_status; delete clone.signed_by; delete clone.witness_name; delete clone.witness_signed_at;
+  return _rnSha256(JSON.stringify(stableForHash(clone)));
+}
+function _rnBlank(data) {
+  data = data || {};
+  return {
+    problem_statement: data.problem_statement || '', prior_limitation: data.prior_limitation || '',
+    human_idea: data.human_idea || '', ai_prompt_summary: data.ai_prompt_summary || '', ai_output_summary: data.ai_output_summary || '',
+    human_modification: data.human_modification || '', final_decision: data.final_decision || '', technical_effect: data.technical_effect || '',
+    test_method: data.test_method || '', test_result: data.test_result || '', failure_reason: data.failure_reason || '', next_action: data.next_action || '',
+    files: Array.isArray(data.files) ? data.files : [],
+    ai_metadata: Object.assign({ model_name:'', provider:'', conversation_id:'', prompt_hash_sha256:'', output_hash_sha256:'' }, data.ai_metadata || {}),
+    code_metadata: Object.assign({ git_commit_hash:'', branch_name:'', changed_files:[], diff_summary:'' }, data.code_metadata || {}),
+    patent_metadata: Object.assign({ possible_claim:'', novelty_point:'', inventive_step_point:'', industrial_applicability:'', inventor_human_contribution:'' }, data.patent_metadata || {}),
+  };
+}
+async function rnAddEntry(eventType, data, opts) {
+  opts = opts || {};
+  const notes = _rnLoad();
+  const prev = notes.length ? notes[notes.length - 1] : null;
+  const entry = Object.assign({
+    id: _rnUuid(), created_at: new Date().toISOString(), timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''),
+    project_name: (APP_INFO && APP_INFO.name) || 'Dr. Bugeon Medical Note', app_version: (APP_INFO && APP_INFO.version) || '',
+    feature_name: data && data.feature_name || '', event_type: RN_EVENT_TYPES.includes(eventType) ? eventType : 'design_decision',
+    corrects_id: opts.corrects_id || null, correction_type: opts.correction_type || null, deleted: false,
+    previous_entry_hash: prev ? prev.entry_hash : null, entry_hash: null,
+    signature_status: 'unsigned', signed_by: (data && data.signed_by) || '', witness_name: (data && data.witness_name) || '', witness_signed_at: '',
+  }, _rnBlank(data));
+  entry.entry_hash = await _rnComputeHash(entry);
+  notes.push(entry); _rnSave(notes);
+  return entry;
+}
+// 앱 내부 이벤트 자동 로깅용 공개 API(다른 코드가 호출 가능). 조용히 실패(로깅이 앱을 막지 않게).
+function logResearchEvent(eventType, data) { try { return rnAddEntry(eventType, data || {}); } catch (e) { return Promise.resolve(null); } }
+function _rnIsDeleted(id, notes) { return notes.some(n => n.corrects_id === id && n.correction_type === 'delete'); }
+async function rnVerifyChain() {
+  const notes = _rnLoad(); const issues = [];
+  for (let i = 0; i < notes.length; i++) {
+    const e = notes[i];
+    const recomputed = await _rnComputeHash(e);
+    if (recomputed !== e.entry_hash) issues.push({ index: i, id: e.id, type: 'hash_mismatch' });
+    const expectedPrev = i > 0 ? notes[i - 1].entry_hash : null;
+    if ((e.previous_entry_hash || null) !== (expectedPrev || null)) issues.push({ index: i, id: e.id, type: 'chain_break' });
+  }
+  return issues;
+}
+// ── 내보내기 ──
+function _rnMd(entry, notes) {
+  const p = entry.patent_metadata || {}, ai = entry.ai_metadata || {};
+  const files = (entry.files || []).map(f => `- ${f.file_name || ''} (${f.file_type || ''}) hash:${f.file_hash_sha256 || ''} — ${f.description || ''}`).join('\n') || '(없음)';
+  const del = _rnIsDeleted(entry.id, notes || _rnLoad()) ? ' [삭제표시됨(원본·해시 보존)]' : '';
+  return [
+    `# Research Notebook Entry${del}`, '',
+    `Entry ID: ${entry.id}`, `Created At: ${entry.created_at} (${entry.timezone})`, `Project: ${entry.project_name}`,
+    `Version: ${entry.app_version}`, `Feature: ${entry.feature_name}`, `Event Type: ${entry.event_type}${entry.corrects_id ? ` (corrects ${entry.corrects_id} · ${entry.correction_type || ''})` : ''}`, '',
+    `## 1. Problem`, entry.problem_statement || '', '', `## 2. Prior Limitation`, entry.prior_limitation || '', '',
+    `## 3. Human Idea`, entry.human_idea || '', '', `## 4. AI Assistance`, `- Prompt: ${entry.ai_prompt_summary || ''}`, `- Output: ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, '',
+    `## 5. Human Modification`, entry.human_modification || '', '', `## 6. Final Technical Decision`, entry.final_decision || '', '',
+    `## 7. Technical Effect`, entry.technical_effect || '', '', `## 8. Test Method`, entry.test_method || '', '', `## 9. Test Result`, entry.test_result || (entry.failure_reason ? ('실패: ' + entry.failure_reason) : ''), '',
+    `## 10. Patent Relevance`, `- Possible claim: ${p.possible_claim || ''}`, `- Novelty: ${p.novelty_point || ''}`, `- Inventive step: ${p.inventive_step_point || ''}`, `- Industrial applicability: ${p.industrial_applicability || ''}`, `- Human contribution: ${p.inventor_human_contribution || ''}`, '',
+    `## 11. Attachments`, files, '', `## 12. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`, `- signature: ${entry.signature_status} ${entry.signed_by ? ('by ' + entry.signed_by) : ''}`, ''
+  ].join('\n');
+}
+function _rnCsv(notes) {
+  const cols = ['id','created_at','timezone','app_version','feature_name','event_type','corrects_id','correction_type','problem_statement','prior_limitation','human_idea','ai_prompt_summary','ai_output_summary','human_modification','final_decision','technical_effect','test_method','test_result','failure_reason','next_action','patent_novelty','patent_inventive','model_name','previous_entry_hash','entry_hash'];
+  const esc = v => { const s = String(v == null ? '' : v).replace(/"/g, '""'); return `"${s}"`; };
+  const rows = notes.map(e => cols.map(c => {
+    if (c === 'patent_novelty') return esc((e.patent_metadata || {}).novelty_point);
+    if (c === 'patent_inventive') return esc((e.patent_metadata || {}).inventive_step_point);
+    if (c === 'model_name') return esc((e.ai_metadata || {}).model_name);
+    return esc(e[c]);
+  }).join(','));
+  return cols.join(',') + '\n' + rows.join('\n');
+}
+// ── 연구노트 UI ──
+const RN_FORM_FIELDS = [
+  { group: '기본', fields: [['feature_name', '기능/주제명', 'input'], ['event_type', '이벤트 유형', 'select']] },
+  { group: '문제·한계', fields: [['problem_statement', '문제 (왜 필요한가)', 'ta'], ['prior_limitation', '기존 한계', 'ta']] },
+  { group: '사람 기여 👤', fields: [['human_idea', '사람의 아이디어', 'ta'], ['human_modification', '사람이 AI 결과를 수정한 점', 'ta'], ['final_decision', '최종 결정 (사람)', 'ta']] },
+  { group: 'AI 기여 🤖', fields: [['ai_prompt_summary', 'AI 프롬프트 요약', 'ta'], ['ai_output_summary', 'AI 출력 요약', 'ta'], ['ai_model_name', 'AI 모델명', 'input'], ['ai_provider', 'AI 제공자', 'input'], ['ai_conversation_id', '대화/세션 ID', 'input']] },
+  { group: '효과·검증', fields: [['technical_effect', '기술적 효과', 'ta'], ['test_method', '테스트 방법', 'input'], ['test_result', '테스트 결과', 'ta'], ['failure_reason', '실패 원인 (있으면)', 'input'], ['next_action', '다음 행동', 'input']] },
+  { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta']] },
+  { group: '코드·첨부 메타', fields: [['code_git', 'git commit hash', 'input'], ['code_branch', '브랜치', 'input'], ['code_diff', 'diff 요약', 'input'], ['files_note', '첨부 (파일명·설명, 한 줄에 하나)', 'ta']] },
+];
+function rnDownload(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+async function _rnEnsureGenesis() {
+  if (_rnLoad().length) return;
+  await rnAddEntry('design_decision', {
+    feature_name: '연구노트 시스템 도입', problem_statement: 'AI 보조 개발에서 사람의 발명 기여를 자동으로 남길 장치가 없었다.',
+    human_idea: '개발 이벤트를 사람/AI/최종결정으로 분리해 해시 체인으로 append-only 기록하는 앱 내장 연구노트를 설계.',
+    ai_output_summary: 'AI가 데이터 모델·해시 체인·내보내기 구조를 제안.', final_decision: '원본 불변 + 정정 엔트리 + SHA-256 체인 + JSON/CSV/MD/인쇄 내보내기로 확정.',
+    technical_effect: '변조 시 재계산 해시가 달라져 드러나고, 사람의 결정 흔적이 시간순으로 남는다.',
+    patent_metadata: { inventor_human_contribution: '증거 구조·필드 설계·최종 결정은 사람이 수행.' },
+  });
+}
+function rnOpenNotebook() {
+  document.getElementById('researchNoteModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'researchNoteModal'; overlay.className = 'developer-modal-overlay';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="font-size:17px;font-weight:900;color:var(--text)">📓 연구노트 (특허 증거용 로그)</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">AI가 도와줬지만 <b>내가 생각하고 결정한 흔적</b>을 시간순·해시체인으로 남깁니다. <b>법적 보증이 아니라</b> 향후 특허 검토용 구조화 증거 로그입니다.</div>
+          </div>
+          <button onclick="document.getElementById('researchNoteModal').remove()" title="닫기" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer;flex-shrink:0">×</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 새 기록</button>
+          <button class="ui-btn sm safe" onclick="rnRunVerify()">🔒 해시 검증</button>
+          <button class="ui-btn sm" onclick="rnExport('json')">JSON</button>
+          <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
+          <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
+          <button class="ui-btn sm" onclick="rnExport('print')">🖨️ 인쇄(PDF)</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <select id="rnFilterType" onchange="rnSetFilter()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px">${['<option value="">모든 유형</option>'].concat(RN_EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`)).join('')}</select>
+          <input id="rnFilterFeature" oninput="rnSetFilter()" placeholder="기능명 필터" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;width:120px">
+          <input id="rnFilterModel" oninput="rnSetFilter()" placeholder="AI 모델 필터" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;width:110px">
+          <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px"><input type="checkbox" id="rnFilterPatent" onchange="rnSetFilter()"> 특허 관련만</label>
+        </div>
+      </div>
+      <div id="rnListBody" style="padding:14px 16px 20px"></div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  _rnEnsureGenesis().then(rnRenderList);
+}
+function rnSetFilter() {
+  _rnFilter.event_type = document.getElementById('rnFilterType')?.value || '';
+  _rnFilter.feature = (document.getElementById('rnFilterFeature')?.value || '').trim().toLowerCase();
+  _rnFilter.model = (document.getElementById('rnFilterModel')?.value || '').trim().toLowerCase();
+  _rnFilter.patent = !!document.getElementById('rnFilterPatent')?.checked;
+  rnRenderList();
+}
+function _rnMatch(e) {
+  if (_rnFilter.event_type && e.event_type !== _rnFilter.event_type) return false;
+  if (_rnFilter.feature && !String(e.feature_name || '').toLowerCase().includes(_rnFilter.feature)) return false;
+  if (_rnFilter.model && !String((e.ai_metadata || {}).model_name || '').toLowerCase().includes(_rnFilter.model)) return false;
+  if (_rnFilter.patent) { const p = e.patent_metadata || {}; if (!(e.event_type === 'patent_claim_candidate' || p.novelty_point || p.inventive_step_point || p.possible_claim)) return false; }
+  return true;
+}
+function rnRenderList() {
+  const box = document.getElementById('rnListBody'); if (!box) return;
+  const notes = _rnLoad();
+  const shown = notes.filter(_rnMatch).slice().reverse();
+  const total = notes.length;
+  if (!shown.length) { box.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:16px 2px">기록이 없습니다. "➕ 새 기록"으로 시작하세요. (전체 ${total}건)</div>`; return; }
+  box.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">표시 ${shown.length} / 전체 ${total}건 · 최신순</div>` + shown.map(e => rnCardHtml(e, notes)).join('');
+}
+function rnCardHtml(e, notes) {
+  const del = _rnIsDeleted(e.id, notes);
+  const p = e.patent_metadata || {};
+  const patentTag = (e.event_type === 'patent_claim_candidate' || p.novelty_point || p.inventive_step_point) ? `<span style="background:rgba(217,119,6,0.15);color:#b45309;border:1px solid rgba(217,119,6,0.5);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700">🏷️ 특허</span>` : '';
+  const corr = e.corrects_id ? `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:1px 7px;font-size:10px;color:var(--text3)">↻ 정정(${escapeHtml(e.correction_type || '')})</span>` : '';
+  const summary = escapeHtml(e.final_decision || e.human_idea || e.problem_statement || e.ai_output_summary || '(내용 없음)').slice(0, 120);
+  return `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface)${del ? ';opacity:.6' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div style="min-width:0">
+          <div style="font-weight:800;color:var(--text);font-size:13px${del ? ';text-decoration:line-through' : ''}">${escapeHtml(e.feature_name || '(제목 없음)')} <span style="font-size:10px;color:var(--text3);font-weight:600">· ${escapeHtml(e.event_type)}</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${escapeHtml(String(e.created_at || '').replace('T', ' ').slice(0, 19))} · v${escapeHtml(e.app_version || '')}${del ? ' · <b style="color:#dc2626">삭제표시(원본·해시 보존)</b>' : ''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">${summary}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">${patentTag}${corr}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px">
+        <button class="ui-btn sm" onclick="rnShowDetail('${e.id}')">상세</button>
+        <button class="ui-btn sm" onclick="rnMark('${e.id}','patent')">🏷️ 특허 후보</button>
+        <button class="ui-btn sm" onclick="rnMark('${e.id}','decision')">＋ 사람 결정</button>
+        <button class="ui-btn sm" onclick="rnOpenForm(null,{corrects_id:'${e.id}',correction_type:'amend'})">↻ 정정</button>
+        ${del ? '' : `<button class="ui-btn sm danger" onclick="rnMark('${e.id}','delete')">삭제표시</button>`}
+      </div>
+    </div>`;
+}
+function rnFieldHtml(key, label, kind) {
+  const IS = `width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;box-sizing:border-box`;
+  if (kind === 'select') return `<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${label}</label><select id="rnf_${key}" style="${IS}">${RN_EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div>`;
+  if (kind === 'ta') return `<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${label}</label><textarea id="rnf_${key}" rows="2" style="${IS};resize:vertical"></textarea></div>`;
+  return `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${label}</label><input id="rnf_${key}" style="${IS}"></div>`;
+}
+function rnOpenForm(prefill, opts) {
+  opts = opts || {}; prefill = prefill || {};
+  document.getElementById('rnFormModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rnFormModal'; overlay.className = 'developer-modal-overlay'; overlay.style.zIndex = '1002';
+  const groups = RN_FORM_FIELDS.map(g => `
+    <div style="font-size:12px;font-weight:800;color:var(--accent);margin:12px 0 6px">${g.group}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${g.fields.map(f => rnFieldHtml(f[0], f[1], f[2])).join('')}</div>`).join('');
+  const corrNote = opts.corrects_id ? `<div style="font-size:11px;color:#b45309;background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.4);border-radius:8px;padding:7px 10px;margin-bottom:8px">↻ 이것은 <b>정정 기록</b>입니다. 원본(${escapeHtml(opts.corrects_id).slice(0, 8)}…)은 그대로 보존되고, 이 항목이 새로 추가됩니다.</div>` : '';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div><div style="font-size:16px;font-weight:900;color:var(--text)">➕ 연구노트 기록</div><div style="font-size:11px;color:var(--text3);margin-top:2px">채운 항목만 저장됩니다 · 저장 시 SHA-256 해시로 체인에 연결</div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button class="ui-btn primary" onclick='rnSubmitForm(${JSON.stringify(opts)})'>💾 저장</button>
+          <button onclick="document.getElementById('rnFormModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+        </div>
+      </div>
+      <div style="padding:14px 18px 20px">${corrNote}${groups}</div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  Object.keys(prefill).forEach(k => { const el = document.getElementById('rnf_' + k); if (el) el.value = prefill[k]; });
+}
+function _rnV(id) { return document.getElementById('rnf_' + id)?.value?.trim() || ''; }
+async function rnSubmitForm(opts) {
+  opts = opts || {};
+  const filesNote = _rnV('files_note');
+  const data = {
+    feature_name: _rnV('feature_name'), problem_statement: _rnV('problem_statement'), prior_limitation: _rnV('prior_limitation'),
+    human_idea: _rnV('human_idea'), human_modification: _rnV('human_modification'), final_decision: _rnV('final_decision'),
+    ai_prompt_summary: _rnV('ai_prompt_summary'), ai_output_summary: _rnV('ai_output_summary'),
+    technical_effect: _rnV('technical_effect'), test_method: _rnV('test_method'), test_result: _rnV('test_result'), failure_reason: _rnV('failure_reason'), next_action: _rnV('next_action'),
+    ai_metadata: { model_name: _rnV('ai_model_name'), provider: _rnV('ai_provider'), conversation_id: _rnV('ai_conversation_id'), prompt_hash_sha256: '', output_hash_sha256: '' },
+    code_metadata: { git_commit_hash: _rnV('code_git'), branch_name: _rnV('code_branch'), changed_files: [], diff_summary: _rnV('code_diff') },
+    patent_metadata: { possible_claim: _rnV('patent_possible_claim'), novelty_point: _rnV('patent_novelty'), inventive_step_point: _rnV('patent_inventive'), industrial_applicability: _rnV('patent_industrial'), inventor_human_contribution: _rnV('patent_human') },
+    files: filesNote ? filesNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => ({ file_name: l, file_type: '', file_path: '', file_hash_sha256: '', description: '' })) : [],
+  };
+  const evt = document.getElementById('rnf_event_type')?.value || (opts.corrects_id ? 'correction' : 'design_decision');
+  await rnAddEntry(evt, data, opts);
+  document.getElementById('rnFormModal')?.remove();
+  showToast('📓 연구노트 기록 저장됨 (해시 체인 연결)');
+  rnRenderList();
+}
+async function rnMark(id, kind) {
+  const notes = _rnLoad(); const orig = notes.find(n => n.id === id); if (!orig) return;
+  if (kind === 'delete') {
+    showConfirm('이 기록을 <b>삭제표시</b>할까요?<br><span style="font-size:11px;color:var(--text3)">원본과 해시는 보존되고, 삭제 정정 기록이 추가됩니다(조용한 삭제 없음).</span>', async () => {
+      await rnAddEntry('correction', { feature_name: orig.feature_name, final_decision: '이 기록을 삭제표시함(원본 보존)' }, { corrects_id: id, correction_type: 'delete' });
+      rnRenderList();
+    });
+    return;
+  }
+  if (kind === 'patent') { rnOpenForm({ feature_name: orig.feature_name, patent_novelty: (orig.patent_metadata || {}).novelty_point || '', event_type: 'patent_claim_candidate' }, { corrects_id: id, correction_type: 'patent' }); return; }
+  if (kind === 'decision') { rnOpenForm({ feature_name: orig.feature_name }, { corrects_id: id, correction_type: 'decision' }); return; }
+}
+function rnShowDetail(id) {
+  const notes = _rnLoad(); const e = notes.find(n => n.id === id); if (!e) return;
+  document.getElementById('rnDetailModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rnDetailModal'; overlay.className = 'developer-modal-overlay'; overlay.style.zIndex = '1002';
+  const pre = escapeHtml(_rnMd(e, notes));
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div><div style="font-size:15px;font-weight:900;color:var(--text)">🔎 기록 상세</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${escapeHtml(e.id)}</div></div>
+        <button onclick="document.getElementById('rnDetailModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:14px 18px 20px">
+        <pre style="white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:11px;line-height:1.6">${pre}</pre>
+        <button class="ui-btn sm" style="margin-top:8px" onclick="rnDownload('research_${escapeHtml(e.id).slice(0,8)}.md', _rnMd(_rnLoad().find(n=>n.id==='${e.id}'), _rnLoad()), 'text/markdown')">이 기록 Markdown 저장</button>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+function rnExport(fmt) {
+  const notes = _rnLoad(); if (!notes.length) { showToast('내보낼 기록이 없습니다'); return; }
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (fmt === 'json') { rnAddEntry('export', { feature_name: '내보내기', final_decision: 'JSON export' }); rnDownload(`research_notebook_${stamp}.json`, JSON.stringify(_rnLoad(), null, 2), 'application/json'); return; }
+  if (fmt === 'csv') { rnAddEntry('export', { feature_name: '내보내기', final_decision: 'CSV export' }); rnDownload(`research_notebook_${stamp}.csv`, _rnCsv(_rnLoad()), 'text/csv;charset=utf-8'); return; }
+  if (fmt === 'md') { const all = _rnLoad(); const md = all.map(e => _rnMd(e, all)).join('\n\n---\n\n'); rnAddEntry('export', { feature_name: '내보내기', final_decision: 'Markdown export' }); rnDownload(`research_notebook_${stamp}.md`, md, 'text/markdown;charset=utf-8'); return; }
+  if (fmt === 'print') {
+    const all = _rnLoad(); const html = all.map(e => `<pre style="white-space:pre-wrap;font-size:12px;page-break-after:always">${escapeHtml(_rnMd(e, all))}</pre>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) { showToast('팝업이 차단되어 인쇄창을 열 수 없습니다'); return; }
+    w.document.write(`<html><head><title>Research Notebook ${stamp}</title><meta charset="utf-8"></head><body>${html}<script>window.onload=function(){window.print();}<\/script></body></html>`);
+    w.document.close(); return;
+  }
+}
+async function rnRunVerify() {
+  const issues = await rnVerifyChain();
+  if (!issues.length) { showToast(`✅ 해시 체인 무결 — ${_rnLoad().length}건 전부 검증 통과`); return; }
+  showToast(`⚠️ 무결성 문제 ${issues.length}건 감지 (변조/체인 끊김) — 콘솔 확인`);
+  console.warn('연구노트 무결성 문제', issues);
+}
+
+
 function showDeveloperInfo() {
   document.getElementById('developerInfoModal')?.remove();
   const overlay = document.createElement('div');
@@ -19274,6 +19609,11 @@ function showDeveloperInfo() {
           ${devMetaCell('코드 최종 수정', APP_INFO.updatedAt)}
         </div>
         <div style="margin-bottom:16px">${devMetaCell('현재 파일명', currentFileName())}</div>
+        <div style="margin-bottom:16px;padding:12px;border:1px solid rgba(217,119,6,0.4);border-radius:10px;background:rgba(217,119,6,0.06)">
+          <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px">📓 연구노트 (특허 증거용)</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">AI가 도와줬지만 <b>내가 생각하고 결정한 흔적</b>을 사람/AI/최종결정으로 나눠 SHA-256 해시체인으로 남깁니다(원본 불변·append-only). 법적 보증이 아니라 향후 특허 검토용 구조화 증거 로그입니다.</div>
+          <button onclick="rnOpenNotebook()" class="ui-btn primary sm">📓 연구노트 열기</button>
+        </div>
         <div class="update-history">
         <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">업데이트 이력 <span style="font-size:11px;font-weight:600;color:var(--text3)">전체 ${UPDATE_HISTORY.length}건</span></div>
         ${latestHtml}

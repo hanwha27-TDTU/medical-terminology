@@ -164,6 +164,14 @@ function resetLevel(id, ev) {
 
 > ⚠️AUDIT(드로어 4종 parity): 용어/약물/미생물/질병 드로어는 복붙으로 만든 4개 경로다. nav 카운트/이전·다음 버튼 disabled 계산, `_drawerXId` 저장 시 `Number()` 정규화 등을 4개 모두 같은 규칙으로 맞춘다(한 드로어만 `idx===-1` 가드/Number 정규화 누락 주의).
 
+### 10.6.9 연구노트(특허 증거용 append-only 해시체인) — v1.68
+
+- **원본 불변이 절대 규칙.** 수정·삭제도 원본을 건드리지 말고 **원본 id를 가리키는 새 정정 엔트리**(`corrects_id`+`correction_type: amend|decision|patent|delete`)로 추가. "삭제"는 delete 정정 엔트리 존재로 파생 판정(`_rnIsDeleted`) — 원본과 해시는 그대로 보존(조용한 삭제 금지).
+- **해시 체인:** 각 엔트리 `entry_hash = SHA-256(stableForHash(엔트리 − entry_hash − 서명블록))`, `previous_entry_hash = 직전 엔트리.entry_hash`. 검증(`rnVerifyChain`)은 전 엔트리 재계산 해시 일치 + prev 링크 일치 확인 → 변조 시 `hash_mismatch`/`chain_break`. 해시 대상에서 서명 블록(사후 추가)·entry_hash 자신은 제외.
+- **오프라인 SHA-256:** `crypto.subtle`(secure context) 우선, 없으면 순수 JS 폴백(`_rnSha256Bytes`, UTF-8 바이트). **폴백은 반드시 알려진 벡터(abc/빈문자/긴 한글)로 Node 단위테스트**(직접 구현은 틀리기 쉬움). UUID도 `crypto.randomUUID`→`getRandomValues` 폴백.
+- **"자동 로깅"의 정직한 한계:** 이 앱은 Claude Code 세션·외부 AI 채팅을 못 본다. 진짜 자동 가능한 건 **앱 내부 이벤트**(내보내기 등)뿐 → AI 협업 서사는 빠른 입력 폼(사람/AI/최종결정 분리)으로 기록. 확장용 공개 API `logResearchEvent(type,data)`(조용히 실패). UI·문구에 "법적 보증 아님 · 특허 검토용 구조화 증거 로그" 명시.
+- **PDF = 인쇄:** 라이브러리 없는 단일파일이라 진짜 PDF 생성 불가 → Markdown 렌더 HTML을 `window.open`+`print()`(팝업 차단 시 안내). JSON/CSV/MD는 Blob 다운로드. 저장은 localStorage(도메인 테이블 아님 → 스키마 드리프트 점검과 무관).
+
 ### 10.7 UI HTML은 대부분 JS 템플릿 리터럴 (백틱 주의)
 
 - 이 앱의 모달·카드·프레임·드로어 UI는 거의 다 `el.innerHTML = \`…\`` **백틱 템플릿 리터럴**로 생성된다. 그래서 그 안의 HTML 안내문에 **리터럴 백틱(\`)이나 세 개짜리 코드블록 표시를 그대로 넣으면 템플릿이 끊겨 JS가 깨진다**(실제로 발생; `node --check`가 잡았다). 필요하면 `\\\`` 이스케이프 또는 다른 표현으로. `${ }`도 의도치 않게 보간되지 않게 주의. **큰 UI 템플릿 문자열을 편집한 뒤에는 반드시 `node --check`.**
