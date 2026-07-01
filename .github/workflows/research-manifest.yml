@@ -1,0 +1,42 @@
+name: Research Hash Manifest
+
+# 발명 원문 없이 "해시·시각·서명·TSA만" 담은 매니페스트를 만들어 공개 Release에 첨부한다.
+# → GitHub이 각 Release에 시각을 찍어주므로, 발명 내용을 노출하지 않고도 "그 시각에 존재했음"을 공개 증명.
+# 실행: Actions 탭에서 수동(Run workflow). 아래 schedule 주석을 풀면 주기 실행도 가능.
+#
+# 필요 저장소 시크릿 (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL  = https://<프로젝트>.supabase.co
+#   SUPABASE_KEY  = anon 키(RLS 꺼진 현재) 또는 service_role 키(RLS 켠 뒤)
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 0 * * 1'   # 매주 월요일 00:00 UTC (원하면 주석 해제)
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build hash-only manifest (발명 원문 없음)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node scripts/build-research-manifest.mjs
+
+      - name: Publish to GitHub Release (공개 타임스탬프 앵커)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="manifest-$(date -u +%Y%m%dT%H%M%SZ)"
+          gh release create "$TAG" research_hash_manifest.json \
+            --title "Research Hash Manifest $TAG" \
+            --notes "발명 원문 없음 · 해시/시각/서명/TSA만. '이 해시들이 그 시각에 존재했음'의 공개 증명(신규성 안전)."
