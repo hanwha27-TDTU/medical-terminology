@@ -69,7 +69,7 @@ description: >-
 - **[references/ui-features.md](references/ui-features.md)** — UI/기능별 지침: 표 편집기, UI/DOM/상태 관리, 테이블 수정, YouTube IFrame/외부 API, 데이터 관리 화면, 검사일별 판정 기준.
 - **[references/import-backup-media.md](references/import-backup-media.md)** — 가져오기/내보내기/백업, 녹음 파일 처리.
 - **[references/agents-rules.md](references/agents-rules.md)** — 모든 앱개발에 반복 적용하는 전역 필수·금지·완료 보고 규칙(디자인 회귀 방지, 데이터 규칙, 동기화 모드, 로컬 캐시, 패치/quoting/Playwright 검증 원칙 등) + 데이터 유실 회귀 방지(전수감사 일반화).
-- **[references/reconstruction-spec.md](references/reconstruction-spec.md)** — 복원용 설계 명세서. 앱 HTML이 전부 사라져도 이 문서로 재구축 가능. 아키텍처, 7 도메인 데이터 모델(용어·약물·공식·미생물·주요 질환·노트 + 학습상태), 저장 계층 키 목록, 동기화 설계, 노트 시스템, 무결성 해시 함정, 재구축 체크리스트. **§10 불변조건 & 함정은 동기화/삭제/노트 변경 전 필독.**
+- **[references/reconstruction-spec.md](references/reconstruction-spec.md)** — 복원용 설계 명세서. 앱 HTML이 전부 사라져도 이 문서로 재구축 가능. 아키텍처, 7 도메인 데이터 모델(용어·약물·공식·미생물·주요 질환·노트 + 학습상태), 저장 계층 키 목록, 동기화 설계, 노트 시스템, 연구노트(특허 증거 로그: 해시 체인·ECDSA 서명·RFC3161 TSA·멀티-앱 격리·끊김 경위 주석 — 불변조건 19), 무결성 해시 함정, 재구축 체크리스트. **§10 불변조건 & 함정은 동기화/삭제/노트 변경 전 필독.**
 - **[references/install-deploy-guide.md](references/install-deploy-guide.md)** — 설치·배포 가이드. Supabase 프로젝트/SQL, Cloudinary unsigned preset, Edge Function `delete-cloudinary-image`(코드 포함), GitHub Pages 배포, 오류 해결표, 빠른 복구 절차.
 
 > **스킬 구성:** SKILL.md + 7개 참고문서(dev-workflow, storage-sync, ui-features, import-backup-media, agents-rules, reconstruction-spec, install-deploy-guide) 전체 포함. 모든 문서에는 2026-06-29 로직 전수감사 결과가 `⚠️AUDIT` 주의문구/불변조건으로 반영돼 있다.
