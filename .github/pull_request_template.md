@@ -27,3 +27,7 @@ CONFIG · STORAGE/IDB · SUPABASE SYNC · TERMS · DRUGS · FORMULAS · MICROBES
 
 ## 리뷰어가 집중해서 볼 부분
 -
+
+## 알려진 문제 / 후속
+<!-- 이번에 안 고친·남긴 문제, 후속 PR로 미룬 것. 없으면 "없음". (UPDATE_HISTORY·연구노트가 못 담는 '남은 것'을 여기 남긴다.) -->
+- 없음
