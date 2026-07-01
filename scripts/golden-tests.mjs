@@ -17,8 +17,9 @@ const failures = [];
 // index.html에서 `function NAME(...) { ... }` 선언 하나의 소스 문자열을 추출한다.
 // (중괄호 균형으로 본문 끝을 찾음 — 대상 순수 유틸들엔 문자열/정규식 내 중괄호가 없으니 충분.)
 function extractSource(name) {
-  const start = html.indexOf(`function ${name}(`);
+  let start = html.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`함수 ${name} 를 실행 코드에서 찾지 못함`);
+  if (html.slice(start - 6, start) === 'async ') start -= 6; // async 함수도 통째로(접두 포함)
   const braceOpen = html.indexOf('{', start);
   let depth = 0, i = braceOpen;
   for (; i < html.length; i++) {
@@ -135,8 +136,26 @@ goldenD('diseaseMatchKeys', dz, dzMatchRef,
   }
 }
 
+// ── 🔴 CRITICAL ZONE 잠금: _rnComputeHash — 해시 제외 목록 + 전체 해시 characterization ──
+// (a) 사후부착 18필드는 해시에 영향 없어야 하고(제외 목록 잠금) (b) 해시되는 필드는 영향 있어야 하며
+// (c) 고정 엔트리 → 고정 해시(직렬화+제외+SHA-256 전체 알고리즘 잠금). 실수로 바뀌면 CI 빨간불.
+// ⚠️ "의도된" 변경으로 실패 시: 전 엔트리 재베이스라인 경보 → 매니페스트 갱신 + 사용자 고지 후 기준 갱신(불변조건 19).
+{
+  let fn; try { fn = extractWithDeps('_rnComputeHash', ['_rnSha256Bytes', '_rnSha256', 'stableForHash']); } catch (e) { failures.push(`_rnComputeHash: 추출 실패 — ${e.message}`); }
+  if (fn) {
+    const base = { id: '1', created_at: 't', feature_name: 'X', event_type: 'idea', data: { ko: 'a' } };
+    // 18개 사후부착 필드(서명·TSA·server_time·witness) 전부 얹은 사본 — 해시가 변하면 안 됨.
+    const excluded = { ...base, entry_hash: 'ZZ', signature_status: 's', signed_by: 'b', tsa_token: 'T', server_time: 'sv', tsa_status: 'success', entry_hash_signature: 'sig', public_key_jwk: { x: 1 }, signature_algo: 'A', tsa_provider: 'p', tsa_request_hash: 'rh', tsa_timestamp: 'ts', tsa_error: 'e', witness_name: 'w', witness_email: 'we', witness_signature: 'ws', witness_signed_at: 'wa', witness_signed_at2: 'wa2' };
+    const changed = { ...base, feature_name: 'Y' }; // 해시 대상 필드 변경 — 해시가 달라져야 함
+    const [hb, he, hc] = await Promise.all([fn(base), fn(excluded), fn(changed)]);
+    check('_rnComputeHash 고정 해시(characterization)', hb, 'ed4e873bea31cfa5d5c575b20d142455340c5f8fef91db72dc8654d4000f86a5');
+    check('_rnComputeHash 사후부착 18필드 제외(해시 불변)', he, hb);
+    check('_rnComputeHash 해시대상 필드 변경 → 해시 달라짐', hc !== hb, true);
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 순수함수 14종(정규화 6 + 식별/매칭키 7 + stableForHash canonical 직렬화 고정)이 기준과 일치.');
+console.log('✅ 골든테스트 통과 — 15종(정규화 6 + 식별/매칭키 7 + stableForHash 직렬화 + _rnComputeHash 제외목록·전체해시)이 기준과 일치.');
