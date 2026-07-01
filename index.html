@@ -8459,7 +8459,7 @@ const DISEASE_SECTIONS = [
     { k: 'recurrence', label: '재발 가능성' },
     { k: 'chronicity', label: '만성화 가능성' },
     { k: 'prognosis', label: '예후', area: true },
-    { k: 'mortality_disability', label: '사망 / 장애 위험' },
+    { k: 'mortality_disability', label: '사망 / 장애 위험', area: true },
   ]},
   { key: 'complications', title: '합병증', icon: '⚠️', fields: [
     { k: 'acute', label: '급성 합병증', area: true },
@@ -18405,7 +18405,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.96',
+  version: '1.97',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18414,7 +18414,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.96 — 주요 질환: 중복 판정을 "한국어·영어 중 하나만 같아도"로 강화',
+    title: '최신 · v1.97 — 주요 질환: 편집 폼 "사망 / 장애 위험" 칸을 전체폭으로',
+    items: [
+      '질환 경과(Natural history) 섹션의 "사망 / 장애 위험" 입력칸이 좁아 문장이 잘리던 것을, 자연 경과·치료 경과·예후처럼 전체폭 입력칸으로 넓혔습니다.',
+    ]
+  },
+  {
+    title: 'v1.96 — 주요 질환: 중복 판정을 "한국어·영어 중 하나만 같아도"로 강화',
     items: [
       '질환 중복 판정을 더 강하게 바꿨습니다 — 한국어명·영어명·우즈벡명 중 하나라도 같으면 같은 질환으로 인식합니다(전엔 한 이름만 기준이라 나머지가 달라도 신규로 잡혔습니다).',
       '폼 저장 중복 체크·JSON 가져오기(신규만/덮어쓰기/비교 후 선택) 세 경로 모두에 적용했습니다. 둘 다(한국어·영어) 다른 진짜 별개 질환은 그대로 신규로 잡히니 오탐은 없습니다.',
