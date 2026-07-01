@@ -10,18 +10,22 @@ on:
       - 'scripts/check-index-scripts.mjs'
       - 'scripts/golden-tests.mjs'
       - 'scripts/check-schema-drift.mjs'
+      - 'scripts/check-version-bump.mjs'
   pull_request:
     paths:
       - 'index.html'
       - 'scripts/check-index-scripts.mjs'
       - 'scripts/golden-tests.mjs'
       - 'scripts/check-schema-drift.mjs'
+      - 'scripts/check-version-bump.mjs'
 
 jobs:
   check-index:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # check-version-bump이 base(origin/main) index.html과 비교
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -31,3 +35,7 @@ jobs:
         run: node scripts/golden-tests.mjs
       - name: 스키마 드리프트(propagation — normalize↔해시 payload)
         run: node scripts/check-schema-drift.mjs
+      - name: 버전 범프 강제(index.html 변경 시 +0.01 · 새 이력 · "최신 ·" 불변)
+        run: |
+          git fetch origin main --depth=1 || true
+          BASE_REF=origin/main node scripts/check-version-bump.mjs
