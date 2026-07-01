@@ -295,6 +295,7 @@
 13. **버전/이력**: `APP_INFO` + `UPDATE_HISTORY`.
 14. **tombstone 운영 전 도메인 등록**: prune/count/clear 3함수에 6개 tombstone 키 모두(불변조건 13).
 15. **연구노트(특허 증거 로그) 서브시스템**(불변조건 19): `_rnComputeHash`(SHA-256 체인)·`_rnSign`/`_rnVerifySig`(ECDSA P-256)·`_rnRequestTsa`/`_rnAttachTsa`(RFC3161 TSA, Supabase Edge Function 릴레이)·`rnAddEntry`(append-only)·전용 테이블 `research_notes_med` + `RN_PROJECT_NAME` 격리 필터(`_rnIsOwnProject`)·`rnMigrateToOwnTable`(옛 공유 테이블 1회 이관)·`rnVerifyChain`/`rnAnnotateChainBreaks`(끊김 경위 주석)·공개 해시 매니페스트(`_rnManifest` + CI `scripts/build-research-manifest.mjs`, 화이트리스트만). 상세 storage-sync §5.6~§5.6.2.
+    - **끊김 판정은 "순서 무관·댕글링 링크" 기준**(v2.16): `previous_entry_hash`가 로그에 실재하지 않는 해시(외부/오염)를 가리킬 때만 끊김. **정렬 배열상 '앞 기록'과 비교하지 말 것** — 지난 개발 이력 일괄 가져오기로 `created_at`이 밀리초까지 겹치면 병합·재조회마다 정렬이 임의로 바뀌어 **허수 끊김이 병합할수록 늘어난다**(실제 2→12 발생). genesis(previous=null)는 다기기 병합으로 여럿이어도 정상. 삭제는 가리키던 해시 소멸로, 내용 변조는 `hash_mismatch`로 여전히 탐지. 이 판정 규칙 교정은 **기존 엔트리·해시·서명·TSA 무변경**이라 증거력 영향 0(링크 재해석만).
 
 ---
 
