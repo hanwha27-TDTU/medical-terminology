@@ -18586,7 +18586,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.16',
+  version: '2.17',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18595,7 +18595,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.16 — 연구노트: 체인 "끊김" 오판이 병합할수록 늘던 문제 교정 + TSA 안내 개선',
+    title: '최신 · v2.17 — 유지보수: 개념·오답 노트 주석이 실제 구현과 어긋난 것 교정',
+    items: [
+      '코드 유지보수용 주석 하나를 실제 구현에 맞게 고쳤습니다(런타임·데이터·UI 영향 없음). 개념·오답 노트 모듈 상단 주석이 "로컬 저장 MVP이며 Supabase 동기화는 후속 단계"라고 오래된 설명을 달고 있었으나, 실제로는 이미 용어·약물·미생물·공식과 동일 방식으로 medical_notes 클라우드 동기화(기준본 메타·push/pull·삭제 tombstone·충돌 사본 보존)가 완전히 구현돼 있습니다. 유지보수자가 주석만 보고 "동기화 미구현"으로 오판하는 위험을 없앴습니다.',
+    ],
+  },
+  {
+    title: 'v2.16 — 연구노트: 체인 "끊김" 오판이 병합할수록 늘던 문제 교정 + TSA 안내 개선',
     items: [
       '체인 링크 "불연속(끊김)" 개수가 기기를 합칠수록 늘어나던 문제를 고쳤습니다. 원인은 변조가 아니라(내용 해시·서명·타임스탬프는 모두 무결) "끊김을 세는 규칙"이 정렬 순서에 의존했기 때문입니다. 지난 개발 이력을 한 번에 가져오면 여러 기록의 작성시각(created_at)이 밀리초까지 겹치는데, 그때 정렬 순서가 병합·재조회마다 임의로 바뀌면서 "정렬상 앞 기록"과 링크가 안 맞는 것을 매번 새 끊김으로 세었습니다.',
       '이제 끊김을 "순서와 무관하게" 판정합니다 — 어떤 기록의 previous 링크가 가리키는 해시가 이 로그 안에 아예 없을 때(=격리 이전 공유테이블의 외부/자매 앱 기록을 가리킴)만 진짜 끊김으로 셉니다. 그래서 기기를 몇 번을 합쳐도 개수가 늘지 않고, 여러 개의 genesis(previous 없음)도 정상으로 처리됩니다.',
@@ -23417,9 +23423,12 @@ initApp();
 
 <script>
 /* ─────────────────────────────────────────────
-   개념·오답 노트 MVP
+   개념·오답 노트(단권화 노트)
    - 의학용어앱 프레임 안에서 개념노트 + 오답블록 + 연결자료를 관리
-   - 이번 단계는 로컬 저장/전체 JSON 백업 포함 MVP이며 Supabase 직접 동기화는 후속 단계에서 분리
+   - 로컬 저장 + 전체 JSON 백업 + Supabase 동기화까지 구현됨.
+     초기엔 로컬-only MVP로 시작했으나 현재는 용어·약물·미생물·공식과 동일 방식으로
+     medical_notes 클라우드 동기화(canonical meta·push/pull·tombstone·충돌 사본 보존, 아래 §클라우드 동기화)를 포함한다.
+     (함수명 installIntegratedNotesMvp는 역사적 잔재 — 리네임 시 호출부 영향이 있어 그대로 둠.)
 ───────────────────────────────────────────── */
 (function installIntegratedNotesMvp() {
   const NOTE_STORAGE_KEY = 'dr_bugeon_integrated_notes_v1';
