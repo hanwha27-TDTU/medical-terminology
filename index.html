@@ -10264,6 +10264,14 @@ function renderDiseaseFrame(diseases = []) {
   const empty = document.getElementById('emptyState');
   if (!frame) return;
   const active = Array.isArray(diseases) ? diseases.filter(d => !d.deletedAt) : [];
+  // 가나다 원칙 유지 + 상위-하위 가족은 붙여서 배치: 가족 대표(상위질환) 이름으로 정렬하고,
+  // 같은 가족 안에서는 상위질환을 먼저·하위질환을 뒤에 둔다. (부모가 필터로 빠져도 전체에서 이름을 찾아 묶는다.)
+  const _dzById = new Map(getActiveDiseases().map(x => [Number(x.id), x]));
+  const _dzRoot = d => (Number(d.parent_id) ? (_dzById.get(Number(d.parent_id)) || d) : d);
+  active.sort((a, b) =>
+    diseaseDisplayName(_dzRoot(a)).localeCompare(diseaseDisplayName(_dzRoot(b)), 'ko')
+    || ((Number(a.parent_id) ? 1 : 0) - (Number(b.parent_id) ? 1 : 0))
+    || diseaseDisplayName(a).localeCompare(diseaseDisplayName(b), 'ko'));
   if (!active.length) {
     frame.innerHTML = '';
     if (empty && currentLibraryMode === 'diseases') {
@@ -10295,8 +10303,7 @@ function renderDiseaseFrame(diseases = []) {
   const _fIdx = buildFindingConceptIndex(); // 카드 주호소 → 용어 매칭용, 프레임당 1회
   // 상위질환별 하위 개수 + id→질환 맵(프레임당 1회) — 카드 "하위 N" 배지, 하위카드의 상위질환명 칩용.
   const _dzChildCount = {};
-  active.forEach(x => { const p = Number(x.parent_id); if (p) _dzChildCount[p] = (_dzChildCount[p] || 0) + 1; });
-  const _dzById = new Map(getActiveDiseases().map(x => [Number(x.id), x])); // 부모가 필터로 빠져도 이름 찾도록 전체에서 구성
+  active.forEach(x => { const p = Number(x.parent_id); if (p) _dzChildCount[p] = (_dzChildCount[p] || 0) + 1; }); // _dzById는 위 정렬부에서 이미 구성됨
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
@@ -10315,8 +10322,14 @@ function renderDiseaseFrame(diseases = []) {
           d.en_name ? `<span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'en')" title="클릭하여 복사">${escapeHtml(d.en_name)}</span>` : '',
           d.uz_name ? `<span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'uz')" title="클릭하여 복사">${escapeHtml(d.uz_name)}</span>` : ''
         ].filter(Boolean).join(' · ');
+        // 상위-하위 시각 구분: 상위질환=진한 강조 좌측 테두리, 하위질환=옅은 테두리+들여쓰기(딸린 느낌).
+        const _isParent = !!_dzChildCount[Number(d.id)];
+        const _isChild = !!Number(d.parent_id);
+        const _famStyle = _isParent
+          ? 'border-left:4px solid var(--accent);'
+          : (_isChild ? 'border-left:4px solid rgba(88,166,255,0.45);margin-left:22px;' : '');
         return `
-        <article class="drug-card" id="disease-card-${Number(d.id)}" onclick="openDiseaseDrawer(event, ${Number(d.id)})" title="질환 상세 보기">
+        <article class="drug-card" id="disease-card-${Number(d.id)}" onclick="openDiseaseDrawer(event, ${Number(d.id)})" title="질환 상세 보기"${_famStyle ? ` style="${_famStyle}"` : ''}>
           <div class="drug-head">
             <div>
               <div class="drug-name"><span class="copyable-text" onclick="copyDiseaseDisplay(event, ${Number(d.id)}, 'ko')" title="클릭하여 복사">${escapeHtml(diseaseDisplayName(d))}</span></div>
@@ -18352,7 +18365,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.91',
+  version: '1.92',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18361,7 +18374,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.91 — 주요 질환: 하위질환 카드에 상위질환 이름 표시',
+    title: '최신 · v1.92 — 주요 질환: 상위-하위 가족끼리 나란히 배치 + 카드 시각 구분',
+    items: [
+      '가나다 정렬 원칙은 그대로 두되, 상위-하위 관계가 있으면 가족(상위+하위)이 흩어지지 않고 나란히 모입니다. 가족 대표(상위질환) 이름으로 가나다 정렬하고, 같은 가족 안에서는 상위질환 먼저·하위질환을 바로 뒤에 둡니다.',
+      '카드 시각 구분: 상위질환은 진한 강조 좌측 테두리, 하위질환은 옅은 테두리 + 살짝 들여쓰기로 "딸린" 느낌을 줍니다. 독립 질환은 그대로입니다.',
+    ]
+  },
+  {
+    title: 'v1.91 — 주요 질환: 하위질환 카드에 상위질환 이름 표시',
     items: [
       '하위질환 카드의 배지가 그냥 "▸ 하위"였던 것을, 어떤 상위질환의 하위인지 이름까지 보이도록 바꿨습니다(예: "↑ 동기능부전증후군의 하위").',
       '배지를 누르면 상위-하위 구조 트리가 열립니다. (상위질환이 필터로 목록에서 빠져 있어도 이름은 정확히 표시됩니다.)',
