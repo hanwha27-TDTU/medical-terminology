@@ -8760,6 +8760,9 @@ function canonicalDiseaseHashPayload(diseases) {
     .sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }))
     .map(d => stableForHash({
       id: String(d.id),
+      // parent_id(상위-하위질환 관계)는 사용자 편집 필드이자 diseaseToRow가 저장하는 값 →
+      // 해시에 포함해야 재부모지정이 canonical 검증·기기비교에 잡힌다(누락 시 "일치"로 오판).
+      parent_id: (Number.isFinite(Number(d.parent_id)) && Number(d.parent_id) > 0) ? Number(d.parent_id) : null,
       ko_name: d.ko_name || '',
       en_name: d.en_name || '',
       uz_name: d.uz_name || '',
@@ -17173,9 +17176,15 @@ function getDiseasesByExportScope(scope) {
 }
 
 function diseaseExportRows(diseases) {
+  // 상위-하위질환 관계 보존 — parent_id(숫자, 같은 파일 왕복용)와 parent_name(상위질환 이름, 교차 인스턴스용) 둘 다 내보낸다.
+  const _dzNameById = new Map(diseases.map(d => [Number(d.id), d.ko_name || d.en_name || '']));
   return diseases.map(d => {
+    const _pid = Number(d.parent_id);
+    const _hasParent = Number.isFinite(_pid) && _pid > 0;
     const row = {
       id: d.id,
+      parent_id: _hasParent ? _pid : '',
+      parent_name: _hasParent ? (_dzNameById.get(_pid) || '') : '',
       ko_name: d.ko_name || '',
       en_name: d.en_name || '',
       uz_name: d.uz_name || '',
@@ -17678,6 +17687,10 @@ function diseaseFromTableRow(row) {
   const val = k => String(row[k] == null ? '' : row[k]).trim();
   const d = {
     id: Number(row.id) || undefined,
+    // 상위-하위질환 복원: parent_id(숫자)는 같은 파일 왕복에서 그대로, parent_name은 교차 인스턴스에서
+    // 이름으로 부모를 잇게 한다(정규화/리맵 단계가 parent_name→parent_id 해석 후 임시필드 제거).
+    parent_id: (Number(row.parent_id) > 0) ? Number(row.parent_id) : null,
+    parent_name: (String(row.parent_name || '').trim()) || undefined,
     ko_name: val('ko_name') || val('Korean'),
     en_name: val('en_name') || val('English'),
     uz_name: val('uz_name') || val('Uzbek'),
@@ -18533,7 +18546,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.06',
+  version: '2.07',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18542,7 +18555,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.06 — 가져오기 데이터 유실 2건 수정(북마크·연구노트 격리)',
+    title: '최신 · v2.07 — 상위-하위질환(parent_id) 무결성: 해시 포함 + 엑셀 왕복 보존',
+    items: [
+      '전면 검토 후속 — 질환의 상위-하위 관계(parent_id)가 무결성 해시에서 빠져, 상위질환을 바꿔도 무결성 검증·기기 비교가 "일치"로 잘못 보고하던 문제를 고쳤습니다(canonicalDiseaseHashPayload에 parent_id 포함).',
+      '엑셀/CSV 내보내기·가져오기에서 상위-하위 관계가 사라지던 문제도 고쳤습니다 — parent_id(숫자, 같은 파일 왕복용)와 parent_name(상위질환 이름, 다른 기기·인스턴스용)을 함께 내보내고 가져올 때 복원합니다. (JSON 백업은 원래 정상.)',
+    ]
+  },
+  {
+    title: 'v2.06 — 가져오기 데이터 유실 2건 수정(북마크·연구노트 격리)',
     items: [
       '전면 코드 검토(6개 차원)에서 찾은 결함을 차근차근 고치는 중 — 이번은 가져오기 데이터 유실 P1 2건.',
       '북마크(즐겨찾기)가 가져오기 시 모드와 무관하게 통째로 덮어써져, "신규만 추가/합치기"로 가져와도 백업 이후 추가한 약물·미생물·공식·질환 북마크가 사라지던 문제를 고쳤습니다. 이제 합치기/신규추가는 도메인별 합집합, 전체 교체(replace)만 통째 교체합니다.',
