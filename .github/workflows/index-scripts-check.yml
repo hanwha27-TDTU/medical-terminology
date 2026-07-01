@@ -1,0 +1,25 @@
+name: index.html Script Check
+
+# 단일 파일(index.html) 배포 전 자동 점검 — 실행 <script> 문법·블록 수·절단·필수 심볼·도메인 parity.
+# 파일을 나누지 않는 대신 자동검사로 안정성을 지킨다(모듈화 생략 시 CI가 더 중요).
+
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'scripts/check-index-scripts.mjs'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/check-index-scripts.mjs'
+
+jobs:
+  check-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: index.html 실행 스크립트·무결성 자동 점검
+        run: node scripts/check-index-scripts.mjs

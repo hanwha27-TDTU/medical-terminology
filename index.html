@@ -18560,7 +18560,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.11',
+  version: '2.12',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18569,7 +18569,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.11 — 노트 즐겨찾기(favorite)를 무결성 해시에 포함',
+    title: '최신 · v2.12 — 안정성: 배포 전 자동 점검(CI) + 핵심 로직 보호 주석',
+    items: [
+      '단일 파일 구조를 유지하되, 배포 전 자동 점검 스크립트(scripts/check-index-scripts.mjs)를 추가하고 GitHub Actions에서 push마다 실행하도록 했습니다 — 실행 스크립트 문법·블록 수·파일 절단·핵심 함수/상수 존재·도메인 스키마 parity를 자동 확인해 깨진 배포를 막습니다.',
+      '연구노트 무결성 계층(해시 체인·서명·직렬화) 위에 "함부로 변경 금지 · 변경 시 검사+매니페스트 필수" 보호 주석(CRITICAL ZONE)을 달아, 사람·AI가 실수로 핵심 로직을 흔들지 않게 했습니다.',
+      '(동작 변화 없음 — 유지보수 안정성만 강화. 모듈 분리 없이 "물리적 1파일, 논리적 다모듈" 원칙을 지키는 방향입니다.)',
+    ]
+  },
+  {
+    title: 'v2.11 — 노트 즐겨찾기(favorite)를 무결성 해시에 포함',
     items: [
       '개념·오답 노트의 즐겨찾기(favorite)는 클라우드에 통째로 동기화되는 사용자 편집 값인데 무결성 해시에서 빠져 있어, 즐겨찾기만 바뀐 경우 무결성 검증·기기 비교가 "일치"로 잘못 보고하던 문제를 고쳤습니다(parent_id 수정과 같은 원칙).',
       '이 변경으로 기존 노트 스냅샷 해시가 1회 재계산될 수 있습니다(손상 아님 · 정상). 전면 검토 후속 수정 시리즈의 마지막 코드 수정입니다.',
@@ -20526,6 +20534,15 @@ async function _rnSha256(str) {
   try { if (typeof crypto !== 'undefined' && crypto.subtle) { const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); } } catch (e) {}
   return _rnSha256Bytes(bytes);
 }
+/* =====================================================================
+   ⚠️ CRITICAL ZONE — 연구노트 무결성 계층 (특허 증거). 함부로 건드리지 말 것.
+   - 해시 체인 로직·필드 순서·제외 목록을 재정렬/변경하면 과거 엔트리 검증이 깨진다.
+   - canonical 직렬화(stableForHash)·해시 payload를 바꾸면 마이그레이션 없이는 전 엔트리 재베이스라인.
+   - 사후 부착 필드(tsa·server_time·서명)는 반드시 해시에서 제외 유지.
+   - 원본 엔트리는 불변(append-only) — 수정이 필요하면 정정(correction) 엔트리로만.
+   - 변경 시: node scripts/check-index-scripts.mjs 통과 + (해시 관련이면) 매니페스트 갱신 필수.
+   상세 규칙: .claude/skills/.../reconstruction-spec.md 불변조건 19.
+   ===================================================================== */
 // entry_hash·서명·서버시각(사후 부착) 제외한 내용으로 해시 → 원본 변조 시 재계산값이 달라져 드러난다.
 async function _rnComputeHash(entry) {
   const clone = { ...entry };
