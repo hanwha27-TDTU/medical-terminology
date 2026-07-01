@@ -16483,13 +16483,13 @@ function _aiRemapIdsByName(parsed) {
   // keysFn: 레코드의 매칭 키 배열을 반환. 대부분 단일 키지만, 질환은 이름별(ko/en/uz) 다중 키로 "하나만 같아도" 매칭.
   const single = idfn => (r => { const k = idfn(r); return k ? [k] : []; });
   const domains = [
-    ['terms', TERMS, single(termIdentityKey)],
-    ['drugs', DRUGS, single(drugIdentityKey)],
-    ['formulas', FORMULAS, single(formulaKey)],
-    ['microbes', MICROBES, single(microbeIdentityKey)],
-    ['diseases', DISEASES, diseaseMatchKeys],
+    ['terms', TERMS, single(termIdentityKey), nextTermId],
+    ['drugs', DRUGS, single(drugIdentityKey), nextDrugId],
+    ['formulas', FORMULAS, single(formulaKey), nextFormulaId],
+    ['microbes', MICROBES, single(microbeIdentityKey), nextMicrobeId],
+    ['diseases', DISEASES, diseaseMatchKeys, nextDiseaseId],
   ];
-  domains.forEach(([key, arr, keysFn]) => {
+  domains.forEach(([key, arr, keysFn, gen]) => {
     if (!Array.isArray(parsed[key])) return;
     const byKey = new Map();
     (Array.isArray(arr) ? arr : []).forEach(r => { keysFn(r).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, r); }); });
@@ -16497,7 +16497,13 @@ function _aiRemapIdsByName(parsed) {
       if (!rec || typeof rec !== 'object') return rec;
       let match = null;
       for (const k of keysFn(rec)) { if (k && byKey.has(k)) { match = byKey.get(k); break; } }
-      return match ? { ...rec, id: match.id } : rec;
+      // 이름이 기존 항목과 일치 → 그 id로 매핑(정확한 갱신). 불일치 = 신규 → 새 고유 id 발급.
+      // ⚠️ 신규에 새 id를 안 주면, AI가 매 응답마다 재사용하는 placeholder id(예: 8000000000001)들이
+      //    서로/기존과 충돌해 "하나 추가하고 또 추가하면 앞엣것이 덮어써져 사라짐"이 난다(가져오기 id 매칭).
+      if (match) return { ...rec, id: match.id };
+      const fresh = { ...rec, id: gen() };
+      keysFn(fresh).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, fresh); }); // 같은 배치 내 동일 이름은 같은 새 id로(배치내 중복 방지)
+      return fresh;
     });
   });
   // 질환: parent_name(상위질환 이름)으로 아형을 연결 — 부모의 숫자 id를 몰라도 이름으로 묶는다.
@@ -16525,9 +16531,10 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
   text = text.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
   if (!text) { showToast('⚠️ 붙여넣은 내용이 없습니다'); return; }
   if (policy === 'review') {
-    // 중복 비교 검토(항목 단위 선택) — JSON에서 지원
+    // 중복 비교 검토(항목 단위 선택) — JSON에서 지원. 신규 항목은 여기서 새 고유 id를 받아
+    // AI placeholder id 충돌(하나 추가 후 또 추가 시 앞엣것 사라짐)을 skip/overwrite와 동일하게 예방.
     if (/^[\[{]/.test(text)) {
-      try { openDuplicateReviewModal(JSON.parse(text)); }
+      try { openDuplicateReviewModal(_aiRemapIdsByName(JSON.parse(text))); }
       catch (e) { showToast('⚠️ JSON 파싱 실패 · 형식을 확인하세요'); }
     } else {
       showToast('ℹ️ 비교 검토는 JSON 붙여넣기에서 지원됩니다 · TSV는 신규만 추가/덮어쓰기를 사용하세요');
@@ -18598,7 +18605,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.19',
+  version: '2.20',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18607,7 +18614,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.19 — 전면재검증 후속: 용어 검색 누락 3건 + 연구노트 자동백업 실패 조용함 교정',
+    title: '최신 · v2.20 — AI 붙여넣기 추가 시 "앞에 추가한 게 사라지던" ID 충돌 급소 제거',
+    items: [
+      'AI(ChatGPT 등)로 용어·약물·공식·미생물·질환을 하나씩 만들어 이어서 추가할 때, 앞에 추가한 항목이 사라지던 문제를 고쳤습니다. 원인은 AI가 응답마다 똑같은 예시 ID(8000000000001)를 재사용하는데, 가져오기가 그 ID로 항목을 구분하다 보니 새로 넣은 항목이 앞 항목을 같은 ID로 덮어써서였습니다.',
+      '이제 붙여넣기로 들어온 항목의 이름이 기존 항목과 다르면(=진짜 신규) 앱이 충돌 불가한 새 고유 ID를 발급합니다. AI가 어떤 ID를 주든(똑같은 값을 반복해도) 서로 덮어쓰지 않습니다. 이름이 기존 항목과 같으면 그 항목의 ID로 정확히 연결돼 올바르게 갱신됩니다. "비교 후 선택"·"신규만 추가"·"중복 덮어쓰기" 세 방식 모두에 적용됩니다.',
+    ],
+  },
+  {
+    title: 'v2.19 — 전면재검증 후속: 용어 검색 누락 3건 + 연구노트 자동백업 실패 조용함 교정',
     items: [
       '용어 검색을 손봤습니다. 전엔 용어의 우즈베크어 정의(def_uz)·USMLE 고득점 노트(usmle)·태그(system_tags)가 저장·표시는 되는데 검색에는 안 걸렸습니다(한국어·영어 정의만 검색). 이제 세 가지 모두 검색됩니다 — 특히 USMLE 노트와 우즈베크어 정의로도 용어를 찾을 수 있습니다.',
       '연구노트 자동 클라우드 백업이 스키마 문제(예: research_notes_med 테이블/컬럼 누락)로 실패할 때 아무 안내 없이 조용히 넘어가던 것을 고쳤습니다. 이제 다른 데이터(용어·약물 등)와 동일하게 "최신 통합 SQL을 실행하세요" 경고를 띄웁니다. 연구노트는 특허 증거라 "로컬엔 있는데 클라우드엔 안 올라간" 상태를 모르고 지나치면 안 됩니다(기록·해시·서명은 그대로, 실패 안내만 추가).',
