@@ -484,6 +484,15 @@ rg -n "function 의심함수명|의심함수명 *=" 파일.html
 
 - 도메인 간 렌더/검색 함수를 재사용할 때 **필드명이 각 도메인 모델과 맞는지** 확인한다(예: 미생물은 `gram_stain`/`usmle_clues`인데 `row.gram`/`row.usmle`로 잘못 참조 → 검색 누락).
 
+**리팩터링 = 무행위변경(분류 규칙).** 단일 HTML에선 리팩터링이 위험하니 범위를 좁게 못박는다:
+
+- 리팩터링은 **기능 변경이 아니다.** 다음을 바꾸면 그건 리팩터링이 아니라 **기능 변경**이고 → `feature-addition.md` 9단계로 재분류한다:
+  **UI 문구 · 저장 형식(localStorage/IDB 키·구조) · export/import JSON 구조 · Supabase 컬럼명 · `canonical*HashPayload`(스냅샷 해시)**.
+  (뒤 셋을 무심코 건드리면 다른 기기 전파·백업 왕복·해시체인이 깨진다 — 급소.)
+- **함수명 변경 시 모든 호출부를 확인**한다(§16.5b ReferenceError 점검). 순수함수를 옮겼으면 `golden-tests.mjs`가 그대로 통과해야 한다(행위보존 = 리팩터링의 정의).
+- **강제 게이트가 곧 "행위 안 바뀜"의 증거**다: `golden-tests`(순수함수·`stableForHash` 잠금) · `check-schema-drift`(normalize↔payload) · `check-index-scripts`(심볼·parity). 하나라도 빨개지면 그건 리팩터링이 아니라 동작 변경 — 멈추고 재분류.
+- 🔴 CRITICAL ZONE(연구노트/canonical 직렬화)은 "정리 차원"으로도 손대지 않는다(불변조건 19).
+
 ### 16.5c 다크/라이트 양테마 점검
 
 기능을 추가/수정하면 **다크·라이트 두 테마 모두** 확인한다. 앱 색은 CSS 변수(`--bg/--surface/--text/--text2/--text3/--border/--accent`) 기반이라 변수만 쓰면 자동으로 양테마 정상이다. **하드코딩 hex가 라이트에서 대비를 깨는 게 주된 위험.**
