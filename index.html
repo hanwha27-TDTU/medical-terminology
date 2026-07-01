@@ -16209,7 +16209,7 @@ function showExportMenu() {
 
           <section class="data-card">
             <div class="data-card-title">2. 자료 내보내기</div>
-            <div class="data-card-desc">학습용 Excel/CSV는 영역과 범위를 고른 뒤 내려받습니다. Anki TSV는 일반용어에만 제공합니다.</div>
+            <div class="data-card-desc">학습용 Excel/CSV는 영역과 범위를 고른 뒤 내려받습니다.</div>
             <div class="data-section-label">영역</div>
             <select id="dataExportDomain" class="data-select" onchange="updateDataExportPanel()">
               <option value="terms">일반용어</option>
@@ -16225,7 +16225,6 @@ function showExportMenu() {
             <div class="data-button-row">
               <button class="data-action-btn primary" onclick="exportManagedData('xlsx')">Excel</button>
               <button class="data-action-btn primary" onclick="exportManagedData('csv')">CSV</button>
-              <button class="data-action-btn purple" onclick="exportManagedData('anki')">Anki TSV</button>
             </div>
           </section>
         </div>
@@ -18708,7 +18707,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.29',
+  version: '2.30',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18717,7 +18716,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.29 — 데이터 관리 통계: 앱 구조 순서 재배치 + 삭제기록 숨김 + 디자인 정돈',
+    title: '최신 · v2.30 — 자료 내보내기에서 "Anki TSV" 버튼 제거',
+    items: [
+      '데이터 관리 → 자료 내보내기에서 "Anki TSV" 내보내기 버튼을 없앴습니다(일반용어에만 있던 기능이라 활용도가 낮았습니다). Excel·CSV 내보내기는 그대로 유지됩니다.',
+    ],
+  },
+  {
+    title: 'v2.29 — 데이터 관리 통계: 앱 구조 순서 재배치 + 삭제기록 숨김 + 디자인 정돈',
     items: [
       '데이터 관리 상단 통계 카드를 앱 구조(탭) 순서대로 재배치했습니다: 일반용어 → 미생물 → 약물명 및 정보 → 주요 의학계산공식 → 주요 질환 → 개념·오답 노트 → (학습기록·로컬 캐시). 전엔 질환이 약물·공식보다 앞에 오는 등 순서가 뒤죽박죽이었습니다.',
       '집계 "삭제기록" 카드를 숨겼습니다(휴지통 단순화와 맥을 같이함). 도메인 카드의 "복원 가능 0" 같은 0 표시도 숨겨 깔끔하게 정리했습니다.',
