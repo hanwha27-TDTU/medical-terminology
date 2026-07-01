@@ -77,6 +77,14 @@ golden('_findingConceptForms', s => {
   }
 }
 
+// ── 클라우드 스키마 오류 분류기 (조용한 유실 방지의 핵심) ──
+golden('_isCloudSchemaError', t => /PGRST204|42703|42P01|could not find the .* column|column .* does not exist|relation .* does not exist/i.test(String(t || '')), [
+  `{"code":"PGRST204","message":"Could not find the 'parent_id' column of 'medical_diseases' in the schema cache"}`,
+  `{"code":"42703","message":"column \\"parent_id\\" does not exist"}`,
+  `{"code":"42P01","message":"relation \\"medical_diseases\\" does not exist"}`,
+  'TypeError: Failed to fetch', '{"code":"PGRST301","message":"JWT expired"}', '500 Internal Server Error', '', null,
+]);
+
 // ── 중복판정·매칭 키 family (모두 normalizeSyncText 의존) — 이번 세션 내내 고친 버그多 영역 → 골든으로 고정 ──
 // 의존(normalizeSyncText)을 함께 추출해 실행. 기준 규칙은 각 *IdentityKey의 필드 우선순위를 그대로 반영.
 function goldenD(name, deps, refImpl, battery) {
@@ -158,4 +166,4 @@ if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 15종(정규화 6 + 식별/매칭키 7 + stableForHash 직렬화 + _rnComputeHash 제외목록·전체해시)이 기준과 일치.');
+console.log('✅ 골든테스트 통과 — 16종(정규화 6 + 식별/매칭키 7 + 스키마오류분류 1 + stableForHash 직렬화 + _rnComputeHash 해시)이 기준과 일치.');

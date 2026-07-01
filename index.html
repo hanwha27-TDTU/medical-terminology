@@ -7308,6 +7308,21 @@ function rowToMicrobe(r) {
   });
 }
 
+// 클라우드 저장 실패 중 "스키마 오류"(컬럼/테이블 누락 = SQL 미실행)만 사용자에게 알린다.
+// 이게 "저장은 됐는데 다른 기기에 안 뜨는" 조용한 유실의 주범(예: parent_id 컬럼 없이 push → 전체 거부).
+// 일반 네트워크/오프라인 오류는 조용히(오프라인에서 매 저장마다 토스트 뜨면 시끄러움). 30초 throttle.
+let _cloudSchemaWarnAt = 0;
+function _isCloudSchemaError(text) {
+  return /PGRST204|42703|42P01|could not find the .* column|column .* does not exist|relation .* does not exist/i.test(String(text || ''));
+}
+function _warnCloudSchemaError(domainLabel, detail) {
+  console.warn('cloud schema error:', domainLabel, detail);
+  const now = Date.now();
+  if (now - _cloudSchemaWarnAt < 30000) return;
+  _cloudSchemaWarnAt = now;
+  showToast(`⚠️ ${domainLabel} 클라우드 저장 실패 — Supabase에 최신 통합 SQL을 실행하세요(컬럼/테이블 누락). 로컬엔 저장됨.`);
+}
+
 // Supabase에 용어 upsert (추가/수정)
 async function sbUpsertTerm(t) {
   const cfg = getSupabaseConfig();
@@ -7318,7 +7333,7 @@ async function sbUpsertTerm(t) {
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(termToRow(t))
     });
-    if (!res.ok) throw new Error(`upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) { const t = await res.text(); if (_isCloudSchemaError(t)) _warnCloudSchemaError('일반용어', t); throw new Error(`upsert failed: ${res.status} ${t}`); }
     return true;
   } catch(e) { console.warn('Supabase upsert failed:', e); }
   return false;
@@ -7333,7 +7348,7 @@ async function sbUpsertDrug(d) {
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(drugToRow(d))
     });
-    if (!res.ok) throw new Error(`drug upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) { const t = await res.text(); if (_isCloudSchemaError(t)) _warnCloudSchemaError('약물', t); throw new Error(`drug upsert failed: ${res.status} ${t}`); }
     return true;
   } catch(e) { console.warn('Supabase drug upsert failed:', e); }
   return false;
@@ -7348,7 +7363,7 @@ async function sbUpsertFormula(f) {
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(formulaToRow(f))
     });
-    if (!res.ok) throw new Error(`formula upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) { const t = await res.text(); if (_isCloudSchemaError(t)) _warnCloudSchemaError('공식', t); throw new Error(`formula upsert failed: ${res.status} ${t}`); }
     return true;
   } catch(e) { console.warn('Supabase formula upsert failed:', e); }
   return false;
@@ -7364,7 +7379,7 @@ async function sbUpsertMicrobe(m) {
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(microbeToRow(m))
     });
-    if (!res.ok) throw new Error(`microbe upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) { const t = await res.text(); if (_isCloudSchemaError(t)) _warnCloudSchemaError('미생물', t); throw new Error(`microbe upsert failed: ${res.status} ${t}`); }
     return true;
   } catch(e) { console.warn('Supabase microbe upsert failed:', e); }
   return false;
@@ -7477,7 +7492,7 @@ async function sbUpsertDisease(d) {
       headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(diseaseToRow(d))
     });
-    if (!res.ok) throw new Error(`disease upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) { const t = await res.text(); if (_isCloudSchemaError(t)) _warnCloudSchemaError('주요 질환', t); throw new Error(`disease upsert failed: ${res.status} ${t}`); }
     return true;
   } catch(e) { console.warn('Supabase disease upsert failed:', e); }
   return false;
@@ -18571,7 +18586,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.14',
+  version: '2.15',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18580,7 +18595,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.14 — 코드 정리(무동작): 공식 중복키 로직 단일화 + 골든 확장',
+    title: '최신 · v2.15 — "저장했는데 다른 기기에 안 뜨는" 조용한 유실 경고',
+    items: [
+      '용어·약물·공식·미생물·주요 질환을 저장할 때 클라우드 반영이 스키마 문제(예: 최신 SQL 미실행으로 parent_id 같은 컬럼이 Supabase에 없음)로 실패하면, 전엔 조용히 넘어가 "로컬엔 저장됐지만 다른 기기엔 안 뜨는" 유실이 생겼습니다. 이제 그런 경우 "⚠️ 클라우드 저장 실패 — 최신 통합 SQL을 실행하세요(컬럼/테이블 누락)"를 알려줍니다.',
+      '일반 네트워크·오프라인 오류는 그대로 조용히 처리합니다(오프라인에서 매 저장마다 경고가 뜨지 않도록). 스키마 오류 경고는 30초에 한 번으로 제한했습니다.',
+      '특히 하위질환(parent_id)이 다른 기기로 동기화 안 되던 사례의 원인 진단·재발 방지책입니다 — 컬럼 누락이면 즉시 알아 SQL을 실행할 수 있습니다.',
+    ]
+  },
+  {
+    title: 'v2.14 — 코드 정리(무동작): 공식 중복키 로직 단일화 + 골든 확장',
     items: [
       '공식(계산식) 중복 판정 키가 두 곳(_aiRemapIdsByName·_dupDomainCfg)에 똑같이 복붙돼 있어 한쪽만 고치면 어긋나던 것을, 다른 도메인처럼 공용 함수(formulaIdentityKey) 하나로 합쳤습니다. 동작은 그대로입니다.',
       '골든테스트에 formulaIdentityKey(의존 함수 동반 추출 방식)를 추가해 통합 전후 동일성을 자동 검증했습니다 — 이제 순수함수 7종을 CI가 지킵니다.',
