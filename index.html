@@ -15774,10 +15774,15 @@ function openDuplicateReviewModal(parsed) {
   document.body.appendChild(overlay);
 }
 function _dupSetAll(checked) {
-  document.querySelectorAll('#dupReviewModal input[type="checkbox"][id^="dupf_"]').forEach(cb => { cb.checked = checked; });
+  // 기본값이 이미 전부 체크(=새것)라 "전부 새것으로"는 시각 변화가 없어 보일 수 있어 항상 토스트로 피드백한다.
+  const cbs = document.querySelectorAll('#dupReviewModal input[type="checkbox"][id^="dupf_"]');
+  cbs.forEach(cb => { cb.checked = checked; });
+  if (typeof showToast === 'function') showToast(`${checked ? '✅ 전부 새것으로 선택' : '↩️ 전부 기존 유지'} · ${cbs.length}개 칸`);
 }
 function _dupSetItem(domain, idx, checked) {
-  document.querySelectorAll(`#dupReviewModal input[type="checkbox"][id^="dupf_${domain}_${idx}_"]`).forEach(cb => { cb.checked = checked; });
+  const cbs = document.querySelectorAll(`#dupReviewModal input[type="checkbox"][id^="dupf_${domain}_${idx}_"]`);
+  cbs.forEach(cb => { cb.checked = checked; });
+  if (typeof showToast === 'function') showToast(`${checked ? '✅ 이 항목 새것 전체' : '↩️ 이 항목 기존 전체'} · ${cbs.length}개 칸`);
 }
 async function applyDuplicateReview() {
   const review = window._dupReview;
@@ -17671,7 +17676,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.60',
+  version: '1.61',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17680,7 +17685,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.60 — 질환 목록 카드의 주호소도 일반용어 카드로 연결(📖)',
+    title: '최신 · v1.61 — 중복 검토 "전부 새것으로/기존 유지"에 반응(토스트) 추가',
+    items: [
+      '중복 검토창에서 "전부 새것으로" 버튼을 눌러도 반응이 없어 보이던 문제를 개선했습니다. 원래 모든 칸이 기본값으로 "새것"에 체크돼 있어 눌러도 시각 변화가 없던 것이라, 이제 몇 칸이 설정됐는지 토스트로 알려줍니다("전부 기존 유지", 그룹별 "새것/기존 전체" 버튼도 동일).',
+    ]
+  },
+  {
+    title: 'v1.60 — 질환 목록 카드의 주호소도 일반용어 카드로 연결(📖)',
     items: [
       '질환 목록 카드의 "주호소"에서도 등록된 일반용어와 이름이 맞는 항목에 📖가 붙어 용어 카드로 바로 이동합니다(상세창 v1.59에 이어 카드까지 확장). "우하복부통증(RLQ pain)"처럼 괄호가 있어도 괄호 앞 한국어가 용어와 맞으면 연결됩니다.',
     ]
