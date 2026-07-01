@@ -8618,6 +8618,24 @@ function diseaseIdentityKey(d) {
   if (uz) return `uz:${uz}`;
   return `id:${Number(d.id) || 'empty'}`;
 }
+// 질환 중복은 "한국어·영어·우즈벡 이름 중 하나만 같아도 같은 질환"으로 강하게 판정 — 이름별 키를 모두 반환.
+// (약물·미생물은 영어·학명 단일 기준을 유지하므로 이 다중키는 질환에만 쓴다.)
+function diseaseMatchKeys(d) {
+  const out = [];
+  const ko = normalizeSyncText(d.ko_name || d.ko);
+  const en = normalizeSyncText(d.en_name || d.name || d.en);
+  const uz = normalizeSyncText(d.uz_name || d.uz);
+  if (ko) out.push(`ko:${ko}`);
+  if (en) out.push(`en:${en}`);
+  if (uz) out.push(`uz:${uz}`);
+  if (!out.length) out.push(`id:${Number(d.id) || 'empty'}`);
+  return out;
+}
+// 두 질환이 같은 개체인가 — 이름 키(ko/en/uz) 중 하나라도 겹치면 true.
+function diseasesSameEntity(a, b) {
+  const kb = new Set(diseaseMatchKeys(b));
+  return diseaseMatchKeys(a).some(k => kb.has(k));
+}
 
 function getActiveDiseases() {
   return dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt);
@@ -10701,7 +10719,7 @@ function upsertDiseaseFromForm(id = null) {
   if (!next.ko_name && !next.en_name) { showToast('⚠️ 질환명(한국어 또는 영어)을 입력해주세요'); return null; }
   const duplicateIdx = DISEASES.findIndex(d => {
     if (isEdit && Number(d.id) === Number(id)) return false;
-    return diseaseIdentityKey(d) === diseaseIdentityKey(next);
+    return diseasesSameEntity(d, next); // 한/영/우즈 이름 중 하나라도 같으면 중복
   });
   if (duplicateIdx >= 0) { showToast('⚠️ 중복된 질환입니다'); return null; }
   const idx = DISEASES.findIndex(d => Number(d.id) === Number(next.id));
@@ -16280,21 +16298,23 @@ function openAIPasteImport() {
 function _aiRemapIdsByName(parsed) {
   if (!parsed || typeof parsed !== 'object') return parsed;
   const formulaKey = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || ''); return n ? 'name:' + n : ''; };
+  // keysFn: 레코드의 매칭 키 배열을 반환. 대부분 단일 키지만, 질환은 이름별(ko/en/uz) 다중 키로 "하나만 같아도" 매칭.
+  const single = idfn => (r => { const k = idfn(r); return k ? [k] : []; });
   const domains = [
-    ['terms', TERMS, termIdentityKey],
-    ['drugs', DRUGS, drugIdentityKey],
-    ['formulas', FORMULAS, formulaKey],
-    ['microbes', MICROBES, microbeIdentityKey],
-    ['diseases', DISEASES, diseaseIdentityKey],
+    ['terms', TERMS, single(termIdentityKey)],
+    ['drugs', DRUGS, single(drugIdentityKey)],
+    ['formulas', FORMULAS, single(formulaKey)],
+    ['microbes', MICROBES, single(microbeIdentityKey)],
+    ['diseases', DISEASES, diseaseMatchKeys],
   ];
-  domains.forEach(([key, arr, idfn]) => {
+  domains.forEach(([key, arr, keysFn]) => {
     if (!Array.isArray(parsed[key])) return;
-    const byName = new Map();
-    (Array.isArray(arr) ? arr : []).forEach(r => { const k = idfn(r); if (k && !byName.has(k)) byName.set(k, r); });
+    const byKey = new Map();
+    (Array.isArray(arr) ? arr : []).forEach(r => { keysFn(r).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, r); }); });
     parsed[key] = parsed[key].map(rec => {
       if (!rec || typeof rec !== 'object') return rec;
-      const k = idfn(rec);
-      const match = k ? byName.get(k) : null;
+      let match = null;
+      for (const k of keysFn(rec)) { if (k && byKey.has(k)) { match = byKey.get(k); break; } }
       return match ? { ...rec, id: match.id } : rec;
     });
   });
@@ -16365,7 +16385,7 @@ function _dupDomainCfg() {
     { key: 'drugs', label: '💊 약물', arr: DRUGS, idfn: drugIdentityKey, name: r => (r.generic_name || r.ko_name || r.brand_name || ''), norm: normalizeDrugForStorage },
     { key: 'formulas', label: '∑ 공식', arr: FORMULAS, idfn: fk, name: r => (r.name || r.short_name || ''), norm: normalizeFormulaForStorage },
     { key: 'microbes', label: '🧫 미생물', arr: MICROBES, idfn: microbeIdentityKey, name: r => (r.organism || r.ko_name || ''), norm: normalizeMicrobeForStorage },
-    { key: 'diseases', label: '🩺 주요 질환', arr: DISEASES, idfn: diseaseIdentityKey, name: r => (r.ko_name || r.en_name || ''), norm: normalizeDiseaseForStorage },
+    { key: 'diseases', label: '🩺 주요 질환', arr: DISEASES, idfn: diseaseIdentityKey, keysFn: diseaseMatchKeys, name: r => (r.ko_name || r.en_name || ''), norm: normalizeDiseaseForStorage },
   ];
 }
 function _dupSectionTitle(secKey) {
@@ -16396,12 +16416,13 @@ function _aiCollectDuplicates(parsed) {
   const groups = [];
   _dupDomainCfg().forEach(cfg => {
     if (!Array.isArray(parsed[cfg.key]) || !parsed[cfg.key].length) return;
+    const keysFn = cfg.keysFn || (r => { const k = cfg.idfn(r); return k ? [k] : []; });
     const byKey = new Map();
-    (Array.isArray(cfg.arr) ? cfg.arr : []).forEach(r => { const k = cfg.idfn(r); if (k && !byKey.has(k)) byKey.set(k, r); });
+    (Array.isArray(cfg.arr) ? cfg.arr : []).forEach(r => { keysFn(r).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, r); }); });
     let newCount = 0; const dups = [];
     parsed[cfg.key].forEach((rec, i) => {
       if (!rec || typeof rec !== 'object') return;
-      const k = cfg.idfn(rec); const existing = k ? byKey.get(k) : null;
+      let existing = null; for (const k of keysFn(rec)) { if (k && byKey.has(k)) { existing = byKey.get(k); break; } }
       if (!existing) { newCount++; return; }
       dups.push({ idx: i, name: cfg.name(rec) || cfg.name(existing) || '(이름 없음)', existing, changes: _dupChanges(cfg.norm, existing, rec, cfg.key) });
     });
@@ -18384,7 +18405,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.95',
+  version: '1.96',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18393,7 +18414,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.95 — 주요 질환: 중복 판정 기준을 한국어명 우선으로(가져오기)',
+    title: '최신 · v1.96 — 주요 질환: 중복 판정을 "한국어·영어 중 하나만 같아도"로 강화',
+    items: [
+      '질환 중복 판정을 더 강하게 바꿨습니다 — 한국어명·영어명·우즈벡명 중 하나라도 같으면 같은 질환으로 인식합니다(전엔 한 이름만 기준이라 나머지가 달라도 신규로 잡혔습니다).',
+      '폼 저장 중복 체크·JSON 가져오기(신규만/덮어쓰기/비교 후 선택) 세 경로 모두에 적용했습니다. 둘 다(한국어·영어) 다른 진짜 별개 질환은 그대로 신규로 잡히니 오탐은 없습니다.',
+      '(약물·미생물은 영어명·학명이 표준 식별자라 단일 기준 그대로입니다. 이 강화는 주요 질환에만 적용됩니다.)',
+    ]
+  },
+  {
+    title: 'v1.95 — 주요 질환: 중복 판정 기준을 한국어명 우선으로(가져오기)',
     items: [
       '이미 있는 질환을 JSON으로 다시 붙여넣을 때, 영어명 표기만 조금 달라도(예: 괄호↔쉼표) 새 항목으로 잡히던 문제를 고쳤습니다.',
       '중복 판정 기준을 영어명 우선 → 한국어명 우선으로 바꿨습니다. 이제 한국어명이 같으면 영어명이 달라도 같은 질환으로 인식되어, 중복 비교 검토(덮어쓰기/건너뛰기)를 할 수 있습니다.',
