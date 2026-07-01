@@ -9005,6 +9005,20 @@ function hideLocalDiseaseTombstonesFromTrash(ids) {
   saveLocalDiseaseTombstones(rows);
 }
 
+// 앱 파일 캐시(서비스워커·Cache API)만 지우고 최신 버전으로 강제 새로고침 — 내 데이터(localStorage)는 보존(v2.28).
+// 옛 "브라우저 캐시 저장"(자동저장과 중복·무의미)을 대체. GitHub Pages가 옛 버전을 보여줄 때 쓴다.
+async function clearAppCacheAndReload() {
+  showConfirm('앱 캐시를 지우고 <b>최신 버전으로 새로고침</b>할까요?<br><span style="font-size:11px;color:var(--text3)">용어·노트 등 내 데이터는 그대로 유지됩니다(앱 파일 캐시만 정리).</span>', async () => {
+    showToast('🔄 캐시 정리 후 새로고침...');
+    try {
+      if (window.caches && caches.keys) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); }
+    } catch (e) { console.warn('app cache clear failed', e); }
+    // 캐시 우회: 캐시버스터 쿼리로 최신 index.html 강제 로드(데이터는 origin-scoped라 유지).
+    location.href = location.origin + location.pathname + '?_cc=' + Date.now();
+  });
+}
+
 // 6도메인 휴지통 목록을 "한 번에" 비우기(숨김만) — tombstone은 보존해 기기 간 부활 방지 유지.
 // 도메인별 6버튼을 이 버튼 하나로 대체(v2.26). 복원(휴지통 열기)은 그대로 남는다.
 function confirmEmptyAllTrash() {
@@ -16241,7 +16255,7 @@ function showExportMenu() {
             <div class="data-button-row">
               <button class="data-action-btn outline" onclick="showDuplicateManager()">중복 용어 검토</button>
               <button class="data-action-btn outline" onclick="showIncompleteTermsView()">미완성 용어 목록보기 (${incompleteTerms})</button>
-              <button class="data-action-btn outline" onclick="saveTermsToLocalStorage();saveMicrobesToLocalStorage();saveDrugsToLocalStorage();saveFormulasToLocalStorage();showToast('✅ 브라우저 캐시 저장 완료')">브라우저 캐시 저장</button>
+              <button class="data-action-btn outline" onclick="clearAppCacheAndReload()">캐시 삭제 · 앱 새로고침</button>
               <button class="data-action-btn outline" onclick="showDeveloperInfo()">개발자 정보</button>
             </div>
           </section>
@@ -18681,7 +18695,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.27',
+  version: '2.28',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18690,7 +18704,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.27 — "미완성 용어 AI 보강"을 "미완성 용어 목록보기"로 변경(보면서 직접 수정)',
+    title: '최신 · v2.28 — "브라우저 캐시 저장"을 "캐시 삭제 · 앱 새로고침"으로 교체',
+    items: [
+      '데이터 관리의 "브라우저 캐시 저장" 버튼을 없앴습니다. 앱이 이미 변경할 때마다 자동으로 로컬에 저장하므로 이 버튼은 사실상 무의미했습니다.',
+      '대신 "캐시 삭제 · 앱 새로고침" 버튼을 넣었습니다. 앱 파일 캐시(브라우저·서비스워커)를 지우고 최신 버전으로 강제 새로고침합니다 — GitHub Pages가 옛 버전을 계속 보여줄 때 유용합니다. 용어·노트 등 내 데이터는 그대로 유지됩니다(앱 파일 캐시만 정리).',
+    ],
+  },
+  {
+    title: 'v2.27 — "미완성 용어 AI 보강"을 "미완성 용어 목록보기"로 변경(보면서 직접 수정)',
     items: [
       '데이터 관리의 "미완성 용어 AI 보강" 버튼을 "미완성 용어 목록보기"로 바꿨습니다. 누르면 필수 항목(한/영/우즈벡·정의 3종·USMLE·발음)이 하나라도 빈 용어만 검색 목록에 모아 보여주고, 각 카드의 ✏️로 직접 수정할 수 있습니다. AI가 자동으로 채우는 대신 직접 보면서 채우는 방식입니다.',
       '해제: 상단 제목/하단 "검색"(홈) 버튼을 누르거나 다른 도메인으로 이동하면 미완성 목록보기가 풀립니다.',
