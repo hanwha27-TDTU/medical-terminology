@@ -1,0 +1,3 @@
+# supabase/functions/rfc3161-timestamp/config.toml
+# 이 함수는 앱(브라우저)에서 anon 키로 직접 호출하므로 JWT 검증을 끈다(Cloudinary 삭제 함수와 동일 패턴).
+verify_jwt = false
