@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.71',
+  version: '1.72',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.71 — 연구노트 발명자를 "김부건 (Kim Bugeon), 1982-08-18"로 못 박음',
+    title: '최신 · v1.72 — 연구노트: 전자서명(ECDSA) + 서버 타임스탬프(특허 전문가 검토 1·2번 반영)',
+    items: [
+      '특허 전문가 검토에서 가장 시급하다고 지적된 두 가지를 반영했습니다 — ① 신뢰 타임스탬프, ② 전자서명.',
+      '전자서명: 각 기록의 entry_hash에 기기별 ECDSA P-256 키로 서명해 "같은 키가 남긴 기록"임을 증명합니다(부인방지). 서명은 해시 대상에서 제외되어 나중에 붙어도 원본 해시를 바꾸지 않고, 🔒 해시 검증이 서명 불일치도 함께 잡아냅니다. (자체생성 기기 키이므로 CA 신원증명은 아니며, 외부 신뢰 기준점은 여전히 git 커밋 이력입니다.)',
+      '서버 타임스탬프: 클라우드 백업 시 Supabase 서버가 찍은 시각(updated_at)을 각 기록에 server_time으로 부착합니다. 기기 시각(created_at)은 조작할 수 있지만 이 값은 제3자(서버)가 찍어 조작과 무관합니다.',
+      '카드에 🔏 서명·☁️ 서버시각 배지를, 상세·Markdown에 "기기 시각(조작 가능) vs 서버 시각(제3자)" 구분과 서명 알고리즘을 정직하게 표기했습니다.',
+    ]
+  },
+  {
+    title: 'v1.71 — 연구노트 발명자를 "김부건 (Kim Bugeon), 1982-08-18"로 못 박음',
     items: [
       '연구노트의 발명자 기본값을 앱에 못 박아 두었습니다 — 김부건 (Kim Bugeon) · 1982-08-18. 별도 설정 없이도 모든 기기에서 모든 기록이 이 발명자에게 자동 귀속되고, 이름·생년월일이 각 기록의 해시에 포함되어 변조 시 검증에서 드러납니다.',
       '신원 특정을 위해 생년월일 필드를 추가했고, 헤더·카드·Markdown·CSV 내보내기에 모두 표시됩니다.',
@@ -19347,11 +19356,42 @@ async function _rnSha256(str) {
   try { if (typeof crypto !== 'undefined' && crypto.subtle) { const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); } } catch (e) {}
   return _rnSha256Bytes(bytes);
 }
-// entry_hash와 서명 블록(사후 추가)을 제외한 내용으로 해시 → 원본 변조 시 재계산값이 달라져 드러난다.
+// entry_hash·서명·서버시각(사후 부착) 제외한 내용으로 해시 → 원본 변조 시 재계산값이 달라져 드러난다.
 async function _rnComputeHash(entry) {
   const clone = { ...entry };
-  delete clone.entry_hash; delete clone.signature_status; delete clone.signed_by; delete clone.witness_name; delete clone.witness_signed_at;
+  ['entry_hash', 'signature_status', 'signed_by', 'witness_name', 'witness_signed_at', 'witness_email', 'witness_signature', 'witness_signed_at2',
+   'entry_hash_signature', 'public_key_jwk', 'signature_algo', 'server_time'].forEach(k => { delete clone[k]; });
   return _rnSha256(JSON.stringify(stableForHash(clone)));
+}
+// ── 전자서명(ECDSA P-256) — entry_hash에 서명해 "같은 키가 남긴 기록"임을 증명(부인방지). ──
+// 자체생성 기기 키(CA 신원증명은 아님). subtle 없으면 서명 생략(핵심 해시체인은 유지).
+const RN_KEY_JWK = 'drbugeon_rn_ecdsa_key';
+function _rnB64(u8) { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+function _rnB64ToBytes(b64) { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+async function _rnGetKeypair() {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+  const stored = safeJsonParse(localStorage.getItem(RN_KEY_JWK), null);
+  if (stored && stored.privateJwk && stored.publicJwk) {
+    try { const priv = await crypto.subtle.importKey('jwk', stored.privateJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']); return { priv, publicJwk: stored.publicJwk }; } catch (e) {}
+  }
+  try {
+    const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const privateJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+    const publicJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+    safeSetItem(RN_KEY_JWK, JSON.stringify({ privateJwk, publicJwk }));
+    return { priv: kp.privateKey, publicJwk };
+  } catch (e) { return null; }
+}
+async function _rnSign(hashHex) {
+  const kp = await _rnGetKeypair(); if (!kp) return null;
+  try { const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.priv, new TextEncoder().encode(hashHex)); return { sig: _rnB64(new Uint8Array(sig)), pub: kp.publicJwk }; } catch (e) { return null; }
+}
+async function _rnVerifySig(entry) {
+  if (!entry.entry_hash_signature || !entry.public_key_jwk) return null; // 서명 없음 → 해당 없음
+  try {
+    const pub = await crypto.subtle.importKey('jwk', entry.public_key_jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, _rnB64ToBytes(entry.entry_hash_signature), new TextEncoder().encode(entry.entry_hash));
+  } catch (e) { return false; }
 }
 function _rnBlank(data) {
   data = data || {};
@@ -19385,18 +19425,29 @@ async function rnAddEntry(eventType, data, opts) {
     signature_status: 'unsigned', signed_by: (data && data.signed_by) || '', witness_name: (data && data.witness_name) || '', witness_signed_at: '',
   }, _rnBlank(data));
   entry.entry_hash = await _rnComputeHash(entry);
+  const s = await _rnSign(entry.entry_hash); // 전자서명(ECDSA) 부착 — 가능할 때만
+  if (s) { entry.entry_hash_signature = s.sig; entry.public_key_jwk = s.pub; entry.signature_algo = 'ECDSA_P-256_SHA-256'; entry.signature_status = 'self_signed_ecdsa'; }
   notes.push(entry); _rnSave(notes);
-  rnPushOne(entry); // 자동 클라우드 백업(설정 있으면) — fire-and-forget
+  rnPushOne(entry); // 자동 클라우드 백업 + 서버 타임스탬프 부착(설정 있으면) — fire-and-forget
   return entry;
 }
 // ── 연구노트 클라우드 백업(Supabase research_notes · append-only 업서트) ──
 const RESEARCH_NOTES_TABLE = 'research_notes';
 function researchNoteRow(e) {
-  return { id: String(e.id), created_at: e.created_at || new Date().toISOString(), app_version: e.app_version || '', event_type: e.event_type || '', entry_hash: e.entry_hash || '', previous_entry_hash: e.previous_entry_hash || null, data: e, updated_at: new Date().toISOString() };
+  // updated_at은 서버가 default now()로 채우게 두어 "제3자(Supabase) 서버 시각"을 신뢰 타임스탬프로 확보한다.
+  return { id: String(e.id), created_at: e.created_at || new Date().toISOString(), app_version: e.app_version || '', event_type: e.event_type || '', entry_hash: e.entry_hash || '', previous_entry_hash: e.previous_entry_hash || null, data: e };
 }
-function rnPushOne(e) {
-  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return Promise.resolve(false);
-  return fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}`, { method: 'POST', headers: h, body: JSON.stringify([researchNoteRow(e)]) }).then(r => r.ok).catch(() => false);
+// 업서트 후 서버가 찍은 updated_at을 로컬 entry.server_time에 부착(해시 대상 아님) → 기기 시각 조작과 무관한 제3자 시각 증거.
+async function rnPushOne(e) {
+  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return false;
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}`, { method: 'POST', headers: { ...h, Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify([researchNoteRow(e)]) });
+    if (!res.ok) return false;
+    const rows = await res.json().catch(() => null);
+    const srv = Array.isArray(rows) && rows[0] && rows[0].updated_at;
+    if (srv) { const notes = _rnLoad(); const idx = notes.findIndex(n => n.id === e.id); if (idx >= 0 && !notes[idx].server_time) { notes[idx].server_time = srv; _rnSave(notes); } }
+    return true;
+  } catch (er) { return false; }
 }
 async function rnPushAll() {
   const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return { ok: false, reason: 'no-config' };
@@ -19448,6 +19499,7 @@ async function rnVerifyChain() {
     if (recomputed !== e.entry_hash) issues.push({ index: i, id: e.id, type: 'hash_mismatch' });
     const expectedPrev = i > 0 ? notes[i - 1].entry_hash : null;
     if ((e.previous_entry_hash || null) !== (expectedPrev || null)) issues.push({ index: i, id: e.id, type: 'chain_break' });
+    if (e.entry_hash_signature) { const ok = await _rnVerifySig(e); if (ok === false) issues.push({ index: i, id: e.id, type: 'signature_invalid' }); }
   }
   return issues;
 }
@@ -19467,7 +19519,10 @@ function _rnMd(entry, notes) {
     `## 5. Human Modification`, entry.human_modification || '', '', `## 6. Final Technical Decision`, entry.final_decision || '', '',
     `## 7. Technical Effect`, entry.technical_effect || '', '', `## 8. Test Method`, entry.test_method || '', '', `## 9. Test Result`, entry.test_result || (entry.failure_reason ? ('실패: ' + entry.failure_reason) : ''), '',
     `## 10. Patent Relevance`, `- Possible claim: ${p.possible_claim || ''}`, `- Novelty: ${p.novelty_point || ''}`, `- Inventive step: ${p.inventive_step_point || ''}`, `- Industrial applicability: ${p.industrial_applicability || ''}`, `- Human contribution: ${p.inventor_human_contribution || ''}`, '',
-    `## 11. Attachments`, files, '', `## 12. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`, `- signature: ${entry.signature_status} ${entry.signed_by ? ('by ' + entry.signed_by) : ''}`, ''
+    `## 11. Attachments`, files, '', `## 12. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
+    `- signature: ${entry.signature_status}${entry.signature_algo ? ' (' + entry.signature_algo + ')' : ''}${entry.signed_by ? (' by ' + entry.signed_by) : ''}`,
+    `- created_at: ${entry.created_at} (기기 시각 · 조작 가능)`, `- server_time: ${entry.server_time || '(미동기화)'} (Supabase 서버 시각 · 제3자 타임스탬프)`,
+    `- 서명 참고: 자체생성 기기 키(ECDSA P-256)로 "같은 키가 남긴 기록"임을 증명(부인방지). CA 신원증명은 아님 — 외부 신뢰 기준점은 git 커밋 이력.`, ''
   ].join('\n');
 }
 function _rnCsv(notes) {
@@ -19575,6 +19630,9 @@ function rnCardHtml(e, notes) {
   const patentTag = (e.event_type === 'patent_claim_candidate' || p.novelty_point || p.inventive_step_point) ? `<span style="background:rgba(217,119,6,0.15);color:#b45309;border:1px solid rgba(217,119,6,0.5);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700">🏷️ 특허</span>` : '';
   const corr = e.corrects_id ? `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:1px 7px;font-size:10px;color:var(--text3)">↻ 정정(${escapeHtml(e.correction_type || '')})</span>` : '';
   const summary = escapeHtml(e.final_decision || e.human_idea || e.problem_statement || e.ai_output_summary || '(내용 없음)').slice(0, 120);
+  const sigTag = e.entry_hash_signature ? `<span title="ECDSA P-256 자체서명(부인방지) · CA 신원증명 아님" style="font-size:9.5px;color:var(--text3)">🔏 서명</span>` : '';
+  const srvTag = e.server_time ? `<span title="Supabase 서버 시각(제3자 타임스탬프): ${escapeHtml(String(e.server_time))}" style="font-size:9.5px;color:var(--text3)">☁️ 서버시각</span>` : '';
+  const trustTags = (sigTag || srvTag) ? `<div style="display:flex;gap:8px;margin-top:3px">${sigTag}${srvTag}</div>` : '';
   return `
     <div style="border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface)${del ? ';opacity:.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
@@ -19582,6 +19640,7 @@ function rnCardHtml(e, notes) {
           <div style="font-weight:800;color:var(--text);font-size:13px${del ? ';text-decoration:line-through' : ''}">${escapeHtml(e.feature_name || '(제목 없음)')} <span style="font-size:10px;color:var(--text3);font-weight:600">· ${escapeHtml(e.event_type)}</span></div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${escapeHtml(String(e.created_at || '').replace('T', ' ').slice(0, 19))} · v${escapeHtml(e.app_version || '')} · 👤 ${escapeHtml((e.inventor_name || '(발명자 미설정)') + (e.inventor_birthdate ? ' · ' + e.inventor_birthdate : ''))}${del ? ' · <b style="color:#dc2626">삭제표시(원본·해시 보존)</b>' : ''}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">${summary}</div>
+          ${trustTags}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">${patentTag}${corr}</div>
       </div>
@@ -19708,8 +19767,10 @@ async function rnRunVerify() {
   if (!issues.length) { showToast(`✅ 해시 체인 무결 — ${_rnLoad().length}건 전부 검증 통과`); return; }
   const tamper = issues.filter(i => i.type === 'hash_mismatch').length;
   const breaks = issues.filter(i => i.type === 'chain_break').length;
+  const sig = issues.filter(i => i.type === 'signature_invalid').length;
   console.warn('연구노트 무결성 점검', issues);
   if (tamper) { showToast(`⚠️ 변조 의심 ${tamper}건 감지 — 저장된 기록이 원본과 다릅니다(콘솔 확인)`); return; }
+  if (sig) { showToast(`⚠️ 서명 불일치 ${sig}건 — 서명이 entry_hash와 맞지 않습니다(콘솔 확인)`); return; }
   showToast(`ℹ️ 체인 링크 불연속 ${breaks}건 — 여러 기기 기록을 합치면 정상일 수 있습니다. 각 기록의 해시 자체는 무결(변조 없음).`);
 }
 
