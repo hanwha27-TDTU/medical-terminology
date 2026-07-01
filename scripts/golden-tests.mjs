@@ -14,9 +14,9 @@ const rawHtml = readFileSync('index.html', 'utf8');
 const html = rawHtml.replace(/<script id="rnPatentInstructionDoc"[\s\S]*?<\/script>/i, '');
 const failures = [];
 
-// index.html에서 `function NAME(...) { ... }` 선언 하나를 추출해 실행 가능한 함수로 만든다.
+// index.html에서 `function NAME(...) { ... }` 선언 하나의 소스 문자열을 추출한다.
 // (중괄호 균형으로 본문 끝을 찾음 — 대상 순수 유틸들엔 문자열/정규식 내 중괄호가 없으니 충분.)
-function extractFn(name) {
+function extractSource(name) {
   const start = html.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`함수 ${name} 를 실행 코드에서 찾지 못함`);
   const braceOpen = html.indexOf('{', start);
@@ -25,7 +25,14 @@ function extractFn(name) {
     if (html[i] === '{') depth++;
     else if (html[i] === '}') { depth--; if (depth === 0) { i++; break; } }
   }
-  return eval('(' + html.slice(start, i) + ')');
+  return html.slice(start, i);
+}
+// 자기완결 함수: 소스만 eval.
+function extractFn(name) { return eval('(' + extractSource(name) + ')'); }
+// 의존이 있는 함수: 의존 함수들을 같은 스코프에 함께 선언한 뒤 대상을 반환(예: formulaIdentityKey→normalizeSyncText).
+function extractWithDeps(target, deps = []) {
+  const srcs = [...deps, target].map(extractSource);
+  return eval('(function(){' + srcs.join('\n') + '\nreturn ' + target + ';})()');
 }
 
 function check(label, actual, expected) {
@@ -54,8 +61,23 @@ golden('_findingConceptForms', s => {
   return out;
 }, NAMES);
 
+// ── 의존 있는 순수함수: formulaIdentityKey (normalizeSyncText 사용) ──
+// 전엔 _aiRemapIdsByName·_dupDomainCfg에 같은 로직이 2벌 복붙 → 단일 formulaIdentityKey로 통합됨(v2.14).
+{
+  let fk;
+  try { fk = extractWithDeps('formulaIdentityKey', ['normalizeSyncText']); } catch (e) { failures.push(`formulaIdentityKey: 추출 실패 — ${e.message}`); }
+  if (fk) {
+    const ref = f => { const n = String(f.name || f.short_name || f.formula_name || f.formula || '').toLowerCase().replace(/\s+/g, ''); return n ? `name:${n}` : ''; };
+    const FORMULAS = [
+      { name: 'Anion Gap' }, { short_name: 'AG' }, { formula_name: 'Cockcroft-Gault' }, { formula: 'Na - (Cl + HCO3)' },
+      { name: '', short_name: '', formula_name: '', formula: 'a/b' }, {}, { name: 'MAP', formula: '(SBP+2*DBP)/3' }, { name: '  Body Mass Index  ' },
+    ];
+    for (const f of FORMULAS) check(`formulaIdentityKey(${JSON.stringify(f)})`, fk(f), ref(f));
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 순수함수 6종이 기준 규칙과 전 케이스 일치(행위보존 확인).');
+console.log('✅ 골든테스트 통과 — 순수함수 6종 + formulaIdentityKey(의존 포함)이 기준 규칙과 전 케이스 일치(행위보존 확인).');
