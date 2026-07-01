@@ -10293,9 +10293,10 @@ function renderDiseaseFrame(diseases = []) {
     return;
   }
   const _fIdx = buildFindingConceptIndex(); // 카드 주호소 → 용어 매칭용, 프레임당 1회
-  // 상위질환별 아형 개수(프레임당 1회) — 카드에 "아형 N" 배지 표시용.
+  // 상위질환별 하위 개수 + id→질환 맵(프레임당 1회) — 카드 "하위 N" 배지, 하위카드의 상위질환명 칩용.
   const _dzChildCount = {};
   active.forEach(x => { const p = Number(x.parent_id); if (p) _dzChildCount[p] = (_dzChildCount[p] || 0) + 1; });
+  const _dzById = new Map(getActiveDiseases().map(x => [Number(x.id), x])); // 부모가 필터로 빠져도 이름 찾도록 전체에서 구성
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
@@ -10332,7 +10333,7 @@ function renderDiseaseFrame(diseases = []) {
           </div>
           <div class="drug-chip-row">
             ${emergencyChip}
-            ${Number(d.parent_id) ? `<span class="drug-chip" style="border-color:var(--accent);color:var(--accent);cursor:pointer" onclick="showDiseaseSubtypeTree(event, ${Number(d.id)})" title="상위-하위질환 구조 보기(상위질환·형제)">▸ 하위</span>` : ''}
+            ${Number(d.parent_id) ? (() => { const _p = _dzById.get(Number(d.parent_id)); const _pn = _p ? diseaseDisplayName(_p) : ''; return `<span class="drug-chip" style="border-color:var(--accent);color:var(--accent);cursor:pointer" onclick="showDiseaseSubtypeTree(event, ${Number(d.id)})" title="${_pn ? '상위질환: ' + escapeHtml(_pn) + ' — ' : ''}눌러서 상위-하위 구조 보기">↑ ${_pn ? escapeHtml(_pn) + '의 하위' : '하위'}</span>`; })() : ''}
             ${_dzChildCount[Number(d.id)] ? `<span class="drug-chip" style="border-color:var(--accent);color:var(--accent);cursor:pointer" onclick="showDiseaseSubtypeTree(event, ${Number(d.id)})" title="상위-하위질환 구조 보기(하위 ${_dzChildCount[Number(d.id)]}개)">하위 ${_dzChildCount[Number(d.id)]}</span>` : ''}
             ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
           </div>
@@ -18351,7 +18352,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.90',
+  version: '1.91',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18360,7 +18361,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.90 — 주요 질환: "상위-하위질환 모음" 버튼(전체 계층 한눈에)',
+    title: '최신 · v1.91 — 주요 질환: 하위질환 카드에 상위질환 이름 표시',
+    items: [
+      '하위질환 카드의 배지가 그냥 "▸ 하위"였던 것을, 어떤 상위질환의 하위인지 이름까지 보이도록 바꿨습니다(예: "↑ 동기능부전증후군의 하위").',
+      '배지를 누르면 상위-하위 구조 트리가 열립니다. (상위질환이 필터로 목록에서 빠져 있어도 이름은 정확히 표시됩니다.)',
+    ]
+  },
+  {
+    title: 'v1.90 — 주요 질환: "상위-하위질환 모음" 버튼(전체 계층 한눈에)',
     items: [
       '질환 목록 상단(제목 옆)에 "🌳 상위-하위질환 모음" 버튼을 추가했습니다. 상위-하위 관계가 하나라도 있을 때만 나타납니다.',
       '누르면 하위질환을 가진 모든 상위질환의 가족 트리를 한 모달에 모아 보여줍니다. 이름순 정렬, 각 상위질환에 "하위 N" 표시, 아무 항목이나 누르면 해당 질환 카드가 열립니다.',
