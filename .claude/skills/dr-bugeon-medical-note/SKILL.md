@@ -73,6 +73,7 @@ description: >-
 - **[references/install-deploy-guide.md](references/install-deploy-guide.md)** — 설치·배포 가이드. Supabase 프로젝트/SQL, Cloudinary unsigned preset, Edge Function `delete-cloudinary-image`(코드 포함), GitHub Pages 배포, 오류 해결표, 빠른 복구 절차.
 - **[references/code-review.md](references/code-review.md)** — 단일 HTML · GitHub PR 코드 리뷰 절차. 0단계 자동 게이트(check-index·golden·doc-sync) → 데이터흐름/도메인 parity/노트/UI 회귀 체크리스트, 🔴 CRITICAL ZONE(연구노트 해시) 코멘트-only, 보안 제외(별도 /security-review), 판정 3단계·출력 형식. **PR 리뷰 시 사용.**
 - **[references/feature-addition.md](references/feature-addition.md)** — 새 기능·필드 추가 **사전** 절차(9단계). "보이기만 하고 저장 안 됨" 방지 — normalize 화이트리스트·저장 왕복·**canonical 해시 payload**·export/import parity(모드존중)·검색/필터·회귀까지 배선 순서. **기능/필드 추가 시 사용.**
+- **[references/regression.md](references/regression.md)** — 회귀 테스트 2층 모델. **(A) 자동(AI가 머지 전 필수 실행: check-index·golden·doc-sync)** + **(B) 수동 UI(사용자 실기기, code-review §6)**. 헤드리스라 AI는 (A)만 보증 — "UI 확인함"이라 뭉뚱그리지 말 것. **코드 변경 후 항상 (A) 실행.**
 
 > **스킬 구성:** SKILL.md + 7개 참고문서(dev-workflow, storage-sync, ui-features, import-backup-media, agents-rules, reconstruction-spec, install-deploy-guide) 전체 포함. 모든 문서에는 2026-06-29 로직 전수감사 결과가 `⚠️AUDIT` 주의문구/불변조건으로 반영돼 있다.
 

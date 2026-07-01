@@ -47,11 +47,12 @@ git checkout -b codex/<작업명>
   푸시 실패(네트워크) 시 지수 백오프(2/4/8/16초)로 최대 4회 재시도.
   푸시는 `git push -u origin codex/<작업명>`.
 - **자동 머지:** PR을 만들면 바로 머지. **머지 방식은 squash**, 커밋 제목에 `(#번호)`.
-- **머지 전 게이트(반드시 통과):**
-  1. 4개 `<script>` 블록 전부 `node --check` 통과,
-  2. 파일이 `</html>`로 정상 종료,
-  3. JS 로직·데이터·동기화를 바꿨으면 해당 순수 함수 격리 단위테스트 통과.
-  하나라도 못 지키면 머지하지 말고 보고한다.
+- **머지 전 게이트(반드시 통과) — 자동 회귀:**
+  1. `node scripts/check-index-scripts.mjs` (실행 `<script>` 문법·블록수·`</html>` 절단·핵심 흐름 함수 존재·도메인 parity),
+  2. `node scripts/golden-tests.mjs` (순수함수 행위보존 + 해시 직렬화 잠금),
+  3. `node scripts/sync-instruction-doc.mjs --check` (지시문 드리프트),
+  4. JS 로직·데이터·동기화·순수함수를 바꿨으면 그 순수함수를 `golden-tests.mjs`에 케이스로 추가.
+  하나라도 못 지키면 머지하지 말고 보고한다. (상세: 스킬 `references/regression.md` — (A)자동은 AI 의무, (B)수동 UI는 사용자 실기기 몫.)
 - **PR 분리:** 성격이 다른 작업은 PR을 나눈다(앱 코드 ↔ 스킬/문서).
 - **결과 보고:** 머지했으면 PR 번호·머지 SHA·머지 방식을 보고에 남긴다.
 
