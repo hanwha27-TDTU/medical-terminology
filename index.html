@@ -15883,6 +15883,7 @@ function createCompleteBackupObject() {
     formulaTombstones: loadLocalFormulaTombstones(),
     microbeTombstones: loadLocalMicrobeTombstones(),
     diseaseTombstones: loadLocalDiseaseTombstones(),
+    researchNotes: _rnLoad(),
     syncMeta: getLocalSyncMeta(),
   };
 }
@@ -16821,6 +16822,7 @@ async function readDataImportFile(file, kind) {
       formulaTombstones: hasFormulaTombstonePayload ? parsed.formulaTombstones : [],
       microbeTombstones: hasMicrobeTombstonePayload ? parsed.microbeTombstones : [],
       diseaseTombstones: hasDiseaseTombstonePayload ? parsed.diseaseTombstones : [],
+      researchNotes: Array.isArray(parsed.researchNotes) ? parsed.researchNotes : [],
       syncMeta: parsed.syncMeta || {},
       hasTermPayload,
       hasDrugPayload,
@@ -17022,6 +17024,14 @@ async function previewDataImport(event, kind) {
 async function applyPendingDataImport(options = {}) {
   if (!pendingDataImport) return false;
   const mode = options.mode || document.getElementById('dataImportMode')?.value || 'merge';
+  // 연구노트(특허 로그)는 append-only라 모드와 무관하게 id 기준 union 병합(기존 삭제 없음).
+  if (Array.isArray(pendingDataImport.researchNotes) && pendingDataImport.researchNotes.length) {
+    try {
+      const byId = new Map(_rnLoad().map(e => [e.id, e]));
+      pendingDataImport.researchNotes.forEach(e => { if (e && e.id && !byId.has(e.id)) byId.set(e.id, e); });
+      _rnSave([...byId.values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))));
+    } catch (e) {}
+  }
   const incoming = dedupeTermsById(pendingDataImport.terms).map(t => applyKoNameCollapse(t, 'terms'));
   // 가져오기(파일·JSON·AI 붙여넣기·중복검토)도 "업로드"이므로 incoming 클론에만 용어 나열형 첫 글자 대문자·한국어 이름 붙여쓰기 통일을 적용.
   // dedupe* 가 새 객체를 만들어 주므로 라이브 배열(기존 데이터)은 건드리지 않는다.
@@ -17706,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.68',
+  version: '1.69',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17715,7 +17725,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.68 — 연구노트(특허 증거용) 시스템 추가',
+    title: '최신 · v1.69 — 연구노트 클라우드 백업 + 지난 개발 이력 소급 가져오기',
+    items: [
+      '연구노트를 Supabase에 백업합니다. 새 기록을 저장할 때마다 자동으로 클라우드에 올라가고, "☁️ 클라우드 백업 올리기 / 합치기" 버튼으로 수동 백업·복원도 됩니다. 전체 JSON 백업에도 연구노트가 포함됩니다.',
+      '"📜 지난 개발 이력 가져오기"로 이 앱의 전체 버전 이력(v1.01~)을 연구노트에 소급 기록할 수 있습니다. 단 날짜 조작(백데이팅)은 하지 않습니다 — 작성일은 "가져온 시각", 서술은 "버전 로그 재구성"으로 정직하게 표기하며, 실제 타임라인의 권위 원본은 git 커밋 이력입니다.',
+      '연구노트 테이블(research_notes)도 스키마 자기점검·실제 DB 점검 대상에 포함됩니다. (SQL 변경 있음 — Supabase에서 최신 SQL을 한 번 실행하세요.)',
+    ]
+  },
+  {
+    title: 'v1.68 — 연구노트(특허 증거용) 시스템 추가',
     items: [
       '개발자 정보에 "📓 연구노트 열기" 버튼을 넣었습니다. AI가 도와줬지만 내가 생각하고 결정한 흔적을 사람/AI/최종결정으로 나눠 기록합니다. 각 기록은 SHA-256 해시 + 이전 기록 해시로 체인을 이뤄 변조하면 검증에서 드러납니다.',
       '원본은 절대 덮어쓰지 않고(정정·삭제는 원본을 가리키는 새 기록으로 추가), 타임라인·필터·상세 보기, JSON/CSV/Markdown 내보내기와 인쇄(PDF), 해시 검증을 제공합니다. 모두 오프라인로컬에 저장됩니다.',
@@ -18187,11 +18205,11 @@ const UPDATE_HISTORY = [
   }
 ];
 
-const SUPABASE_SCHEMA_VERSION = 'v4.56 · 용어 finding_type(증상/징후) 컬럼 추가';
-const SUPABASE_SCHEMA_UPDATED_AT = '2026년 6월 29일';
+const SUPABASE_SCHEMA_VERSION = 'v4.57 · 연구노트(research_notes) 테이블 추가';
+const SUPABASE_SCHEMA_UPDATED_AT = '2026년 7월 1일';
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon Medical Note Supabase 통합 스키마
 -- App version: v${APP_INFO.version} (${APP_INFO.updatedAt}) · 이 SQL이 포함된 앱 버전 — 자동 표기(APP_INFO에서)
--- Schema version: v4.15 · 용어 finding_type 컬럼 추가 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
+-- Schema version: v4.16 · 연구노트(research_notes) 테이블 추가 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
 -- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 주요 질환, 개념·오답 노트, 학습상태, 최종본 메타
 -- 참고: 주요 질환의 상세 분류(원인 18종·상위분류 내/외인성 등)는 medical_diseases.body(jsonb)에 저장되므로 별도 컬럼이 필요 없습니다.
 -- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요. (이미 만든 테이블이 있어도 안전 — create/alter 모두 if not exists)
@@ -18605,6 +18623,27 @@ alter table public.medical_term_learning_state
   add column if not exists due_at timestamptz,
   add column if not exists last_reviewed_at timestamptz,
   add column if not exists created_at timestamptz default now(),
+  add column if not exists updated_at timestamptz default now();
+
+-- 연구노트(특허 증거용 append-only 로그) — 엔트리 전체를 data(jsonb)에 통째 저장(append-only·불변).
+create table if not exists public.research_notes (
+  id text primary key,
+  created_at timestamptz default now(),
+  app_version text default '',
+  event_type text default '',
+  entry_hash text default '',
+  previous_entry_hash text,
+  data jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.research_notes
+  add column if not exists created_at timestamptz default now(),
+  add column if not exists app_version text default '',
+  add column if not exists event_type text default '',
+  add column if not exists entry_hash text default '',
+  add column if not exists previous_entry_hash text,
+  add column if not exists data jsonb default '{}'::jsonb,
   add column if not exists updated_at timestamptz default now();
 
 create table if not exists public.language_sync_meta (
@@ -19077,6 +19116,7 @@ function computeSchemaDrift(sql) {
     { table: 'medical_formulas', label: '공식', toRow: formulaToRow },
     { table: 'medical_microbes', label: '미생물', toRow: microbeToRow },
     { table: 'medical_diseases', label: '주요 질환', toRow: diseaseToRow },
+    { table: 'research_notes', label: '연구노트', toRow: researchNoteRow },
   ];
   const drift = [];
   domains.forEach(d => {
@@ -19148,6 +19188,7 @@ async function checkLiveSchema() {
     { label: '공식', table: FORMULAS_TABLE, toRow: formulaToRow },
     { label: '미생물', table: MICROBES_TABLE, toRow: microbeToRow },
     { label: '주요 질환', table: DISEASES_TABLE, toRow: diseaseToRow },
+    { label: '연구노트', table: RESEARCH_NOTES_TABLE, toRow: researchNoteRow },
   ];
   const results = [];
   for (const d of domains) {
@@ -19300,12 +19341,62 @@ async function rnAddEntry(eventType, data, opts) {
     project_name: (APP_INFO && APP_INFO.name) || 'Dr. Bugeon Medical Note', app_version: (APP_INFO && APP_INFO.version) || '',
     feature_name: data && data.feature_name || '', event_type: RN_EVENT_TYPES.includes(eventType) ? eventType : 'design_decision',
     corrects_id: opts.corrects_id || null, correction_type: opts.correction_type || null, deleted: false,
+    source: opts.source || null, describes_version: opts.describes_version || null, retrospective: !!opts.source,
     previous_entry_hash: prev ? prev.entry_hash : null, entry_hash: null,
     signature_status: 'unsigned', signed_by: (data && data.signed_by) || '', witness_name: (data && data.witness_name) || '', witness_signed_at: '',
   }, _rnBlank(data));
   entry.entry_hash = await _rnComputeHash(entry);
   notes.push(entry); _rnSave(notes);
+  rnPushOne(entry); // 자동 클라우드 백업(설정 있으면) — fire-and-forget
   return entry;
+}
+// ── 연구노트 클라우드 백업(Supabase research_notes · append-only 업서트) ──
+const RESEARCH_NOTES_TABLE = 'research_notes';
+function researchNoteRow(e) {
+  return { id: String(e.id), created_at: e.created_at || new Date().toISOString(), app_version: e.app_version || '', event_type: e.event_type || '', entry_hash: e.entry_hash || '', previous_entry_hash: e.previous_entry_hash || null, data: e, updated_at: new Date().toISOString() };
+}
+function rnPushOne(e) {
+  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return Promise.resolve(false);
+  return fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}`, { method: 'POST', headers: h, body: JSON.stringify([researchNoteRow(e)]) }).then(r => r.ok).catch(() => false);
+}
+async function rnPushAll() {
+  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return { ok: false, reason: 'no-config' };
+  const rows = _rnLoad().map(researchNoteRow); if (!rows.length) return { ok: true, count: 0 };
+  try { const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}`, { method: 'POST', headers: h, body: JSON.stringify(rows) }); return res.ok ? { ok: true, count: rows.length } : { ok: false, reason: 'HTTP ' + res.status }; }
+  catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+async function rnPull() {
+  const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return { ok: false, reason: 'no-config' };
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/${RESEARCH_NOTES_TABLE}?select=data&order=created_at.asc&limit=100000`, { headers: h });
+    if (!res.ok) return { ok: false, reason: 'HTTP ' + res.status };
+    const rows = await res.json();
+    const cloud = (Array.isArray(rows) ? rows : []).map(r => r.data).filter(x => x && x.id);
+    const byId = new Map(_rnLoad().map(e => [e.id, e]));
+    let added = 0;
+    cloud.forEach(e => { if (!byId.has(e.id)) { byId.set(e.id, e); added++; } });
+    const merged = [...byId.values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    _rnSave(merged);
+    return { ok: true, added, total: merged.length };
+  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+// ── 지난 개발 이력(UPDATE_HISTORY)을 소급 기록으로 가져오기(백데이팅 아님 — 작성일=지금, 서술=버전 로그 재구성) ──
+async function rnImportUpdateHistory() {
+  if (_rnLoad().some(e => e.source === 'update_history')) { showToast('이미 지난 개발 이력을 가져왔습니다'); return; }
+  const hist = Array.isArray(UPDATE_HISTORY) ? UPDATE_HISTORY.slice().reverse() : [];
+  for (const h of hist) {
+    const title = String(h.title || '').replace(/^최신 · /, '');
+    const ver = (title.match(/v(\d+\.\d+)/) || [])[1] || '';
+    const items = (h.items || []).join('\n');
+    await rnAddEntry('design_decision', {
+      feature_name: title,
+      problem_statement: '(소급 기록 · 앱 버전 로그에서 재구성 · 실제 타임라인의 권위 원본은 git 커밋 이력)',
+      human_idea: '이 버전에서 사람이 요구·판단한 개선.', ai_output_summary: 'AI(Claude)가 구현·수정을 보조.',
+      final_decision: items, technical_effect: items,
+    }, { source: 'update_history', describes_version: ver });
+  }
+  showToast(`📓 지난 개발 이력 ${hist.length}건을 소급 기록으로 가져왔습니다(작성일=지금)`);
+  rnRenderList();
 }
 // 앱 내부 이벤트 자동 로깅용 공개 API(다른 코드가 호출 가능). 조용히 실패(로깅이 앱을 막지 않게).
 function logResearchEvent(eventType, data) { try { return rnAddEntry(eventType, data || {}); } catch (e) { return Promise.resolve(null); } }
@@ -19395,6 +19486,11 @@ function rnOpenNotebook() {
           <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
           <button class="ui-btn sm" onclick="rnExport('print')">🖨️ 인쇄(PDF)</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="ui-btn sm safe" onclick="rnCloudBackup()">☁️ 클라우드 백업 올리기</button>
+          <button class="ui-btn sm" onclick="rnCloudRestore()">☁️ 클라우드에서 합치기</button>
+          <button class="ui-btn sm" onclick="rnImportUpdateHistory()">📜 지난 개발 이력 가져오기</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <select id="rnFilterType" onchange="rnSetFilter()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px">${['<option value="">모든 유형</option>'].concat(RN_EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`)).join('')}</select>
@@ -19552,11 +19648,27 @@ function rnExport(fmt) {
     w.document.close(); return;
   }
 }
+async function rnCloudBackup() {
+  if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 클라우드 백업을 못 합니다 · 설정에서 URL·키 저장 후 이용'); return; }
+  showToast('☁️ 연구노트 클라우드 백업 중...');
+  const r = await rnPushAll();
+  showToast(r.ok ? `✅ 클라우드 백업 완료 · ${r.count}건` : `⚠️ 백업 실패 · ${r.reason || ''} (research_notes 테이블 SQL 실행 여부 확인)`);
+}
+async function rnCloudRestore() {
+  if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 불러올 수 없습니다'); return; }
+  showToast('☁️ 클라우드에서 연구노트 불러오는 중...');
+  const r = await rnPull();
+  if (r.ok) { showToast(`✅ 합치기 완료 · 새로 ${r.added}건 추가(총 ${r.total}건)`); rnRenderList(); }
+  else showToast(`⚠️ 불러오기 실패 · ${r.reason || ''}`);
+}
 async function rnRunVerify() {
   const issues = await rnVerifyChain();
   if (!issues.length) { showToast(`✅ 해시 체인 무결 — ${_rnLoad().length}건 전부 검증 통과`); return; }
-  showToast(`⚠️ 무결성 문제 ${issues.length}건 감지 (변조/체인 끊김) — 콘솔 확인`);
-  console.warn('연구노트 무결성 문제', issues);
+  const tamper = issues.filter(i => i.type === 'hash_mismatch').length;
+  const breaks = issues.filter(i => i.type === 'chain_break').length;
+  console.warn('연구노트 무결성 점검', issues);
+  if (tamper) { showToast(`⚠️ 변조 의심 ${tamper}건 감지 — 저장된 기록이 원본과 다릅니다(콘솔 확인)`); return; }
+  showToast(`ℹ️ 체인 링크 불연속 ${breaks}건 — 여러 기기 기록을 합치면 정상일 수 있습니다. 각 기록의 해시 자체는 무결(변조 없음).`);
 }
 
 
