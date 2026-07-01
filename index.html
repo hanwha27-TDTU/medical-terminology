@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.74',
+  version: '1.75',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.74 — 연구노트: 내보내기 자동 기록 끄기(노이즈 제거)',
+    title: '최신 · v1.75 — 연구노트: "내보내기 숨김" 보기 필터 추가',
+    items: [
+      '연구노트 목록에 "내보내기 숨김" 체크박스를 추가했습니다(기본 켜짐). 이미 쌓인 내보내기(export) 항목을 목록에서 가려 "생각·결정" 기록만 보이게 합니다.',
+      '데이터는 삭제되지 않고 보기에서만 숨깁니다 — 원본·해시체인은 그대로 보존됩니다. 상단에 "내보내기 N건 숨김(보존됨)"으로 표시하고, 유형 드롭다운에서 export를 직접 고르면 그 선택이 우선합니다.',
+    ]
+  },
+  {
+    title: 'v1.74 — 연구노트: 내보내기 자동 기록 끄기(노이즈 제거)',
     items: [
       'JSON·CSV·Markdown·증거 보고서를 내보낼 때마다 연구노트에 "내보내기(export)" 항목이 자동으로 쌓이던 것을 없앴습니다. 내보내기는 열람 행위이지 발명 활동이 아니라서, 이제 다운로드만 하고 기록은 남기지 않습니다.',
       '연구노트가 "생각·결정" 기록만 담아 훨씬 깔끔해집니다. (이미 쌓인 기존 내보내기 항목은 원본 불변·해시체인 원칙상 그대로 보존됩니다 — 새로 늘지 않을 뿐입니다.)',
@@ -19320,7 +19327,7 @@ function _schemaDriftLoadCheck() {
 // 주의(UI에도 표기): 법적 보증이 아니라, 향후 특허 검토를 위한 "구조화된 증거 로그"다.
 const RESEARCH_NOTES_KEY = 'drbugeon_research_notes';
 const RN_EVENT_TYPES = ['idea','prompt','ai_output','human_review','code_change','test','bug','fix','design_decision','patent_claim_candidate','export','correction'];
-let _rnFilter = { event_type: '', feature: '', model: '', patent: false, from: '', to: '' };
+let _rnFilter = { event_type: '', feature: '', model: '', patent: false, hideExport: true, from: '', to: '' };
 
 function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a : []; }
 function _rnSave(arr) { safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr)); }
@@ -19636,6 +19643,7 @@ function rnOpenNotebook() {
           <input id="rnFilterFeature" oninput="rnSetFilter()" placeholder="기능명 필터" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;width:120px">
           <input id="rnFilterModel" oninput="rnSetFilter()" placeholder="AI 모델 필터" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;width:110px">
           <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px"><input type="checkbox" id="rnFilterPatent" onchange="rnSetFilter()"> 특허 관련만</label>
+          <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px"><input type="checkbox" id="rnFilterHideExport" checked onchange="rnSetFilter()"> 내보내기 숨김</label>
         </div>
       </div>
       <div id="rnListBody" style="padding:14px 16px 20px"></div>
@@ -19649,9 +19657,12 @@ function rnSetFilter() {
   _rnFilter.feature = (document.getElementById('rnFilterFeature')?.value || '').trim().toLowerCase();
   _rnFilter.model = (document.getElementById('rnFilterModel')?.value || '').trim().toLowerCase();
   _rnFilter.patent = !!document.getElementById('rnFilterPatent')?.checked;
+  _rnFilter.hideExport = !!document.getElementById('rnFilterHideExport')?.checked;
   rnRenderList();
 }
 function _rnMatch(e) {
+  // 내보내기 숨김(기본 켜짐) — 단, 유형 드롭다운에서 export를 직접 고르면 그 선택을 우선.
+  if (_rnFilter.hideExport && e.event_type === 'export' && _rnFilter.event_type !== 'export') return false;
   if (_rnFilter.event_type && e.event_type !== _rnFilter.event_type) return false;
   if (_rnFilter.feature && !String(e.feature_name || '').toLowerCase().includes(_rnFilter.feature)) return false;
   if (_rnFilter.model && !String((e.ai_metadata || {}).model_name || '').toLowerCase().includes(_rnFilter.model)) return false;
@@ -19663,8 +19674,10 @@ function rnRenderList() {
   const notes = _rnLoad();
   const shown = notes.filter(_rnMatch).slice().reverse();
   const total = notes.length;
-  if (!shown.length) { box.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:16px 2px">기록이 없습니다. "➕ 새 기록"으로 시작하세요. (전체 ${total}건)</div>`; return; }
-  box.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">표시 ${shown.length} / 전체 ${total}건 · 최신순</div>` + shown.map(e => rnCardHtml(e, notes)).join('');
+  const hiddenExport = (_rnFilter.hideExport && _rnFilter.event_type !== 'export') ? notes.filter(e => e.event_type === 'export').length : 0;
+  const exportNote = hiddenExport ? ` · 내보내기 ${hiddenExport}건 숨김(보존됨)` : '';
+  if (!shown.length) { box.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:16px 2px">기록이 없습니다. "➕ 새 기록"으로 시작하세요. (전체 ${total}건${exportNote})</div>`; return; }
+  box.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">표시 ${shown.length} / 전체 ${total}건 · 최신순${exportNote}</div>` + shown.map(e => rnCardHtml(e, notes)).join('');
 }
 function rnCardHtml(e, notes) {
   const del = _rnIsDeleted(e.id, notes);
