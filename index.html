@@ -4075,6 +4075,12 @@ document.addEventListener('keydown', e => {
     font-weight: 850;
     line-height: 1.2;
   }
+  /* 라벨(첫 번째 알약)만 고정폭·가운데 정렬 → 뒤 본문 시작점이 줄마다 정렬됨(📖 아이콘·칩 컨테이너 등 다른 span은 제외). */
+  .microbe-memory-line > span:first-child {
+    min-width: 46px;
+    box-sizing: border-box;
+    justify-content: center;
+  }
 
   .microbe-info-grid {
     display: grid;
@@ -18405,7 +18411,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.97',
+  version: '1.98',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18414,7 +18420,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.97 — 주요 질환: 편집 폼 "사망 / 장애 위험" 칸을 전체폭으로',
+    title: '최신 · v1.98 — 카드 라벨 알약 폭을 맞춰 본문 줄맞춤',
+    items: [
+      '질환·미생물 카드의 "한 줄 / 주호소 / 정의" 같은 라벨 알약이 글자 수에 따라 폭이 달라, 뒤에 오는 본문 시작점이 줄마다 어긋나 보이던 것을 고쳤습니다.',
+      '라벨 알약에 고정 최소폭 + 가운데 정렬을 줘서 모든 라벨이 같은 폭이 되고 본문이 세로로 정렬됩니다. (📖 아이콘·하위 칩 등 다른 요소는 첫 번째 라벨만 겨냥해 영향 없음.)',
+    ]
+  },
+  {
+    title: 'v1.97 — 주요 질환: 편집 폼 "사망 / 장애 위험" 칸을 전체폭으로',
     items: [
       '질환 경과(Natural history) 섹션의 "사망 / 장애 위험" 입력칸이 좁아 문장이 잘리던 것을, 자연 경과·치료 경과·예후처럼 전체폭 입력칸으로 넓혔습니다.',
     ]
