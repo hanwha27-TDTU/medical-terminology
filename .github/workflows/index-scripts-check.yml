@@ -8,10 +8,12 @@ on:
     paths:
       - 'index.html'
       - 'scripts/check-index-scripts.mjs'
+      - 'scripts/golden-tests.mjs'
   pull_request:
     paths:
       - 'index.html'
       - 'scripts/check-index-scripts.mjs'
+      - 'scripts/golden-tests.mjs'
 
 jobs:
   check-index:
@@ -23,3 +25,5 @@ jobs:
           node-version: '20'
       - name: index.html 실행 스크립트·무결성 자동 점검
         run: node scripts/check-index-scripts.mjs
+      - name: 순수함수 골든테스트(행위보존 검증)
+        run: node scripts/golden-tests.mjs
