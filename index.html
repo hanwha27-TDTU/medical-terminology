@@ -15491,7 +15491,11 @@ function buildAIContentSpec(domain) {
   }
 
   const header = [
-    '너는 의학 학습 앱에 넣을 데이터를 만든다. 출력은 "두 부분"이다.',
+    '너는 의학 학습 앱에 넣을 데이터를 만든다.',
+    '',
+    '[진행 방식 — 가장 먼저 지켜라] 지금은 이 지시문(양식)만 받은 상태다. 아직 아무것도 생성하지 마라. 예시조차 만들지 마라. 먼저 "✅ 준비됐습니다. 만들 항목과 개수를 알려주세요 (예: 심근경색 5개)." 라고만 짧게 답하고 기다려라. 내가 다음 메시지로 항목(과 개수)을 주면, 그때 비로소 아래 규칙대로 [1부 정리]와 [2부 붙여넣기 블록]을 출력해라.',
+    '',
+    '아래는 항목을 받은 뒤 지킬 규칙이다. 출력은 "두 부분"이다.',
     '',
     '[언어 규칙 — 중요] 설명·포인트·주의 등 모든 "자유 서술 텍스트"는 한국어를 기본(주 서술 언어)으로 써라(예: usmle/USMLE·KMLE 고득점 포인트, MOA/기전, 임상 사용, 부작용, drug_class 설명, 질환 임상 포인트, 1부 정리 글). 문장·서술 골격은 한국어로 하고, 그 안의 "의학용어는 반드시 한국어와 영어를 함께 병기"한다 — 형식: 한국어(영어), 예: "서맥(bradycardia)", "방실차단(AV block)", "심근경색(myocardial infarction) 후 이차 예방". 영어 의학용어만 나열하지 마라. 다음만 예외로 원어를 유지한다: ① 언어가 정해진 칸 — def_ko=한국어, def_en=영어, def_uz=우즈벡어(이 칸들은 병기하지 말고 해당 언어만) / ② 약물명(generic/brand)·학명(organism)·발음기호(ipa)·순수 약어(예: PO, IV)는 원어 그대로.',
     '',
@@ -15552,7 +15556,7 @@ function openAIContentTemplateMenu() {
   modal.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px;max-height:84vh;overflow:auto">
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">🤖 AI 콘텐츠 생성 양식 복사</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px"><b>① 양식 복사</b> → AI에 붙여넣고 <b>"○개 만들어줘"</b> → AI가 예쁘게 정리해 보여주고 <b>맨 끝에 붙여넣기 블록</b>(용어=TSV·JSON 둘 다, 그 외=JSON)을 줍니다 → <b>② 그 블록 하나를 아래 "AI 답변 붙여넣기"</b>에 붙여 한 번에 가져오기(신규만 추가). 설명·USMLE 포인트 등은 한국어로 생성됩니다. 드롭다운 값은 앱 설정에서 자동 생성됩니다.</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;margin-bottom:14px"><b>① 양식 복사</b> → AI에 붙여넣으면 <b>"준비됐습니다"</b>라고 답합니다 → <b>"○개 만들어줘"</b>(예: 심근경색 5개)라고 알려주면 → AI가 예쁘게 정리해 보여주고 <b>맨 끝에 붙여넣기 블록</b>(용어=TSV·JSON 둘 다, 그 외=JSON)을 줍니다 → <b>② 그 블록 하나를 아래 "AI 답변 붙여넣기"</b>에 붙여 한 번에 가져오기(신규만 추가). 설명·USMLE 포인트 등은 한국어로 생성됩니다. 드롭다운 값은 앱 설정에서 자동 생성됩니다.</div>
       <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px">① 양식 복사</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${domBtn('terms', '일반용어 (TSV·JSON 둘 다)')}
@@ -17676,7 +17680,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.61',
+  version: '1.62',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17685,7 +17689,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.61 — 중복 검토 "전부 새것으로/기존 유지"에 반응(토스트) 추가',
+    title: '최신 · v1.62 — AI 양식: 붙여넣으면 "준비됐습니다" 후 대기 → 항목 주면 생성',
+    items: [
+      'AI 콘텐츠 양식을 붙여넣으면 AI가 곧바로 예시를 만들지 않고 "✅ 준비됐습니다. 만들 항목과 개수를 알려주세요"라고 답한 뒤 기다립니다. 이어서 "심근경색 5개"처럼 항목을 주면 그때 양식대로 생성합니다. (모든 도메인 양식 공통 적용.)',
+    ]
+  },
+  {
+    title: 'v1.61 — 중복 검토 "전부 새것으로/기존 유지"에 반응(토스트) 추가',
     items: [
       '중복 검토창에서 "전부 새것으로" 버튼을 눌러도 반응이 없어 보이던 문제를 개선했습니다. 원래 모든 칸이 기본값으로 "새것"에 체크돼 있어 눌러도 시각 변화가 없던 것이라, 이제 몇 칸이 설정됐는지 토스트로 알려줍니다("전부 기존 유지", 그룹별 "새것/기존 전체" 버튼도 동일).',
     ]
