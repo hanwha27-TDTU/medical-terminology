@@ -33,6 +33,17 @@ node scripts/check-version-bump.mjs    # index.html 변경 시 버전 +0.01·새
 
 `.github/pull_request_template.md`의 "테스트" 섹션이 이 항목을 담는다.
 
+## (C) 운영·재검증 주의 (게이트 자체의 실행 환경 함정)
+
+- **ZIP으로 받아 재검증할 땐 UTF-8 로케일에서 해제.** git clone은 무관(CI 포함)이지만, 저장소를 **ZIP으로 내려받아**
+  비-UTF-8/빈 로케일에서 `unzip`하면 한글 파일명(`docs/특허연구노트_통합지시문.md` 등)이 `#Ud2b9…`로 깨져
+  `node scripts/sync-instruction-doc.mjs --check`가 **엉뚱하게 실패**한다(앱 결함 아님·절차 문제).
+  → `LANG=C.UTF-8 unzip …` 또는 Python `zipfile.extractall()`로 풀면 정상. (파일명은 단일 원본이라 ASCII 리네임하지 않는다 — 경로 참조가 깨진다.)
+- **`scripts/build-research-manifest.mjs`는 (A) 로컬 게이트가 아니다.** `SUPABASE_URL`/`SUPABASE_KEY`(운영 시크릿)로
+  실제 Supabase를 읽어 연구노트 해시 매니페스트를 만드는 **운영 스크립트**(워크플로 `research-manifest.yml`).
+  로컬에서 시크릿 없이 실패하는 건 **정상** → 결과 보고엔 "시크릿 필요로 미실행/운영 게이트"로 (A)와 **분리 표기**한다.
+  (그래서 (A) 명령 목록·머지 게이트에 넣지 않는다.)
+
 ## 정직한 경계
 - AI가 "테스트 통과"라고 할 수 있는 건 **(A) 자동층뿐**이다. **(B)는 사용자 몫** — AI가 "UI 확인함"이라고
   말하지 않는다(거짓 보증 금지, AGENTS.md §5).

@@ -3,6 +3,8 @@
 // 목적: "이 해시들이 그 시각에 존재했다"를 공개 Release로 증명하되, 발명 내용은 노출 0 → 특허 신규성 안전.
 // ⚠️ ALLOW 목록은 index.html의 RN_MANIFEST_FIELDS와 반드시 동일하게 유지할 것(둘이 어긋나면 안 됨).
 // 필요 시크릿: SUPABASE_URL, SUPABASE_KEY (RLS 꺼진 상태면 anon 키로 읽힘. RLS 켜면 service_role 키 사용).
+// ※ 이건 "운영(시크릿) 스크립트"다 — 로컬 머지 게이트(A)가 아니라 워크플로 research-manifest.yml에서 시크릿과 함께 돈다.
+//   시크릿 없이 로컬에서 실패하는 건 정상. 결과 보고엔 "시크릿 필요로 미실행/운영 게이트"로 분리 표기(regression.md (C)).
 
 import { writeFileSync } from 'node:fs';
 
