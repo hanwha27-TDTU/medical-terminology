@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.72',
+  version: '1.73',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,19 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.72 — 연구노트: 전자서명(ECDSA) + 서버 타임스탬프(특허 전문가 검토 1·2번 반영)',
+    title: '최신 · v1.73 — 연구노트: 특허 증거 필드 대폭 확충(전문가 검토 3~10번 반영)',
+    items: [
+      '특허 전문가 검토의 나머지 항목을 연구노트에 반영했습니다.',
+      'AI 대화 원문(요약이 아닌 전문) 필드 추가 — 프롬프트·출력 전문을 그대로 보존하고 각각의 SHA-256을 자동 계산해 "AI가 낸 것 vs 사람이 낸 것"의 경계를 증거로 남깁니다.',
+      '발명 기여 단계(착상→실시→검증→테스트→청구항 작성)와 발명 일자(아이디어→프로토타입→RTP→공개→출원) 구조화 입력.',
+      '선행기술 조사 로그(특허번호·출처·조사일·키워드·차별점)와 연결 청구항(Claim 1,2…) 필드.',
+      'git 증거(저장소 URL·PR 번호·Issue 번호)와 증인(입회) 이름·이메일·서명·서명일 필드.',
+      '실제 파일 첨부 → SHA-256·SHA-512·크기·MIME·수정시각을 계산해 무결성 지문으로 기록(파일 내용은 저장 안 함, 원본은 따로 보관).',
+      '📊 증거 보고서 내보내기 — 사람 vs AI 기여, 모델별 AI 사용 현황, 특허 후보·선행기술을 한 장으로 집계(법적 보증 아닌 집계 지표).',
+    ]
+  },
+  {
+    title: 'v1.72 — 연구노트: 전자서명(ECDSA) + 서버 타임스탬프(특허 전문가 검토 1·2번 반영)',
     items: [
       '특허 전문가 검토에서 가장 시급하다고 지적된 두 가지를 반영했습니다 — ① 신뢰 타임스탬프, ② 전자서명.',
       '전자서명: 각 기록의 entry_hash에 기기별 ECDSA P-256 키로 서명해 "같은 키가 남긴 기록"임을 증명합니다(부인방지). 서명은 해시 대상에서 제외되어 나중에 붙어도 원본 해시를 바꾸지 않고, 🔒 해시 검증이 서명 불일치도 함께 잡아냅니다. (자체생성 기기 키이므로 CA 신원증명은 아니며, 외부 신뢰 기준점은 여전히 git 커밋 이력입니다.)',
@@ -19401,9 +19413,18 @@ function _rnBlank(data) {
     human_modification: data.human_modification || '', final_decision: data.final_decision || '', technical_effect: data.technical_effect || '',
     test_method: data.test_method || '', test_result: data.test_result || '', failure_reason: data.failure_reason || '', next_action: data.next_action || '',
     files: Array.isArray(data.files) ? data.files : [],
+    // AI 대화 원문(요약이 아닌 전문) — 있으면 그대로 보존해 "AI가 낸 것"과 "사람이 낸 것"의 경계를 증거로 남긴다.
+    ai_prompt_full: data.ai_prompt_full || '', ai_output_full: data.ai_output_full || '',
     ai_metadata: Object.assign({ model_name:'', provider:'', conversation_id:'', prompt_hash_sha256:'', output_hash_sha256:'' }, data.ai_metadata || {}),
-    code_metadata: Object.assign({ git_commit_hash:'', branch_name:'', changed_files:[], diff_summary:'' }, data.code_metadata || {}),
-    patent_metadata: Object.assign({ possible_claim:'', novelty_point:'', inventive_step_point:'', industrial_applicability:'', inventor_human_contribution:'' }, data.patent_metadata || {}),
+    code_metadata: Object.assign({ git_commit_hash:'', branch_name:'', changed_files:[], diff_summary:'', repo_url:'', pr_number:'', issue_number:'' }, data.code_metadata || {}),
+    patent_metadata: Object.assign({ possible_claim:'', novelty_point:'', inventive_step_point:'', industrial_applicability:'', inventor_human_contribution:'', claim_links:'' }, data.patent_metadata || {}),
+    // 증인(입회인) — 이름/이메일/서명문구/서명일. 자체 기록이라 제3자 확인은 못 되지만 입회 사실을 구조화해 남긴다.
+    witness: Object.assign({ name:'', email:'', signature:'', signed_at:'' }, data.witness || {}),
+    // 발명 기여 단계(착상→실시→검증→테스트→청구항 작성)와 발명 일자(아이디어→프로토타입→RTP→공개→출원).
+    contribution_stages: Object.assign({ conception:'', reduction_to_practice:'', verification:'', testing:'', claim_drafting:'' }, data.contribution_stages || {}),
+    invention_dates: Object.assign({ idea:'', prototype:'', reduction_to_practice:'', public_disclosure:'', filing:'' }, data.invention_dates || {}),
+    // 선행기술 조사 로그(차별점 명시). 배열 — {patent_number, source, search_date, keywords, differentiation}
+    prior_art: Array.isArray(data.prior_art) ? data.prior_art : [],
   };
 }
 async function rnAddEntry(eventType, data, opts) {
@@ -19505,8 +19526,9 @@ async function rnVerifyChain() {
 }
 // ── 내보내기 ──
 function _rnMd(entry, notes) {
-  const p = entry.patent_metadata || {}, ai = entry.ai_metadata || {};
-  const files = (entry.files || []).map(f => `- ${f.file_name || ''} (${f.file_type || ''}) hash:${f.file_hash_sha256 || ''} — ${f.description || ''}`).join('\n') || '(없음)';
+  const p = entry.patent_metadata || {}, ai = entry.ai_metadata || {}, cm = entry.code_metadata || {}, w = entry.witness || {}, cs = entry.contribution_stages || {}, idt = entry.invention_dates || {};
+  const files = (entry.files || []).map(f => `- ${f.file_name || ''} (${f.mime_type || f.file_type || ''}${f.file_size ? ', ' + f.file_size + 'B' : ''}${f.last_modified ? ', mod ' + f.last_modified : ''})\n  - sha256: ${f.file_hash_sha256 || ''}${f.file_hash_sha512 ? '\n  - sha512: ' + f.file_hash_sha512 : ''}${f.description ? '\n  - ' + f.description : ''}`).join('\n') || '(없음)';
+  const priorArt = (entry.prior_art || []).length ? (entry.prior_art || []).map(a => `- ${a.patent_number || '(번호 미상)'} · ${a.source || ''} · 조사일 ${a.search_date || ''} · 키워드 ${a.keywords || ''}\n  - 차별점: ${a.differentiation || ''}`).join('\n') : '(없음)';
   const del = _rnIsDeleted(entry.id, notes || _rnLoad()) ? ' [삭제표시됨(원본·해시 보존)]' : '';
   return [
     `# Research Notebook Entry${del}`, '',
@@ -19515,11 +19537,18 @@ function _rnMd(entry, notes) {
     `Inventor (human): ${entry.inventor_name || '(미설정)'}${entry.inventor_birthdate ? ' · ' + entry.inventor_birthdate : ''}${entry.inventor_affiliation ? ' · ' + entry.inventor_affiliation : ''}`,
     `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`, '',
     `## 1. Problem`, entry.problem_statement || '', '', `## 2. Prior Limitation`, entry.prior_limitation || '', '',
-    `## 3. Human Idea (발명자 착상)`, entry.human_idea || '', '', `## 4. AI Assistance (도구 보조)`, `- Prompt: ${entry.ai_prompt_summary || ''}`, `- Output: ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, '',
+    `## 3. Human Idea (발명자 착상)`, entry.human_idea || '', '', `## 4. AI Assistance (도구 보조)`, `- Prompt(요약): ${entry.ai_prompt_summary || ''}`, `- Output(요약): ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, `- Conversation ID: ${ai.conversation_id || ''}`,
+    ...(entry.ai_prompt_full ? [`- Prompt 전문 (sha256:${ai.prompt_hash_sha256 || ''}):`, '```', entry.ai_prompt_full, '```'] : []),
+    ...(entry.ai_output_full ? [`- Output 전문 (sha256:${ai.output_hash_sha256 || ''}):`, '```', entry.ai_output_full, '```'] : []), '',
     `## 5. Human Modification`, entry.human_modification || '', '', `## 6. Final Technical Decision`, entry.final_decision || '', '',
     `## 7. Technical Effect`, entry.technical_effect || '', '', `## 8. Test Method`, entry.test_method || '', '', `## 9. Test Result`, entry.test_result || (entry.failure_reason ? ('실패: ' + entry.failure_reason) : ''), '',
-    `## 10. Patent Relevance`, `- Possible claim: ${p.possible_claim || ''}`, `- Novelty: ${p.novelty_point || ''}`, `- Inventive step: ${p.inventive_step_point || ''}`, `- Industrial applicability: ${p.industrial_applicability || ''}`, `- Human contribution: ${p.inventor_human_contribution || ''}`, '',
-    `## 11. Attachments`, files, '', `## 12. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
+    `## 10. Patent Relevance`, `- Possible claim: ${p.possible_claim || ''}`, `- Novelty: ${p.novelty_point || ''}`, `- Inventive step: ${p.inventive_step_point || ''}`, `- Industrial applicability: ${p.industrial_applicability || ''}`, `- Human contribution: ${p.inventor_human_contribution || ''}`, `- 연결 청구항: ${p.claim_links || ''}`, '',
+    `## 11. Contribution Stages (기여 단계)`, `- ① 착상(Conception): ${cs.conception || ''}`, `- ② 실시(RTP): ${cs.reduction_to_practice || ''}`, `- ③ 검증(Verification): ${cs.verification || ''}`, `- ④ 테스트(Testing): ${cs.testing || ''}`, `- ⑤ 청구항 작성(Claim Drafting): ${cs.claim_drafting || ''}`, '',
+    `## 12. Invention Dates (발명 일자)`, `- 아이디어: ${idt.idea || ''}`, `- 프로토타입: ${idt.prototype || ''}`, `- 실시(RTP): ${idt.reduction_to_practice || ''}`, `- 공개: ${idt.public_disclosure || ''}`, `- 출원(예정): ${idt.filing || ''}`, '',
+    `## 13. Prior Art (선행기술 조사)`, priorArt, '',
+    `## 14. Git Evidence`, `- Repo: ${cm.repo_url || ''}`, `- Branch: ${cm.branch_name || ''}`, `- Commit: ${cm.git_commit_hash || ''}`, `- PR #${cm.pr_number || ''} · Issue #${cm.issue_number || ''}`, `- Diff: ${cm.diff_summary || ''}`, '',
+    `## 15. Witness (증인·입회)`, `- 이름: ${w.name || '(없음)'}`, `- 이메일: ${w.email || ''}`, `- 서명: ${w.signature || ''}`, `- 서명일: ${w.signed_at || ''}`, `- (참고: 자체 기록이라 제3자 확인은 아님 — 입회 사실의 구조화 기록)`, '',
+    `## 16. Attachments`, files, '', `## 17. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
     `- signature: ${entry.signature_status}${entry.signature_algo ? ' (' + entry.signature_algo + ')' : ''}${entry.signed_by ? (' by ' + entry.signed_by) : ''}`,
     `- created_at: ${entry.created_at} (기기 시각 · 조작 가능)`, `- server_time: ${entry.server_time || '(미동기화)'} (Supabase 서버 시각 · 제3자 타임스탬프)`,
     `- 서명 참고: 자체생성 기기 키(ECDSA P-256)로 "같은 키가 남긴 기록"임을 증명(부인방지). CA 신원증명은 아님 — 외부 신뢰 기준점은 git 커밋 이력.`, ''
@@ -19541,10 +19570,15 @@ const RN_FORM_FIELDS = [
   { group: '기본', fields: [['feature_name', '기능/주제명', 'input'], ['event_type', '이벤트 유형', 'select']] },
   { group: '문제·한계', fields: [['problem_statement', '문제 (왜 필요한가)', 'ta'], ['prior_limitation', '기존 한계', 'ta']] },
   { group: '사람(발명자) 기여 👤 — 아래 3칸은 "내 착상·판단"으로 기록됩니다', fields: [['human_idea', '사람(발명자)의 아이디어·착상', 'ta'], ['human_modification', '사람이 AI 결과를 수정·판단한 점', 'ta'], ['final_decision', '최종 결정 (사람)', 'ta']] },
-  { group: 'AI 기여 🤖', fields: [['ai_prompt_summary', 'AI 프롬프트 요약', 'ta'], ['ai_output_summary', 'AI 출력 요약', 'ta'], ['ai_model_name', 'AI 모델명', 'input'], ['ai_provider', 'AI 제공자', 'input'], ['ai_conversation_id', '대화/세션 ID', 'input']] },
+  { group: 'AI 기여 🤖', fields: [['ai_prompt_summary', 'AI 프롬프트 요약', 'ta'], ['ai_output_summary', 'AI 출력 요약', 'ta'], ['ai_prompt_full', 'AI 프롬프트 전문 (원문 그대로)', 'ta'], ['ai_output_full', 'AI 출력 전문 (원문 그대로)', 'ta'], ['ai_model_name', 'AI 모델명', 'input'], ['ai_provider', 'AI 제공자', 'input'], ['ai_conversation_id', '대화/세션 ID', 'input']] },
   { group: '효과·검증', fields: [['technical_effect', '기술적 효과', 'ta'], ['test_method', '테스트 방법', 'input'], ['test_result', '테스트 결과', 'ta'], ['failure_reason', '실패 원인 (있으면)', 'input'], ['next_action', '다음 행동', 'input']] },
-  { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta']] },
-  { group: '코드·첨부 메타', fields: [['code_git', 'git commit hash', 'input'], ['code_branch', '브랜치', 'input'], ['code_diff', 'diff 요약', 'input'], ['files_note', '첨부 (파일명·설명, 한 줄에 하나)', 'ta']] },
+  { group: '발명 기여 단계 📶 (착상→실시→검증→테스트→청구항)', fields: [['stage_conception', '① 착상 (Conception)', 'input'], ['stage_rtp', '② 실시 (Reduction to Practice)', 'input'], ['stage_verification', '③ 검증 (Verification)', 'input'], ['stage_testing', '④ 테스트 (Testing)', 'input'], ['stage_claim', '⑤ 청구항 작성 (Claim Drafting)', 'input']] },
+  { group: '발명 일자 📅', fields: [['date_idea', '아이디어 착안일', 'input'], ['date_prototype', '프로토타입일', 'input'], ['date_rtp', '실시(RTP)일', 'input'], ['date_public', '공개일 (있으면)', 'input'], ['date_filing', '출원(예정)일', 'input']] },
+  { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta'], ['patent_claim_links', '연결 청구항 (예: Claim 1, 2)', 'input']] },
+  { group: '선행기술 조사 🔍', fields: [['prior_art_note', '선행기술 (한 줄에 하나 · "특허번호 | 출처 | 조사일 | 키워드 | 차별점")', 'ta']] },
+  { group: '증인(입회) 🖊️', fields: [['witness_name', '증인 이름', 'input'], ['witness_email', '증인 이메일', 'input'], ['witness_signature', '증인 서명(문구)', 'input'], ['witness_signed_at', '증인 서명일', 'input']] },
+  { group: '코드·git 증거', fields: [['code_git', 'git commit hash', 'input'], ['code_branch', '브랜치', 'input'], ['code_repo', '저장소 URL', 'input'], ['code_pr', 'PR 번호', 'input'], ['code_issue', 'Issue 번호', 'input'], ['code_diff', 'diff 요약', 'input']] },
+  { group: '첨부 파일 📎', fields: [['files_note', '첨부 (파일명·설명, 한 줄에 하나)', 'ta']] },
 ];
 function rnDownload(name, text, mime) {
   const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
@@ -19583,6 +19617,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
           <button class="ui-btn sm" onclick="rnExport('print')">🖨️ 인쇄(PDF)</button>
+          <button class="ui-btn sm" onclick="rnExport('report')">📊 증거 보고서</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="ui-btn sm safe" onclick="rnCloudBackup()">☁️ 클라우드 백업 올리기</button>
@@ -19677,28 +19712,67 @@ function rnOpenForm(prefill, opts) {
           <button onclick="document.getElementById('rnFormModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
         </div>
       </div>
-      <div style="padding:14px 18px 20px">${corrNote}${groups}</div>
+      <div style="padding:14px 18px 20px">${corrNote}${groups}
+        <div style="font-size:12px;font-weight:800;color:var(--accent);margin:12px 0 6px">파일 무결성 지문 🔐 (실제 첨부 → SHA-256·SHA-512 계산)</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-bottom:6px">파일 내용은 저장되지 않고 <b>해시(지문)·크기·형식·수정시각만</b> 기록됩니다. 원본 파일은 따로 보관하세요.</div>
+        <input type="file" multiple id="rnf_file_input" onchange="_rnAttachFiles(this)" style="font-size:12px;color:var(--text2)">
+        <div id="rnAttachedList" style="margin-top:6px"></div>
+      </div>
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+  _rnPendingFiles = [];
   Object.keys(prefill).forEach(k => { const el = document.getElementById('rnf_' + k); if (el) el.value = prefill[k]; });
 }
 function _rnV(id) { return document.getElementById('rnf_' + id)?.value?.trim() || ''; }
+// 첨부 파일을 실제로 해싱(SHA-256 + SHA-512)해 크기·MIME·수정시각과 함께 무결성 지문을 남긴다.
+let _rnPendingFiles = [];
+async function _rnHashHex(buf, algo) {
+  try { if (crypto && crypto.subtle) { const d = await crypto.subtle.digest(algo, buf); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join(''); } } catch (e) {}
+  return algo === 'SHA-256' ? _rnSha256Bytes(new Uint8Array(buf)) : ''; // SHA-512 폴백 없음(정직하게 공란)
+}
+async function _rnAttachFiles(inputEl) {
+  const list = Array.from(inputEl.files || []); if (!list.length) return;
+  for (const f of list) {
+    try {
+      const buf = await f.arrayBuffer();
+      _rnPendingFiles.push({ file_name: f.name, file_type: f.type || '', mime_type: f.type || '', file_size: f.size,
+        last_modified: f.lastModified ? new Date(f.lastModified).toISOString() : '',
+        file_hash_sha256: await _rnHashHex(buf, 'SHA-256'), file_hash_sha512: await _rnHashHex(buf, 'SHA-512'), file_path: '', description: '' });
+    } catch (e) {}
+  }
+  inputEl.value = '';
+  const box = document.getElementById('rnAttachedList');
+  if (box) box.innerHTML = _rnPendingFiles.map((f, i) => `<div style="font-size:11px;color:var(--text2);padding:3px 0;overflow-wrap:anywhere">📎 ${escapeHtml(f.file_name)} · ${(f.file_size/1024).toFixed(1)}KB · ${escapeHtml(f.mime_type || '?')}<br><span style="color:var(--text3)">sha256:${escapeHtml((f.file_hash_sha256||'').slice(0,16))}… ${f.file_hash_sha512 ? 'sha512:'+escapeHtml(f.file_hash_sha512.slice(0,16))+'…' : ''}</span></div>`).join('');
+}
 async function rnSubmitForm(opts) {
   opts = opts || {};
   const filesNote = _rnV('files_note');
+  const notedFiles = filesNote ? filesNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => ({ file_name: l, file_type: '', file_path: '', file_hash_sha256: '', description: '' })) : [];
+  const priorNote = _rnV('prior_art_note');
+  const priorArt = priorNote ? priorNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const p = l.split('|').map(x => x.trim());
+    return { patent_number: p[0] || '', source: p[1] || '', search_date: p[2] || '', keywords: p[3] || '', differentiation: p[4] || '' };
+  }) : [];
   const data = {
     feature_name: _rnV('feature_name'), problem_statement: _rnV('problem_statement'), prior_limitation: _rnV('prior_limitation'),
     human_idea: _rnV('human_idea'), human_modification: _rnV('human_modification'), final_decision: _rnV('final_decision'),
     ai_prompt_summary: _rnV('ai_prompt_summary'), ai_output_summary: _rnV('ai_output_summary'),
+    ai_prompt_full: _rnV('ai_prompt_full'), ai_output_full: _rnV('ai_output_full'),
     technical_effect: _rnV('technical_effect'), test_method: _rnV('test_method'), test_result: _rnV('test_result'), failure_reason: _rnV('failure_reason'), next_action: _rnV('next_action'),
-    ai_metadata: { model_name: _rnV('ai_model_name'), provider: _rnV('ai_provider'), conversation_id: _rnV('ai_conversation_id'), prompt_hash_sha256: '', output_hash_sha256: '' },
-    code_metadata: { git_commit_hash: _rnV('code_git'), branch_name: _rnV('code_branch'), changed_files: [], diff_summary: _rnV('code_diff') },
-    patent_metadata: { possible_claim: _rnV('patent_possible_claim'), novelty_point: _rnV('patent_novelty'), inventive_step_point: _rnV('patent_inventive'), industrial_applicability: _rnV('patent_industrial'), inventor_human_contribution: _rnV('patent_human') },
-    files: filesNote ? filesNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => ({ file_name: l, file_type: '', file_path: '', file_hash_sha256: '', description: '' })) : [],
+    ai_metadata: { model_name: _rnV('ai_model_name'), provider: _rnV('ai_provider'), conversation_id: _rnV('ai_conversation_id'),
+      prompt_hash_sha256: _rnV('ai_prompt_full') ? await _rnSha256(_rnV('ai_prompt_full')) : '', output_hash_sha256: _rnV('ai_output_full') ? await _rnSha256(_rnV('ai_output_full')) : '' },
+    code_metadata: { git_commit_hash: _rnV('code_git'), branch_name: _rnV('code_branch'), changed_files: [], diff_summary: _rnV('code_diff'), repo_url: _rnV('code_repo'), pr_number: _rnV('code_pr'), issue_number: _rnV('code_issue') },
+    patent_metadata: { possible_claim: _rnV('patent_possible_claim'), novelty_point: _rnV('patent_novelty'), inventive_step_point: _rnV('patent_inventive'), industrial_applicability: _rnV('patent_industrial'), inventor_human_contribution: _rnV('patent_human'), claim_links: _rnV('patent_claim_links') },
+    witness: { name: _rnV('witness_name'), email: _rnV('witness_email'), signature: _rnV('witness_signature'), signed_at: _rnV('witness_signed_at') },
+    contribution_stages: { conception: _rnV('stage_conception'), reduction_to_practice: _rnV('stage_rtp'), verification: _rnV('stage_verification'), testing: _rnV('stage_testing'), claim_drafting: _rnV('stage_claim') },
+    invention_dates: { idea: _rnV('date_idea'), prototype: _rnV('date_prototype'), reduction_to_practice: _rnV('date_rtp'), public_disclosure: _rnV('date_public'), filing: _rnV('date_filing') },
+    prior_art: priorArt,
+    files: notedFiles.concat(_rnPendingFiles.map(f => ({ ...f }))),
   };
   const evt = document.getElementById('rnf_event_type')?.value || (opts.corrects_id ? 'correction' : 'design_decision');
   await rnAddEntry(evt, data, opts);
+  _rnPendingFiles = [];
   document.getElementById('rnFormModal')?.remove();
   showToast('📓 연구노트 기록 저장됨 (해시 체인 연결)');
   rnRenderList();
@@ -19748,6 +19822,37 @@ function rnExport(fmt) {
     w.document.write(`<html><head><title>Research Notebook ${stamp}</title><meta charset="utf-8"></head><body>${html}<script>window.onload=function(){window.print();}<\/script></body></html>`);
     w.document.close(); return;
   }
+  if (fmt === 'report') { rnAddEntry('export', { feature_name: '내보내기', final_decision: '증거 보고서 export' }); rnDownload(`research_evidence_report_${stamp}.md`, _rnReport(_rnLoad()), 'text/markdown;charset=utf-8'); return; }
+}
+// 증거 요약 보고서 — 사람 vs AI 기여, AI 사용 현황, 특허 후보·선행기술을 한 장으로 집계(원문은 아님·집계 지표).
+function _rnReport(notes) {
+  const live = notes.filter(e => !_rnIsDeleted(e.id, notes));
+  const has = v => v && String(v).trim();
+  const humanCount = live.filter(e => has(e.human_idea) || has(e.human_modification) || has(e.final_decision)).length;
+  const aiCount = live.filter(e => has(e.ai_prompt_summary) || has(e.ai_output_summary) || has(e.ai_prompt_full) || has(e.ai_output_full)).length;
+  const models = {}; live.forEach(e => { const m = (e.ai_metadata || {}).model_name; if (has(m)) models[m] = (models[m] || 0) + 1; });
+  const patentCand = live.filter(e => { const p = e.patent_metadata || {}; return e.event_type === 'patent_claim_candidate' || has(p.possible_claim) || has(p.novelty_point) || has(p.inventive_step_point); });
+  const priorArt = live.flatMap(e => (e.prior_art || []).map(a => ({ ...a, from: e.feature_name })));
+  const inv = _rnGetInventor();
+  const byModel = Object.keys(models).length ? Object.entries(models).map(([m, c]) => `- ${m}: ${c}건`).join('\n') : '- (기록된 모델명 없음)';
+  return [
+    `# 연구노트 증거 요약 보고서`, '',
+    `발명자(사람): **${inv.name || '(미설정)'}**${inv.birthdate ? ' · ' + inv.birthdate : ''}${inv.affiliation ? ' · ' + inv.affiliation : ''}`,
+    `프로젝트: ${(APP_INFO && APP_INFO.name) || ''} · 앱 버전 ${(APP_INFO && APP_INFO.version) || ''}`,
+    `집계 시각: ${new Date().toISOString()}`, `유효 기록 수: ${live.length}건 (삭제표시 제외 · 전체 ${notes.length}건)`, '',
+    `> 이 보고서는 **집계 지표**이며 법적 보증이 아닙니다. 각 기록의 원문·해시·서명은 개별 Markdown/JSON에 있습니다. 외부 신뢰 기준점은 git 커밋 이력입니다.`, '',
+    `## 1. 사람 vs AI 기여 요약`,
+    `- 사람(발명자) 기여가 기록된 항목: **${humanCount}건** (착상·수정·최종결정 중 하나 이상 작성)`,
+    `- AI 보조가 기록된 항목: **${aiCount}건**`,
+    `- 두 값은 배타적이지 않습니다(한 기록에 둘 다 있을 수 있음). 귀속 원칙: 착상·수정·최종결정은 사람, AI는 도구 보조.`, '',
+    `## 2. AI 사용 현황 (모델별)`, byModel, '',
+    `## 3. 특허 후보 (${patentCand.length}건)`,
+    patentCand.length ? patentCand.map(e => `- [${e.event_type}] ${e.feature_name || '(제목 없음)'} — 신규성: ${((e.patent_metadata || {}).novelty_point || '').slice(0, 80)}${(e.patent_metadata || {}).claim_links ? ' · 청구항: ' + e.patent_metadata.claim_links : ''}`).join('\n') : '- (없음)', '',
+    `## 4. 선행기술 조사 (${priorArt.length}건)`,
+    priorArt.length ? priorArt.map(a => `- ${a.patent_number || '(번호 미상)'} · ${a.source || ''} · 조사일 ${a.search_date || ''} — 차별점: ${(a.differentiation || '').slice(0, 80)} (from: ${a.from || ''})`).join('\n') : '- (없음)', '',
+    `## 5. 무결성`, `- 각 기록 SHA-256 해시체인 + ECDSA 전자서명(가능 시). 검증은 앱의 "🔒 해시 검증".`,
+    `- 서버 타임스탬프(server_time)는 Supabase 서버가 찍은 제3자 시각(백업 완료분에 한함).`, ''
+  ].join('\n');
 }
 async function rnCloudBackup() {
   if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 클라우드 백업을 못 합니다 · 설정에서 URL·키 저장 후 이용'); return; }
