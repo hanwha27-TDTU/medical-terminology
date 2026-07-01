@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.75',
+  version: '1.76',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,17 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.75 — 연구노트: "내보내기 숨김" 보기 필터 추가',
+    title: '최신 · v1.76 — 연구노트: RFC3161 공인 타임스탬프(TSA) 연동 준비',
+    items: [
+      '특허 증거력의 최상위 단계인 RFC3161 공인 타임스탬프(제3자 신뢰기관이 "이 해시가 그 시각에 존재했음"을 서명 증명)를 연동할 수 있게 준비했습니다.',
+      '각 기록 저장 시 entry_hash로 TSA에 자동 요청하고, 성공 시 tsa_provider·tsa_request_hash·tsa_timestamp·tsa_token(base64 TST) 4개 필드를 부착합니다(해시 대상 아님). 카드에 ⏱️ 공인시각 배지, Markdown에 TSA 라인을 표시합니다.',
+      '"⏱️ 공인 타임스탬프 받기" 버튼으로 기존 기록에 소급 요청할 수 있습니다.',
+      '브라우저는 CORS·바이너리(ASN.1) 제약으로 TSA를 직접 못 부르므로, Supabase Edge Function(rfc3161-timestamp)이 중계합니다 — Cloudinary 삭제와 같은 방식. 함수를 배포하기 전에는 조용히 아무 동작도 하지 않습니다(핵심 해시체인·서명은 그대로).',
+      '함수 코드와 배포 가이드는 별도 파일로 제공됩니다. 기본 TSA는 freeTSA.org(무료)이고, 상업용(DigiCert 등)으로 교체할 수 있습니다.',
+    ]
+  },
+  {
+    title: 'v1.75 — 연구노트: "내보내기 숨김" 보기 필터 추가',
     items: [
       '연구노트 목록에 "내보내기 숨김" 체크박스를 추가했습니다(기본 켜짐). 이미 쌓인 내보내기(export) 항목을 목록에서 가려 "생각·결정" 기록만 보이게 합니다.',
       '데이터는 삭제되지 않고 보기에서만 숨깁니다 — 원본·해시체인은 그대로 보존됩니다. 상단에 "내보내기 N건 숨김(보존됨)"으로 표시하고, 유형 드롭다운에서 export를 직접 고르면 그 선택이 우선합니다.',
@@ -19386,7 +19396,8 @@ async function _rnSha256(str) {
 async function _rnComputeHash(entry) {
   const clone = { ...entry };
   ['entry_hash', 'signature_status', 'signed_by', 'witness_name', 'witness_signed_at', 'witness_email', 'witness_signature', 'witness_signed_at2',
-   'entry_hash_signature', 'public_key_jwk', 'signature_algo', 'server_time'].forEach(k => { delete clone[k]; });
+   'entry_hash_signature', 'public_key_jwk', 'signature_algo', 'server_time',
+   'tsa_provider', 'tsa_request_hash', 'tsa_timestamp', 'tsa_token'].forEach(k => { delete clone[k]; });
   return _rnSha256(JSON.stringify(stableForHash(clone)));
 }
 // ── 전자서명(ECDSA P-256) — entry_hash에 서명해 "같은 키가 남긴 기록"임을 증명(부인방지). ──
@@ -19464,6 +19475,7 @@ async function rnAddEntry(eventType, data, opts) {
   if (s) { entry.entry_hash_signature = s.sig; entry.public_key_jwk = s.pub; entry.signature_algo = 'ECDSA_P-256_SHA-256'; entry.signature_status = 'self_signed_ecdsa'; }
   notes.push(entry); _rnSave(notes);
   rnPushOne(entry); // 자동 클라우드 백업 + 서버 타임스탬프 부착(설정 있으면) — fire-and-forget
+  _rnAttachTsa(entry); // RFC3161 공인 타임스탬프 요청(릴레이 배포됐을 때만) — fire-and-forget
   return entry;
 }
 // ── 연구노트 클라우드 백업(Supabase research_notes · append-only 업서트) ──
@@ -19483,6 +19495,45 @@ async function rnPushOne(e) {
     if (srv) { const notes = _rnLoad(); const idx = notes.findIndex(n => n.id === e.id); if (idx >= 0 && !notes[idx].server_time) { notes[idx].server_time = srv; _rnSave(notes); } }
     return true;
   } catch (er) { return false; }
+}
+// ── RFC3161 공인 타임스탬프(TSA) — 브라우저는 CORS·바이너리(ASN.1) 때문에 TSA를 직접 못 부른다. ──
+// 그래서 Supabase Edge Function(rfc3161-timestamp) 릴레이가 해시만 받아 TSA에 요청→TimeStampToken(TST)을 돌려준다.
+// 릴레이(함수)가 배포 안 됐거나 Supabase 설정이 없으면 조용히 no-op(핵심 해시체인·서명은 그대로 유지).
+// TSA는 원본이 아니라 "해시"만 받아 그 시점에 데이터가 존재했음을 제3자(신뢰기관)가 증명한다.
+async function _rnRequestTsa(hashHex) {
+  const cfg = getSupabaseConfig(); if (!cfg || !hashHex) return null;
+  try {
+    const res = await fetch(`${cfg.url}/functions/v1/rfc3161-timestamp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': cfg.key, 'Authorization': 'Bearer ' + cfg.key },
+      body: JSON.stringify({ hash: hashHex, hashAlgo: 'sha256' }),
+    });
+    if (!res.ok) return null; // 미배포(404)·오류 → 조용히 건너뜀
+    const j = await res.json().catch(() => null);
+    if (!j || !j.token) return null;
+    return { provider: j.provider || 'RFC3161 TSA', timestamp: j.timestamp || '', token: j.token }; // token = base64(TST)
+  } catch (e) { return null; }
+}
+// 해시(entry_hash)로 TSA 요청 → 성공하면 4개 필드를 로컬 엔트리에 부착(해시 대상 아님)하고 다시 업서트.
+async function _rnAttachTsa(e) {
+  if (!getSupabaseConfig() || e.tsa_token) return;
+  const t = await _rnRequestTsa(e.entry_hash);
+  if (!t) return;
+  const notes = _rnLoad(); const idx = notes.findIndex(n => n.id === e.id); if (idx < 0 || notes[idx].tsa_token) return;
+  notes[idx].tsa_provider = t.provider; notes[idx].tsa_request_hash = e.entry_hash;
+  notes[idx].tsa_timestamp = t.timestamp; notes[idx].tsa_token = t.token;
+  _rnSave(notes); rnPushOne(notes[idx]); // 토큰 포함본 재백업
+}
+// 기존 기록(토큰 없는 것들)에 소급으로 TSA 요청 — 개발자 정보/연구노트 버튼에서 수동 실행.
+async function rnBackfillTsa() {
+  if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 TSA 요청을 못 합니다'); return; }
+  const notes = _rnLoad(); const targets = notes.filter(n => !n.tsa_token && n.entry_hash);
+  if (!targets.length) { showToast('공인 타임스탬프가 필요한 기록이 없습니다(모두 완료)'); return; }
+  showToast(`⏱️ 공인 타임스탬프 요청 중... (${targets.length}건)`);
+  let ok = 0;
+  for (const e of targets) { const before = _rnLoad().find(n => n.id === e.id)?.tsa_token; await _rnAttachTsa(e); if (!before && _rnLoad().find(n => n.id === e.id)?.tsa_token) ok++; }
+  rnRenderList();
+  showToast(ok ? `✅ 공인 타임스탬프 ${ok}건 부착 완료` : `⚠️ 부착 실패 — TSA 릴레이(rfc3161-timestamp Edge Function) 배포 여부를 확인하세요`);
 }
 async function rnPushAll() {
   const cfg = getSupabaseConfig(); const h = sbHeaders(); if (!cfg || !h) return { ok: false, reason: 'no-config' };
@@ -19565,6 +19616,8 @@ function _rnMd(entry, notes) {
     `## 16. Attachments`, files, '', `## 17. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
     `- signature: ${entry.signature_status}${entry.signature_algo ? ' (' + entry.signature_algo + ')' : ''}${entry.signed_by ? (' by ' + entry.signed_by) : ''}`,
     `- created_at: ${entry.created_at} (기기 시각 · 조작 가능)`, `- server_time: ${entry.server_time || '(미동기화)'} (Supabase 서버 시각 · 제3자 타임스탬프)`,
+    `- RFC3161 TSA: ${entry.tsa_token ? (entry.tsa_provider || 'TSA') + (entry.tsa_timestamp ? ' @ ' + entry.tsa_timestamp : '') : '(미요청)'} (공인 타임스탬프 · 제3자 신뢰기관)`,
+    ...(entry.tsa_token ? [`- tsa_request_hash: ${entry.tsa_request_hash || ''}`, `- tsa_token (base64 TST): ${entry.tsa_token}`, `- (검증: openssl ts -verify · TST는 이 해시가 그 시각 존재했음을 신뢰기관이 증명)`] : []),
     `- 서명 참고: 자체생성 기기 키(ECDSA P-256)로 "같은 키가 남긴 기록"임을 증명(부인방지). CA 신원증명은 아님 — 외부 신뢰 기준점은 git 커밋 이력.`, ''
   ].join('\n');
 }
@@ -19637,6 +19690,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm safe" onclick="rnCloudBackup()">☁️ 클라우드 백업 올리기</button>
           <button class="ui-btn sm" onclick="rnCloudRestore()">☁️ 클라우드에서 합치기</button>
           <button class="ui-btn sm" onclick="rnImportUpdateHistory()">📜 지난 개발 이력 가져오기</button>
+          <button class="ui-btn sm" onclick="rnBackfillTsa()" title="RFC3161 공인 타임스탬프(TSA) 요청 — rfc3161-timestamp Edge Function 배포 필요">⏱️ 공인 타임스탬프 받기</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <select id="rnFilterType" onchange="rnSetFilter()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px">${['<option value="">모든 유형</option>'].concat(RN_EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`)).join('')}</select>
@@ -19687,7 +19741,8 @@ function rnCardHtml(e, notes) {
   const summary = escapeHtml(e.final_decision || e.human_idea || e.problem_statement || e.ai_output_summary || '(내용 없음)').slice(0, 120);
   const sigTag = e.entry_hash_signature ? `<span title="ECDSA P-256 자체서명(부인방지) · CA 신원증명 아님" style="font-size:9.5px;color:var(--text3)">🔏 서명</span>` : '';
   const srvTag = e.server_time ? `<span title="Supabase 서버 시각(제3자 타임스탬프): ${escapeHtml(String(e.server_time))}" style="font-size:9.5px;color:var(--text3)">☁️ 서버시각</span>` : '';
-  const trustTags = (sigTag || srvTag) ? `<div style="display:flex;gap:8px;margin-top:3px">${sigTag}${srvTag}</div>` : '';
+  const tsaTag = e.tsa_token ? `<span title="RFC3161 공인 타임스탬프(제3자 신뢰기관)${e.tsa_timestamp ? ' · ' + escapeHtml(String(e.tsa_timestamp)) : ''}${e.tsa_provider ? ' · ' + escapeHtml(String(e.tsa_provider)) : ''}" style="font-size:9.5px;color:#0d9488;font-weight:600">⏱️ 공인시각</span>` : '';
+  const trustTags = (sigTag || srvTag || tsaTag) ? `<div style="display:flex;gap:8px;margin-top:3px">${sigTag}${srvTag}${tsaTag}</div>` : '';
   return `
     <div style="border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface)${del ? ';opacity:.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
