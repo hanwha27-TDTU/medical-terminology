@@ -18605,7 +18605,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.20',
+  version: '2.21',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18614,7 +18614,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.20 — AI 붙여넣기 추가 시 "앞에 추가한 게 사라지던" ID 충돌 급소 제거',
+    title: '최신 · v2.21 — 노트 신규 생성 ID를 다른 도메인과 동일한 충돌 불가 생성기로 통일(수평 일관성)',
+    items: [
+      'v2.20의 ID 충돌 방지를 수평 점검하다 발견한 잔여 정비입니다. 새 개념·오답 노트를 저장할 때 ID를 현재 시각(Date.now)으로 매기던 것을, 다른 5개 도메인(용어·약물·공식·미생물·질환)과 똑같은 충돌 불가 생성기(nextNoteId)로 통일했습니다. 손으로 한 개씩 만들 때는 사실상 겹칠 일이 없었지만, 모든 도메인이 같은 방식으로 고유 ID를 발급하도록 맞춰 일관성과 안전 여유를 확보했습니다(기존 노트·동기화 identity에는 영향 없음).',
+    ],
+  },
+  {
+    title: 'v2.20 — AI 붙여넣기 추가 시 "앞에 추가한 게 사라지던" ID 충돌 급소 제거',
     items: [
       'AI(ChatGPT 등)로 용어·약물·공식·미생물·질환을 하나씩 만들어 이어서 추가할 때, 앞에 추가한 항목이 사라지던 문제를 고쳤습니다. 원인은 AI가 응답마다 똑같은 예시 ID(8000000000001)를 재사용하는데, 가져오기가 그 ID로 항목을 구분하다 보니 새로 넣은 항목이 앞 항목을 같은 ID로 덮어써서였습니다.',
       '이제 붙여넣기로 들어온 항목의 이름이 기존 항목과 다르면(=진짜 신규) 앱이 충돌 불가한 새 고유 ID를 발급합니다. AI가 어떤 ID를 주든(똑같은 값을 반복해도) 서로 덮어쓰지 않습니다. 이름이 기존 항목과 같으면 그 항목의 ID로 정확히 연결돼 올바르게 갱신됩니다. "비교 후 선택"·"신규만 추가"·"중복 덮어쓰기" 세 방식 모두에 적용됩니다.',
@@ -25206,7 +25212,7 @@ initApp();
   }
   window.openIntegratedNoteModal = function openIntegratedNoteModal(id = null) {
     const existing = id ? NOTEBOOK.find(n => Number(n.id) === Number(id)) : null;
-    const n = existing || normalizeIntegratedNote({ id: Date.now(), noteType: 'concept' });
+    const n = existing || normalizeIntegratedNote({ id: nextNoteId(), noteType: 'concept' });
     window._noteDraftImages = Array.isArray(n.images) ? n.images.map(x => ({ ...x })) : [];
     window._noteDraftUploadedPublicIds = new Set();
     window._noteModalSaving = false;
@@ -25323,7 +25329,7 @@ initApp();
     ].join(' ')) : { terms: [], drugs: [], microbes: [], formulas: [] };
     const next = normalizeIntegratedNote({
       ...(old || {}),
-      id: old?.id || Date.now(),
+      id: old?.id || nextNoteId(),   // 신규 노트도 다른 5도메인과 동일한 충돌 불가 생성기 사용(Date.now() 같은-ms 충돌 예방·일관성)
       title: value('noteTitle'),
       noteType: value('noteType'),
       system: value('noteSystem') || 'General',
