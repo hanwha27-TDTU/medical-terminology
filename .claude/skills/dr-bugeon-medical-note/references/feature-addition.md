@@ -26,8 +26,10 @@
    - [ ] `createCompleteBackupObject`(export)에 포함 **+** `applyPendingDataImport`(restore)에서 복원 — 한쪽만 하면 왕복에서 유실.
    - [ ] 가져오기는 **모드 존중**(merge/append는 비파괴, replace만 교체 — 불변조건 20a).
    - [ ] 표(xlsx/CSV) 왕복도 필요하면 `*ExportRows`/`*FromTableRow`에 포함(예: 질환 parent_id/parent_name).
+   - [ ] **AI 붙여넣기 가져오기(새 도메인/필드):** id는 제공자(AI)를 믿지 말고 이름 매칭 + 신규는 `next*Id()` 발급(급소·상세: import-backup-media.md §8.2.1). 그리고 **AI 양식(프롬프트·`skeleton()`·placeholder)을 앱 동작과 일치**시켰는지(§8.2.2) — 양식에 id를 넣게 두면 그 자체가 덮어쓰기 버그가 된다(v2.22). "가져오기 동작 바꿈 = AI 양식도 바꿔야 하나?"를 자문.
 7. **검색/필터 반영 여부 판단** — 이 필드로 검색·필터·정렬이 되어야 하나? 되면 통합검색·필터 경로에 반영.
-   (저장은 되는데 검색·필터·복구에서 누락되는 필드 없게.)
+   (저장은 되는데 검색·필터·복구에서 누락되는 필드 없게.) **저장·표시만 되고 검색에서 빠지는 필드가 반복 결함**이다 —
+   예: 용어 `def_uz`·`usmle`·`system_tags`가 저장·렌더는 되나 `termFilter` 검색절에서 누락(v2.19 정정, def_ko/def_en만 검색되던 비대칭). 새 필드가 "찾을 수 있어야 하는 내용"이면 해당 도메인 `*SearchText`/검색 필터 절에 반드시 넣는다.
 8. **회귀 테스트:**
    - [ ] `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/check-schema-drift.mjs` · `node scripts/sync-instruction-doc.mjs --check`
    - [ ] 새 **순수함수**를 만들었으면 golden-tests.mjs에 케이스 추가(행위보존/특성화).
