@@ -8823,6 +8823,14 @@ function drugIdentityKey(d) {
   return `id:${Number(d.id) || 'empty'}`;
 }
 
+// 공식 중복 식별키 — 다른 도메인의 *IdentityKey와 같은 자리에 두어 단일 소스로.
+// (전엔 _aiRemapIdsByName의 formulaKey와 _dupDomainCfg의 fk에 같은 로직이 2벌 복붙 → PR5에서 둘 다
+//  고쳐야 했던 드리프트 트랩. 하나로 통합.) 이름 없으면 수식(formula)을 최후 식별자로.
+function formulaIdentityKey(f) {
+  const n = normalizeSyncText(f.name || f.short_name || f.formula_name || f.formula || '');
+  return n ? `name:${n}` : '';
+}
+
 function findDrugIndexByIdentity(drug) {
   const key = drugIdentityKey(drug);
   if (!key || key.startsWith('id:')) return -1;
@@ -16444,7 +16452,7 @@ function openAIPasteImport() {
 // 새 id를 붙여도 id 기준 importer가 같은 항목으로 인식 → policy('skip'=건너뛰기/'overwrite'=갱신)대로 동작.
 function _aiRemapIdsByName(parsed) {
   if (!parsed || typeof parsed !== 'object') return parsed;
-  const formulaKey = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || f.formula || ''); return n ? 'name:' + n : ''; };
+  const formulaKey = formulaIdentityKey; // 단일 소스(위 formulaIdentityKey) 재사용 — 중복 정의 제거
   // keysFn: 레코드의 매칭 키 배열을 반환. 대부분 단일 키지만, 질환은 이름별(ko/en/uz) 다중 키로 "하나만 같아도" 매칭.
   const single = idfn => (r => { const k = idfn(r); return k ? [k] : []; });
   const domains = [
@@ -16526,7 +16534,7 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
 // ── 중복 항목 비교 검토(항목 단위 선택) ──────────────────────────────
 const _DUP_FIELD_LABEL = { ko:'한국어', en:'영어', uz:'우즈벡', def_ko:'정의(한)', def_en:'정의(영)', def_uz:'정의(우즈)', usmle:'USMLE', ipa:'발음', category:'장기계', system_tags:'장기태그', concept_category:'개념분류', generic_name:'성분명', ko_name:'한국어명', brand_name:'상품명', drug_class:'계열', same_class_drugs:'동일계열', drug_form:'제형', atc_class:'ATC', target:'타깃', route:'투여', usmle_yield:'중요도', organism:'균주', latin_name:'학명', name:'이름', short_name:'약칭', formula:'식', body:'본문(섹션 데이터)', en_name:'영어명', uz_name:'우즈벡명', gram_stain:'그람', microbe_type:'유형' };
 function _dupDomainCfg() {
-  const fk = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || f.formula || ''); return n ? 'name:' + n : ''; };
+  const fk = formulaIdentityKey; // 단일 소스(formulaIdentityKey) 재사용 — 중복 정의 제거
   return [
     { key: 'terms', label: '📘 용어', arr: TERMS, idfn: termIdentityKey, name: r => (r.ko || r.en || r.uz || ''), norm: normalizeTermForStorage },
     { key: 'drugs', label: '💊 약물', arr: DRUGS, idfn: drugIdentityKey, name: r => (r.generic_name || r.ko_name || r.brand_name || ''), norm: normalizeDrugForStorage },
@@ -18563,7 +18571,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.13',
+  version: '2.14',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18572,7 +18580,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.13 — 코드 정리(무동작): 이름 정규화 3벌 → 공용 헬퍼 + 골든테스트',
+    title: '최신 · v2.14 — 코드 정리(무동작): 공식 중복키 로직 단일화 + 골든 확장',
+    items: [
+      '공식(계산식) 중복 판정 키가 두 곳(_aiRemapIdsByName·_dupDomainCfg)에 똑같이 복붙돼 있어 한쪽만 고치면 어긋나던 것을, 다른 도메인처럼 공용 함수(formulaIdentityKey) 하나로 합쳤습니다. 동작은 그대로입니다.',
+      '골든테스트에 formulaIdentityKey(의존 함수 동반 추출 방식)를 추가해 통합 전후 동일성을 자동 검증했습니다 — 이제 순수함수 7종을 CI가 지킵니다.',
+    ]
+  },
+  {
+    title: 'v2.13 — 코드 정리(무동작): 이름 정규화 3벌 → 공용 헬퍼 + 골든테스트',
     items: [
       '위험 최소 점진 리팩토링의 첫 단계 — 질환·미생물·약물 이름 매칭에 똑같이 3벌 복붙돼 있던 정규화 코드를 공용 함수 하나(_entityNameNorm)로 합쳤습니다. 앞으로 이름 매칭 규칙을 바꿀 때 한 곳만 고치면 됩니다(복붙 누락 방지).',
       '동작은 전혀 바뀌지 않았음을 골든테스트(scripts/golden-tests.mjs)로 증명했습니다 — 통합 전후 함수가 대표 입력 전체에서 동일 출력. 이 테스트는 CI에서 push마다 자동 실행되어 이후 리팩토링의 안전망이 됩니다.',
