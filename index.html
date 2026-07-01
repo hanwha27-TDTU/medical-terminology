@@ -8378,6 +8378,14 @@ const DISEASE_DX_LEGACY_LABEL = { initial_tests: '가장 먼저 할 검사', con
 const DISEASE_EMERGENCY_OPTIONS = ['', 'Emergency', 'Urgent', 'Non-urgent / Outpatient'];
 const DISEASE_PROGRESSION_OPTIONS = ['', 'Progressive', 'Episodic', 'Relapsing-remitting', 'Self-limited', 'Latent / Silent'];
 const DISEASE_CONTAGIOUS_OPTIONS = ['', '전염성 있음', '전염성 없음', '조건부 전염'];
+// 임상 드롭다운 옵션의 "한국어 (English)" 병기 라벨 — 저장 값은 그대로 두고 표시만 병기(학습 편의).
+const DISEASE_OPTION_LABEL = {
+  'Emergency': '응급 (Emergency)', 'Urgent': '긴급 (Urgent)', 'Non-urgent / Outpatient': '비응급/외래 (Non-urgent / Outpatient)',
+  'Progressive': '진행성 (Progressive)', 'Episodic': '삽화성 (Episodic)', 'Relapsing-remitting': '재발-완화형 (Relapsing-remitting)', 'Self-limited': '자연 소실성 (Self-limited)', 'Latent / Silent': '잠복/무증상 (Latent / Silent)',
+  '급성': '급성 (Acute)', '아급성': '아급성 (Subacute)', '만성': '만성 (Chronic)',
+  '전염성 있음': '전염성 있음 (Contagious)', '전염성 없음': '전염성 없음 (Non-contagious)', '조건부 전염': '조건부 전염 (Conditional)',
+};
+function diseaseOptLabel(o) { return DISEASE_OPTION_LABEL[o] || o; }
 const DISEASE_CAUSE_CATEGORIES = ['선천성', '유전성', '감염성', '자가면역성', '대사성', '내분비성', '혈관성', '종양성', '퇴행성', '구조적/기계적', '약물성/독성', '의인성', '생활습관', '영양', '생리/스트레스', '환경/직업', '특발성', '기타'];
 // 분류 라벨 변경 하위호환(구 옵션 → 현 옵션). 기존 질환 데이터의 category 값을 보존.
 const DISEASE_CAUSE_CATEGORY_MIGRATE = { '내분비/대사성': '내분비성' };
@@ -10537,7 +10545,7 @@ function diseaseOptionsHtml(options, cur, placeholderLabel) {
   const out = [];
   const hasEmpty = options.includes('');
   if (!hasEmpty) out.push(`<option value=""${cur ? '' : ' selected'}>${escapeHtml(placeholderLabel)}</option>`);
-  options.forEach(o => out.push(`<option value="${escapeHtml(o)}"${o === cur ? ' selected' : ''}>${escapeHtml(o === '' ? placeholderLabel : o)}</option>`));
+  options.forEach(o => out.push(`<option value="${escapeHtml(o)}"${o === cur ? ' selected' : ''}>${escapeHtml(o === '' ? placeholderLabel : diseaseOptLabel(o))}</option>`));
   return out.join('');
 }
 function diseaseRowHtml(sec, row = {}) {
@@ -10566,8 +10574,8 @@ function readDiseaseRowSection(prefix, secKey) {
   }).filter(o => Object.values(o).some(v => String(v || '').trim()));
 }
 function diseaseSelectHtml(id, label, options, current, IS) {
-  let opts = options.map(o => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o || '— 선택 —')}</option>`).join('');
-  if (current && !options.includes(current)) opts = `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>` + opts;
+  let opts = options.map(o => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o ? diseaseOptLabel(o) : '— 선택 —')}</option>`).join('');
+  if (current && !options.includes(current)) opts = `<option value="${escapeHtml(current)}" selected>${escapeHtml(diseaseOptLabel(current))}</option>` + opts;
   return `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(label)}</label><select id="${id}" style="${IS}">${opts}</select></div>`;
 }
 // 상위질환(아형) 선택 옵션 — 자기 자신 제외, 이름순. 값은 질환 id(빈 값=상위질환 아님).
@@ -18374,7 +18382,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.93',
+  version: '1.94',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18383,7 +18391,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.93 — 주요 질환: 목차(뷰)에도 상위-하위 가족 정렬·구분 적용',
+    title: '최신 · v1.94 — 주요 질환: 임상 드롭다운을 "한국어 (영어)"로 병기',
+    items: [
+      '질환 편집/추가 폼의 임상 드롭다운(급성도·응급도·진행성 여부·전염성 여부) 옵션을 "한국어 (영어)"로 병기해 뜻을 바로 알 수 있게 했습니다. 예: Episodic → "삽화성 (Episodic)", Urgent → "긴급 (Urgent)".',
+      '저장되는 값은 그대로(영어/한국어 원값)라 기존 데이터·동기화에 영향이 없습니다. 표시 라벨만 병기됩니다.',
+    ]
+  },
+  {
+    title: 'v1.93 — 주요 질환: 목차(뷰)에도 상위-하위 가족 정렬·구분 적용',
     items: [
       '목차 뷰도 목록 뷰와 동일하게 맞췄습니다. 장기계별 그룹은 그대로 두되, 각 그룹 안에서 상위-하위 가족이 붙어서 나오고(상위 먼저·하위 뒤), 하위질환은 들여쓰기 + "↳" 마커로 구분됩니다.',
     ]
