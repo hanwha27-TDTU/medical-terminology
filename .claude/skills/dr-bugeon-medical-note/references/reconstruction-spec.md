@@ -251,7 +251,7 @@
 4. **삭제는 소프트삭제 + tombstone.** hard delete 금지(기기 간 부활). 휴지통 비우기는 숨김.
 5. **모든 클라우드 호출은 실패해도 로컬 유지.** try/catch로 감싸고 토스트만.
 6. **함수 재할당 래퍼 패턴:** 노트/이미지 기능은 `sbPushAll`/`pullFromCloud`를 `const original = fn; fn = async(…)=>{ await original(); …노트처리… }`로 감싼다. 검증된 코어를 안 건드리고 확장하는 방식.
-7. **대용량 단일 HTML 편집 주의:** ~1MB 파일은 에디터 저장 시 끝부분이 잘릴 수 있다 → 저장 후 항상 파일이 `</html>`로 끝나는지, script 블록 수가 맞는지 검증. **v2.12부터 자동화**: `node scripts/check-index-scripts.mjs`(CI `index-scripts-check.yml`, push마다)가 ① 실행 `<script>` 문법(node --check) ② 블록 수≥기준(절단/삭제) ③ `</html>` 종료 ④ 필수 심볼 존재(핵심 함수·상수 삭제 감지 — GPT식 SELF_CHECK의 정적·정확명 버전) ⑤ 도메인 parity(medical_* 5종+`research_notes_med`가 스키마 점검부에 다 있는지)를 HARD 검사. 단일 파일 유지 시 "모듈화 대신 자동검사"의 핵심 가드. **오탐 방지 원칙: 목록엔 "없으면 확실히 문제"인 것만 넣는다**(medical_notes는 jsonb라 컬럼-스키마 점검 대상 아님 → parity 목록 제외).
+7. **대용량 단일 HTML 편집 주의:** ~1MB 파일은 에디터 저장 시 끝부분이 잘릴 수 있다 → 저장 후 항상 파일이 `</html>`로 끝나는지, script 블록 수가 맞는지 검증. **v2.12부터 자동화**: `node scripts/check-index-scripts.mjs`(CI `index-scripts-check.yml`, push마다)가 ① 실행 `<script>` 문법(node --check) ② 블록 수≥기준(절단/삭제) ③ `</html>` 종료 ④ 필수 심볼 존재(핵심 함수·상수 삭제 감지 — GPT식 SELF_CHECK의 정적·정확명 버전) ⑤ 도메인 parity(medical_* 5종+`research_notes_med`가 스키마 점검부에 다 있는지)를 HARD 검사. 단일 파일 유지 시 "모듈화 대신 자동검사"의 핵심 가드. **오탐 방지 원칙: 목록엔 "없으면 확실히 문제"인 것만 넣는다**(medical_notes는 jsonb라 컬럼-스키마 점검 대상 아님 → parity 목록 제외). **점진 리팩토링 안전망(v2.13~)**: `scripts/golden-tests.mjs`가 순수함수를 index.html에서 추출·실행해 기준 규칙과 일치하는지 확인(CI 자동). 순수함수 추출/통합(예: 이름 정규화 3벌→`_entityNameNorm`) 순서 = **① 골든 케이스 먼저 → ② 행위보존 리팩토링 → ③ 통과 확인**. 리팩토링과 기능수정은 같은 PR에 섞지 말 것. 🔴 해시 payload·canonical 직렬화 순서·동기화/tombstone은 리팩토링 금지 구역(불변조건 19).
 8. **id는 숫자(bigint), 노트는 `Date.now()` 기반.** 비교 시 문자열/숫자 혼용 주의(`String(id)`로 통일하는 곳 많음).
 
 > ⚠️AUDIT 추가 불변조건 (2026-06-29 로직 전수감사 — 모두 실제 코드에서 확인된 결함 기반)
