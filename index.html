@@ -10141,7 +10141,11 @@ function findDiseaseByName(name, all) {
   if (!nk) return null;
   const list = all || getActiveDiseases();
   let hit = list.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n) === nk));
-  if (!hit && nk.length >= 4) hit = list.find(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
+  // 부분일치 폴백은 "정확히 1건"일 때만 — 여러 개면 임의로 첫 항목을 고르지 않고 링크 안 함(오연결 방지).
+  if (!hit && nk.length >= 4) {
+    const subs = list.filter(d => [d.ko_name, d.en_name, d.uz_name].some(n => n && norm(n).includes(nk)));
+    hit = subs.length === 1 ? subs[0] : null;
+  }
   return hit || null;
 }
 // 이름으로 등록된 활성 미생물 1건을 찾는다(findDiseaseByName과 같은 정규화·매칭 규칙).
@@ -10151,7 +10155,10 @@ function findMicrobeByName(name, all) {
   if (!nk) return null;
   const list = all || getActiveMicrobes();
   let hit = list.find(m => [m.organism, m.ko_name, m.latin_name].some(n => n && norm(n) === nk));
-  if (!hit && nk.length >= 4) hit = list.find(m => [m.organism, m.ko_name, m.latin_name].some(n => n && norm(n).includes(nk)));
+  if (!hit && nk.length >= 4) {
+    const subs = list.filter(m => [m.organism, m.ko_name, m.latin_name].some(n => n && norm(n).includes(nk)));
+    hit = subs.length === 1 ? subs[0] : null;
+  }
   return hit || null;
 }
 // 이름으로 등록된 활성 약물 1건을 찾는다(같은 정규화·매칭 규칙).
@@ -10161,7 +10168,10 @@ function findDrugByName(name, all) {
   if (!nk) return null;
   const list = all || getActiveDrugs();
   let hit = list.find(x => [x.generic_name, x.ko_name, x.brand_name].some(n => n && norm(n) === nk));
-  if (!hit && nk.length >= 4) hit = list.find(x => [x.generic_name, x.ko_name, x.brand_name].some(n => n && norm(n).includes(nk)));
+  if (!hit && nk.length >= 4) {
+    const subs = list.filter(x => [x.generic_name, x.ko_name, x.brand_name].some(n => n && norm(n).includes(nk)));
+    hit = subs.length === 1 ? subs[0] : null;
+  }
   return hit || null;
 }
 // 적응증·치료 등 쉼표 나열 텍스트에서 등록된 질환→미생물→약물 순으로 이름을 해석해 칩으로 보여주고, 매칭되면 그 드로어로 링크.
@@ -10262,7 +10272,8 @@ function _diseaseHasFinding(d, cond, idx) {
   const tc = idx.get(normFindingConcept(cond.value)) ?? null;
   return _findingSplit(cfg.path(d)).some(t => {
     const n = _findingNorm(t);
-    if (n && (n === target || n.includes(target) || target.includes(n))) return true; // 문자열(공백무시·부분)
+    // 부분일치는 양쪽 2글자 이상일 때만 — "열"(1글자) 같은 토큰이 발열·고열 등 무관 토큰까지 과매칭하던 것 방지.
+    if (n && (n === target || (n.length >= 2 && target.length >= 2 && (n.includes(target) || target.includes(n))))) return true;
     const c = idx.get(normFindingConcept(t)) ?? null;
     return c != null && tc != null && c === tc; // 용어 개념키(동의어·다국어)
   });
@@ -14781,12 +14792,11 @@ function parseTsvPaste(raw) {
   const LEGACY_COLS = ['ko','en','uz','category','def_ko','def_en','def_uz','usmle','ipa'];
   const STD_LEN = 11;
   const dataLines = lines.filter(l => !l.startsWith('#'));
-  const invalidLine = dataLines.find(line => {
-    const count = line.split('\t').length;
-    return !(count >= STD_LEN || count === LEGACY_COLS.length);
-  });
+  // 최소 9열(legacy) 이상이면 허용 — 10열 같은 중간 열수 한 줄 때문에 붙여넣기 전체를 버리지 않는다.
+  // 파싱은 아래에서 11열↑=표준, 그 미만=legacy 스키마로 매핑(여분 열은 무시).
+  const invalidLine = dataLines.find(line => line.split('\t').length < LEGACY_COLS.length);
   if (invalidLine) {
-    parseTsvPaste.lastError = '헤더 없는 TSV는 11열 표준(또는 12열 finding_type 포함) 또는 9열 legacy 형식만 지원합니다. 안전을 위해 헤더를 추가해 주세요.';
+    parseTsvPaste.lastError = `헤더 없는 TSV는 최소 ${LEGACY_COLS.length}열(legacy) 이상이어야 합니다. 열이 너무 적은 행이 있어 안전을 위해 헤더를 추가해 주세요.`;
     return [];
   }
   return dataLines.map(line => {
@@ -16431,7 +16441,7 @@ function openAIPasteImport() {
 // 새 id를 붙여도 id 기준 importer가 같은 항목으로 인식 → policy('skip'=건너뛰기/'overwrite'=갱신)대로 동작.
 function _aiRemapIdsByName(parsed) {
   if (!parsed || typeof parsed !== 'object') return parsed;
-  const formulaKey = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || ''); return n ? 'name:' + n : ''; };
+  const formulaKey = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || f.formula || ''); return n ? 'name:' + n : ''; };
   // keysFn: 레코드의 매칭 키 배열을 반환. 대부분 단일 키지만, 질환은 이름별(ko/en/uz) 다중 키로 "하나만 같아도" 매칭.
   const single = idfn => (r => { const k = idfn(r); return k ? [k] : []; });
   const domains = [
@@ -16513,7 +16523,7 @@ async function importAIPasteText(policy = 'skip', overrideText = null) {
 // ── 중복 항목 비교 검토(항목 단위 선택) ──────────────────────────────
 const _DUP_FIELD_LABEL = { ko:'한국어', en:'영어', uz:'우즈벡', def_ko:'정의(한)', def_en:'정의(영)', def_uz:'정의(우즈)', usmle:'USMLE', ipa:'발음', category:'장기계', system_tags:'장기태그', concept_category:'개념분류', generic_name:'성분명', ko_name:'한국어명', brand_name:'상품명', drug_class:'계열', same_class_drugs:'동일계열', drug_form:'제형', atc_class:'ATC', target:'타깃', route:'투여', usmle_yield:'중요도', organism:'균주', latin_name:'학명', name:'이름', short_name:'약칭', formula:'식', body:'본문(섹션 데이터)', en_name:'영어명', uz_name:'우즈벡명', gram_stain:'그람', microbe_type:'유형' };
 function _dupDomainCfg() {
-  const fk = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || ''); return n ? 'name:' + n : ''; };
+  const fk = f => { const n = normalizeSyncText(f.name || f.short_name || f.formula_name || f.formula || ''); return n ? 'name:' + n : ''; };
   return [
     { key: 'terms', label: '📘 용어', arr: TERMS, idfn: termIdentityKey, name: r => (r.ko || r.en || r.uz || ''), norm: normalizeTermForStorage },
     { key: 'drugs', label: '💊 약물', arr: DRUGS, idfn: drugIdentityKey, name: r => (r.generic_name || r.ko_name || r.brand_name || ''), norm: normalizeDrugForStorage },
@@ -18550,7 +18560,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.09',
+  version: '2.10',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18559,7 +18569,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.09 — 외부연결 견고화: 학습상태 저장 오류 처리 + 휴지통 이미지 보호',
+    title: '최신 · v2.10 — 매칭·파서 견고화: TSV 관대화 + 이름 오연결·과매칭 방지',
+    items: [
+      '헤더 없는 TSV/CSV 붙여넣기에서 열 수가 10처럼 애매한 행이 하나만 있어도 전체가 거부되던 것을, "최소 9열 이상이면 허용(여분 열은 무시)"으로 바꿔 다른 정상 행까지 버리지 않게 했습니다.',
+      '이름으로 카드를 잇는 링크(질환·미생물·약물)에서 부분일치 후보가 여러 개면 임의로 첫 항목을 골라 엉뚱한 카드로 연결되던 것을, "정확히 1건일 때만 링크"로 바꿔 오연결을 막았습니다.',
+      '증상·징후 감별 검색에서 "열"처럼 1글자 토큰이 발열·고열 등 무관한 항목까지 과매칭하던 것을, 부분일치는 양쪽 2글자 이상일 때만 적용하도록 했습니다.',
+      '이름 없이 수식만 있는 계산공식이 중복 판정에서 항상 "신규"로 잡혀 반복 가져오기 시 쌓이던 것을, 수식 자체를 최후 식별키로 보완했습니다.',
+    ]
+  },
+  {
+    title: 'v2.09 — 외부연결 견고화: 학습상태 저장 오류 처리 + 휴지통 이미지 보호',
     items: [
       '학습상태 클라우드 저장(sbUpsertLearningState)이 실패 시 예외를 던져, 동기화 루프가 일시적 네트워크 오류에 통째로 중단되거나 미처리 예외가 나던 것을 다른 저장 함수처럼 "실패 시 조용히 false"로 통일했습니다(남은 상태도 계속 저장 시도).',
       '노트 휴지통을 영구 비울 때 이미지 삭제가 트레이 이미지만 보고, 본문에 삽입된 이미지나 "살아있는 다른 노트가 아직 쓰는 이미지"를 고려하지 않아 표시 중인 이미지를 지워버릴 수 있던 문제를 고쳤습니다. 이제 살아있는 노트·남는 삭제기록이 참조하는 이미지는 보호하고, 본문 이미지까지 포함해 안전하게 정리합니다.',
@@ -22892,12 +22911,9 @@ async function handleFileUpload(e, mode = 'replace') {
       // 헤더가 있으면 컬럼 순서 파악
       const headerCols = hasHeader ? firstCols : null;
       if (!headerCols) {
-        const invalidLine = dataLines.find(line => {
-          const count = line.split('\t').length;
-          return !(count >= 11 || count === 9);
-        });
+        const invalidLine = dataLines.find(line => line.split('\t').length < 9);
         if (invalidLine) {
-          showToast('⚠️ 헤더 없는 TSV/CSV는 11열 표준 또는 9열 legacy 형식만 지원합니다. 헤더를 추가해 주세요.');
+          showToast('⚠️ 헤더 없는 TSV/CSV는 최소 9열(legacy) 이상이어야 합니다. 열이 너무 적은 행이 있어 헤더를 추가해 주세요.');
           return;
         }
       }
