@@ -17706,7 +17706,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.65',
+  version: '1.66',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17715,7 +17715,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.65 — 자기점검을 "데이터 보관" 관점으로 확장 (전파 누락까지 감지)',
+    title: '최신 · v1.66 — 데이터 보관 자기점검 3겹 완성 (복원 누락까지 감지)',
+    items: [
+      '데이터가 안전하게 보관되는 왕복(저장→전파→복원→백업)의 마지막 축을 점검에 넣었습니다. 어떤 값을 저장은 하는데 불러올 때 다시 안 읽으면(새 기기·복원 시 조용한 유실) 개발자 정보에 ⚠️로 표시합니다.',
+      '이제 저장(SQL 컬럼)·전파(동기화 해시)·복원(불러오기) 세 축을 함께 자동 점검합니다(백업은 원본 레코드를 통째로 내보내 손실이 원천적으로 없음). 현재 5개 도메인 모두 통과(✅).',
+    ]
+  },
+  {
+    title: 'v1.65 — 자기점검을 "데이터 보관" 관점으로 확장 (전파 누락까지 감지)',
     items: [
       '스키마 점검(v1.63)의 목적이 결국 데이터 안전 보관이라, 점검을 한 겹 더 넣었습니다. 편집 가능한 필드가 "동기화 해시"에 빠져 있으면(그 필드만 고쳤을 때 다른 기기로 전파되지 않는 조용한 유실) 개발자 정보에 ⚠️로 표시합니다.',
       '즉 이제 두 가지를 함께 점검합니다 — ① 저장: 코드가 쓰는 컬럼이 SQL에 있는가, ② 전파: 편집 필드가 동기화 해시에 반영되는가. 현재 5개 도메인 모두 통과(✅) 상태입니다.',
@@ -19090,29 +19097,56 @@ function computePropagationGaps() {
   });
   return gaps;
 }
+// 3번째 축(복원): xToRow가 쓴 DB 컬럼을 rowToX가 다시 읽는지(`r.<col>`) 대조. 안 읽으면 새 기기/복원 시 그 값이
+// 안 올라와 조용히 유실. rowToX 소스를 Function.toString으로 읽어 read 컬럼을 뽑는다(SQL 점검과 대칭·비미니파이 앱).
+function computeRestoreGaps() {
+  const EXCL = new Set(['id', 'created_at', 'updated_at', 'deleted_at', 'hidden_at']);
+  const domains = [
+    { label: '일반용어', toRow: termToRow, fromRow: rowToTerm },
+    { label: '약물', toRow: drugToRow, fromRow: rowToDrug },
+    { label: '공식', toRow: formulaToRow, fromRow: rowToFormula },
+    { label: '미생물', toRow: microbeToRow, fromRow: rowToMicrobe },
+    { label: '주요 질환', toRow: diseaseToRow, fromRow: rowToDisease },
+  ];
+  const gaps = [];
+  domains.forEach(d => {
+    let written;
+    try { written = Object.keys(d.toRow({ id: 1 })); } catch (e) { return; }
+    const read = new Set();
+    try { (String(d.fromRow).match(/\br\.([a-z_][a-z0-9_]*)/g) || []).forEach(x => read.add(x.slice(2))); } catch (e) { return; }
+    if (!read.size) return;
+    const missing = written.filter(c => !EXCL.has(c) && !read.has(c));
+    if (missing.length) gaps.push({ label: d.label, missing });
+  });
+  return gaps;
+}
 function _schemaDriftBannerHtml() {
-  let drift = [], gaps = [];
+  let drift = [], gaps = [], restore = [];
   try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) {}
   try { gaps = computePropagationGaps(); } catch (e) {}
-  if (!drift.length && !gaps.length) {
-    return `<div style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);color:var(--accent2);font-size:11px;font-weight:700;line-height:1.6">✅ 데이터 보관 자기점검 통과 — 저장 컬럼이 SQL에 모두 있고, 편집 가능한 필드가 모두 동기화 해시에 반영됩니다.</div>`;
+  try { restore = computeRestoreGaps(); } catch (e) {}
+  if (!drift.length && !gaps.length && !restore.length) {
+    return `<div style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);color:var(--accent2);font-size:11px;font-weight:700;line-height:1.6">✅ 데이터 보관 자기점검 통과 — 저장(SQL 컬럼)·전파(동기화 해시)·복원(불러오기)이 모두 온전합니다. 백업은 원본 레코드를 통째로 내보냅니다.</div>`;
   }
   const driftRows = drift.map(d => d.tableMissing
     ? `<li><b>${escapeHtml(d.label)}</b> — 테이블 <code>${escapeHtml(d.table)}</code>가 SQL에 없음 (저장 실패 위험)</li>`
-    : `<li><b>${escapeHtml(d.label)}</b> (<code>${escapeHtml(d.table)}</code>) SQL 누락 컬럼: <b>${escapeHtml(d.missing.join(', '))}</b> → <code>add column</code> 필요</li>`).join('');
-  const gapRows = gaps.map(g => `<li><b>${escapeHtml(g.label)}</b> — <b>${escapeHtml(g.missing.join(', '))}</b> 필드가 <b>동기화 해시에서 누락</b> → 이 필드만 수정하면 다른 기기로 전파 안 됨. <code>canonical${'*'}HashPayload</code>에 추가하세요</li>`).join('');
-  return `<div class="schema-drift-warn" style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.5);font-size:11px;line-height:1.6"><b>⚠️ 데이터 보관 위험 감지</b> — 데이터가 저장·전파되지 않을 수 있습니다.<ul style="margin:6px 0 0;padding-left:18px">${driftRows}${gapRows}</ul></div>`;
+    : `<li>[저장] <b>${escapeHtml(d.label)}</b> (<code>${escapeHtml(d.table)}</code>) SQL 누락 컬럼: <b>${escapeHtml(d.missing.join(', '))}</b> → <code>add column</code> 필요</li>`).join('');
+  const gapRows = gaps.map(g => `<li>[전파] <b>${escapeHtml(g.label)}</b> — <b>${escapeHtml(g.missing.join(', '))}</b> 필드가 <b>동기화 해시에서 누락</b> → 이 필드만 수정하면 전파 안 됨. <code>canonical${'*'}HashPayload</code>에 추가</li>`).join('');
+  const restoreRows = restore.map(r => `<li>[복원] <b>${escapeHtml(r.label)}</b> — <b>${escapeHtml(r.missing.join(', '))}</b> 컬럼을 <code>rowTo${'*'}</code>가 안 읽음 → 저장돼도 불러올 때 유실. <code>rowTo${'*'}</code>에 <code>r.컬럼</code> 매핑 추가</li>`).join('');
+  return `<div class="schema-drift-warn" style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.5);font-size:11px;line-height:1.6"><b>⚠️ 데이터 보관 위험 감지</b> — 데이터가 저장·전파·복원되지 않을 수 있습니다.<ul style="margin:6px 0 0;padding-left:18px">${driftRows}${gapRows}${restoreRows}</ul></div>`;
 }
 
 // 앱 로드 시 1회 — 드리프트가 있으면 개발자 버튼에 ⚠️를 붙이고 콘솔 경고(클릭 없이 화면에 드러남).
 function _schemaDriftLoadCheck() {
   try {
-    let drift = [], gaps = [];
+    let drift = [], gaps = [], restore = [];
     try { drift = computeSchemaDrift(SUPABASE_SCHEMA_SQL); } catch (e) {}
     try { gaps = computePropagationGaps(); } catch (e) {}
-    if (!drift.length && !gaps.length) return;
-    if (drift.length) console.warn('⚠️ 스키마 드리프트: 코드가 쓰는데 SQL에 없는 컬럼', drift);
+    try { restore = computeRestoreGaps(); } catch (e) {}
+    if (!drift.length && !gaps.length && !restore.length) return;
+    if (drift.length) console.warn('⚠️ 저장 드리프트: 코드가 쓰는데 SQL에 없는 컬럼', drift);
     if (gaps.length) console.warn('⚠️ 전파 누락: 편집 가능한데 동기화 해시에 없는 필드(전파 안 됨)', gaps);
+    if (restore.length) console.warn('⚠️ 복원 누락: 저장하는데 rowTo*가 안 읽는 컬럼(불러올 때 유실)', restore);
     document.querySelectorAll('.developer-header-btn').forEach(btn => {
       if (!/⚠️/.test(btn.textContent)) btn.textContent = '⚠️ ' + btn.textContent.trim();
       btn.title = '데이터 보관 위험 감지 — 개발자 정보에서 확인하세요';
