@@ -11,6 +11,7 @@ CONFIG · STORAGE/IDB · SUPABASE SYNC · TERMS · DRUGS · FORMULAS · MICROBES
 ## 자동 게이트 (머지 전 통과)
 - [ ] `node scripts/check-index-scripts.mjs`
 - [ ] `node scripts/golden-tests.mjs`
+- [ ] `node scripts/check-schema-drift.mjs`
 - [ ] `node scripts/sync-instruction-doc.mjs --check`
 
 ## 테스트 (해당 항목)

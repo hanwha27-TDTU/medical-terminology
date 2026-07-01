@@ -50,8 +50,9 @@ git checkout -b codex/<작업명>
 - **머지 전 게이트(반드시 통과) — 자동 회귀:**
   1. `node scripts/check-index-scripts.mjs` (실행 `<script>` 문법·블록수·`</html>` 절단·핵심 흐름 함수 존재·도메인 parity),
   2. `node scripts/golden-tests.mjs` (순수함수 행위보존 + 해시 직렬화 잠금),
-  3. `node scripts/sync-instruction-doc.mjs --check` (지시문 드리프트),
-  4. JS 로직·데이터·동기화·순수함수를 바꿨으면 그 순수함수를 `golden-tests.mjs`에 케이스로 추가.
+  3. `node scripts/check-schema-drift.mjs` (스키마 드리프트 — normalize 내용 필드 ↔ canonical 해시 payload, 전파 누락 급소),
+  4. `node scripts/sync-instruction-doc.mjs --check` (지시문 드리프트),
+  5. JS 로직·데이터·동기화·순수함수를 바꿨으면 그 순수함수를 `golden-tests.mjs`에 케이스로 추가.
   하나라도 못 지키면 머지하지 말고 보고한다. (상세: 스킬 `references/regression.md` — (A)자동은 AI 의무, (B)수동 UI는 사용자 실기기 몫.)
 - **PR 분리:** 성격이 다른 작업은 PR을 나눈다(앱 코드 ↔ 스킬/문서).
 - **결과 보고:** 머지했으면 PR 번호·머지 SHA·머지 방식을 보고에 남긴다.
@@ -124,7 +125,7 @@ git checkout -b codex/<작업명>
 PR을 리뷰할 때는 **`.claude/skills/dr-bugeon-medical-note/references/code-review.md` 절차**를 따른다(상세 체크리스트·출력 형식·판정 기준은 그 문서에). 핵심만:
 
 - **전제:** 단일 `index.html` 유지 — **파일 분리를 기본 답으로 제안하지 않는다.**
-- **0단계(자동 게이트 먼저):** `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/sync-instruction-doc.mjs --check` 통과 확인. 하나라도 실패면 Request changes.
+- **0단계(자동 게이트 먼저):** `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/check-schema-drift.mjs` · `node scripts/sync-instruction-doc.mjs --check` 통과 확인. 하나라도 실패면 Request changes.
 - **사람이 볼 것:** 데이터 흐름(저장→복구→동기화→export/import→UI) parity · 6도메인 전파 누락 · UI 회귀(다른 탭/테마) · CRITICAL ZONE.
 - **🔴 CRITICAL ZONE(연구노트/해시체인/canonical 직렬화/TSA):** 명시적 요청 없으면 **수정하지 않고 코멘트만**(불변조건 19, 골든이 잠금).
 - **보안은 이 리뷰 범위 밖**(별도 `/security-review`) — 단 명백한 시크릿 노출은 그냥 지나치지 말 것.
