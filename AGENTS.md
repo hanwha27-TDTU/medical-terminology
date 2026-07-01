@@ -114,3 +114,17 @@ git checkout -b codex/<작업명>
   → 큰 UI 템플릿을 편집한 뒤엔 반드시 `node --check`.
 - 새 도메인/필드를 넣을 땐 추가·편집·삭제·tombstone·동기화·백업·노트 자동링크·통합검색까지
   전 생명주기를 함께 점검한다(스킬 §3.0 참고).
+
+---
+
+## 7. 코드 리뷰 (단일 HTML · PR 기반)
+
+PR을 리뷰할 때는 **`.claude/skills/dr-bugeon-medical-note/references/code-review.md` 절차**를 따른다(상세 체크리스트·출력 형식·판정 기준은 그 문서에). 핵심만:
+
+- **전제:** 단일 `index.html` 유지 — **파일 분리를 기본 답으로 제안하지 않는다.**
+- **0단계(자동 게이트 먼저):** `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/sync-instruction-doc.mjs --check` 통과 확인. 하나라도 실패면 Request changes.
+- **사람이 볼 것:** 데이터 흐름(저장→복구→동기화→export/import→UI) parity · 6도메인 전파 누락 · UI 회귀(다른 탭/테마) · CRITICAL ZONE.
+- **🔴 CRITICAL ZONE(연구노트/해시체인/canonical 직렬화/TSA):** 명시적 요청 없으면 **수정하지 않고 코멘트만**(불변조건 19, 골든이 잠금).
+- **보안은 이 리뷰 범위 밖**(별도 `/security-review`) — 단 명백한 시크릿 노출은 그냥 지나치지 말 것.
+- **판정:** Approve 가능 / 수정 후 Approve 가능 / Request changes 필요 중 하나로 끝낸다.
+- PR 본문은 `.github/pull_request_template.md` 형식을 채운다.
