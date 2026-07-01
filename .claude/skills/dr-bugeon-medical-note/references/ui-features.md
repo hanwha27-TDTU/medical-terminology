@@ -170,7 +170,9 @@ function resetLevel(id, ev) {
 - **해시 체인:** 각 엔트리 `entry_hash = SHA-256(stableForHash(엔트리 − entry_hash − 서명블록))`, `previous_entry_hash = 직전 엔트리.entry_hash`. 검증(`rnVerifyChain`)은 전 엔트리 재계산 해시 일치 + prev 링크 일치 확인 → 변조 시 `hash_mismatch`/`chain_break`. 해시 대상에서 서명 블록(사후 추가)·entry_hash 자신은 제외.
 - **오프라인 SHA-256:** `crypto.subtle`(secure context) 우선, 없으면 순수 JS 폴백(`_rnSha256Bytes`, UTF-8 바이트). **폴백은 반드시 알려진 벡터(abc/빈문자/긴 한글)로 Node 단위테스트**(직접 구현은 틀리기 쉬움). UUID도 `crypto.randomUUID`→`getRandomValues` 폴백.
 - **"자동 로깅"의 정직한 한계:** 이 앱은 Claude Code 세션·외부 AI 채팅을 못 본다. 진짜 자동 가능한 건 **앱 내부 이벤트**(내보내기 등)뿐 → AI 협업 서사는 빠른 입력 폼(사람/AI/최종결정 분리)으로 기록. 확장용 공개 API `logResearchEvent(type,data)`(조용히 실패). UI·문구에 "법적 보증 아님 · 특허 검토용 구조화 증거 로그" 명시.
-- **PDF = 인쇄:** 라이브러리 없는 단일파일이라 진짜 PDF 생성 불가 → Markdown 렌더 HTML을 `window.open`+`print()`(팝업 차단 시 안내). JSON/CSV/MD는 Blob 다운로드. 저장은 localStorage(도메인 테이블 아님 → 스키마 드리프트 점검과 무관).
+- **PDF = 인쇄:** 라이브러리 없는 단일파일이라 진짜 PDF 생성 불가 → Markdown 렌더 HTML을 `window.open`+`print()`(팝업 차단 시 안내). JSON/CSV/MD는 Blob 다운로드.
+- **클라우드 백업(v1.69):** `research_notes` 테이블은 **jsonb-blob 방식** — 엔트리 전체를 `data(jsonb)`에 통째 저장(+ id/created_at/app_version/event_type/entry_hash/previous_entry_hash/updated_at 고정 컬럼). 엔트리 필드가 늘어도 **컬럼 스키마가 안 바뀌어 드리프트 없음**. append-only라 push=upsert(`researchNoteRow`), pull=**id 기준 union 병합**(기존 삭제 없음, created_at 정렬). 새 기록 저장 시 `rnPushOne` fire-and-forget 자동 백업. 전체 JSON 백업(`createCompleteBackupObject.researchNotes`)에도 포함하고 `applyPendingDataImport`가 모드 무관 union 병합. **다기기 병합 시 체인 링크(prev)는 불연속일 수 있음** → 검증은 `hash_mismatch`(변조=심각)와 `chain_break`(병합 시 정상 가능=정보)를 **구분해 안내**(per-entry 해시가 강한 보증). 새 테이블이라 **스키마 버전 라벨 3곳 bump + 자기점검(computeSchemaDrift·checkLiveSchema) 도메인에 research_notes 추가**(§8.1.1). 저장은 여전히 localStorage 우선(오프라인) + 클라우드는 백업.
+- **지난 이력 소급 기록(v1.69):** `UPDATE_HISTORY`(앱에 v1.01~ 전 이력 존재)를 `rnImportUpdateHistory`로 연구노트에 소급 변환. **백데이팅 금지** — created_at=지금, `source:'update_history'`+`retrospective:true`+`describes_version`으로 "버전 로그 재구성"임을 명시(특허 증거에서 날짜 조작은 신뢰를 깎음). 실제 타임라인 권위 원본은 git 커밋(실제 날짜+SHA)이라고 노트에 남긴다. 재실행 방지: 이미 `source==='update_history'` 있으면 skip.
 
 ### 10.7 UI HTML은 대부분 JS 템플릿 리터럴 (백틱 주의)
 
