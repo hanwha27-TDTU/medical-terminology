@@ -38,6 +38,10 @@
 ## 노트 도메인 특이사항
 - 노트는 JSONB(`data` 통째) → SQL 컬럼 변경 불필요. 단 **`normalizeIntegratedNote` 화이트리스트 등록 필수**(안 하면 소실),
   충돌판정(`noteContentDiffers`)·해시 payload도 함께(불변조건 10).
+- **노트 ID 계약 = 숫자(bigint).** `medical_notes.id`가 bigint PK라 노트 id는 숫자다. 유효 숫자 id는 그대로 보존하고,
+  없거나 숫자 아님(UUID/빈값/0)이면 `normalizeIntegratedNote`가 **`nextNoteId()`(단조 증가·충돌 불가, 다른 5도메인과 동일 패턴)**
+  로 새 숫자 id를 발급한다. 옛 `|| Date.now()` 폴백은 대량 import 시 같은 ms 충돌로 노트가 조용히 덮어써지던 급소(v2.18 교정).
+  → **문자열/UUID id를 그대로 저장하지 않는다**(컬럼 계약). string id 지원은 `id→text` 대규모 마이그레이션이라 의도적으로 범위 밖.
 
 ## 필드 흐름 추적 (추가 시 배선 체크 + "저장 안 됨" 디버그 시 역추적 공용)
 
