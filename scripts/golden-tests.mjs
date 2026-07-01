@@ -76,8 +76,47 @@ golden('_findingConceptForms', s => {
   }
 }
 
+// ── 중복판정·매칭 키 family (모두 normalizeSyncText 의존) — 이번 세션 내내 고친 버그多 영역 → 골든으로 고정 ──
+// 의존(normalizeSyncText)을 함께 추출해 실행. 기준 규칙은 각 *IdentityKey의 필드 우선순위를 그대로 반영.
+function goldenD(name, deps, refImpl, battery) {
+  let fn; try { fn = extractWithDeps(name, deps); } catch (e) { failures.push(`${name}: 추출 실패 — ${e.message}`); return; }
+  for (const inp of battery) check(`${name}(${JSON.stringify(inp)})`, fn(inp), refImpl(inp));
+}
+const nz = s => String(s || '').toLowerCase().replace(/\s+/g, '');       // = normalizeSyncText 기준
+const idOr = (o) => `id:${Number(o.id) || 'empty'}`;
+const dz = ['normalizeSyncText'];
+// term: en→ko→uz
+goldenD('termIdentityKey', dz, t => { const en = nz(t.en), ko = nz(t.ko), uz = nz(t.uz); return en ? `en:${en}` : ko ? `ko:${ko}` : uz ? `uz:${uz}` : idOr(t); },
+  [{ en: 'Aspirin' }, { ko: '아스피린' }, { uz: 'X' }, {}, { en: '', ko: '두근거림' }, { id: 5 }, { en: 'A B', ko: '가 나' }]);
+// drug: generic→ko→brand
+goldenD('drugIdentityKey', dz, d => { const g = nz(d.generic_name || d.genericName || d.en), ko = nz(d.ko_name || d.koName || d.ko), b = nz(d.brand_name || d.brandName || d.brand); return g ? `generic:${g}` : ko ? `ko:${ko}` : b ? `brand:${b}` : idOr(d); },
+  [{ generic_name: 'Metformin' }, { ko_name: '메트포르민' }, { brand_name: 'Glucophage' }, { en: 'X', koName: '와이' }, {}, { id: 9 }]);
+// microbe: organism→latin→ko
+goldenD('microbeIdentityKey', dz, m => { const o = nz(m.organism || m.name || m.en), latin = nz(m.latin_name || m.scientific_name), ko = nz(m.ko_name || m.ko); return o ? `organism:${o}` : latin ? `latin:${latin}` : ko ? `ko:${ko}` : idOr(m); },
+  [{ organism: 'S. aureus' }, { latin_name: 'Staphylococcus aureus' }, { ko_name: '황색포도상구균' }, { name: 'E. coli' }, {}, { id: 3 }]);
+// disease: ko→en→uz (ko 우선)
+const dzMatchRef = d => { const out = []; const ko = nz(d.ko_name || d.ko), en = nz(d.en_name || d.name || d.en), uz = nz(d.uz_name || d.uz); if (ko) out.push(`ko:${ko}`); if (en) out.push(`en:${en}`); if (uz) out.push(`uz:${uz}`); if (!out.length) out.push(idOr(d)); return out; };
+goldenD('diseaseIdentityKey', dz, d => { const ko = nz(d.ko_name || d.ko), en = nz(d.en_name || d.name || d.en), uz = nz(d.uz_name || d.uz); return ko ? `ko:${ko}` : en ? `en:${en}` : uz ? `uz:${uz}` : idOr(d); },
+  [{ ko_name: '동기능부전증후군', en_name: 'Sick sinus syndrome' }, { en_name: 'Colitis' }, { uz_name: 'X' }, {}, { id: 7 }]);
+// diseaseMatchKeys: ko/en/uz 전 키 배열
+goldenD('diseaseMatchKeys', dz, dzMatchRef,
+  [{ ko_name: '동정지', en_name: 'Sinus arrest' }, { ko_name: '동방차단' }, { en_name: 'X only' }, {}, { id: 4 }]);
+// diseasesSameEntity(a,b): 키 교집합 존재 (2-arg)
+{
+  let fn; try { fn = extractWithDeps('diseasesSameEntity', ['normalizeSyncText', 'diseaseMatchKeys']); } catch (e) { failures.push(`diseasesSameEntity: ${e.message}`); }
+  if (fn) {
+    const same = (a, b) => { const kb = new Set(dzMatchRef(b)); return dzMatchRef(a).some(k => kb.has(k)); };
+    const pairs = [
+      [{ ko_name: '동정지', en_name: 'Sinus arrest' }, { ko_name: '동정지', en_name: 'Other EN' }], // ko 같음 → true
+      [{ ko_name: 'A', en_name: 'Shared' }, { ko_name: 'B', en_name: 'Shared' }],                    // en 같음 → true
+      [{ ko_name: 'A', en_name: 'X' }, { ko_name: 'B', en_name: 'Y' }],                               // 다 다름 → false
+    ];
+    for (const [a, b] of pairs) check(`diseasesSameEntity(${JSON.stringify(a)},${JSON.stringify(b)})`, fn(a, b), same(a, b));
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 순수함수 6종 + formulaIdentityKey(의존 포함)이 기준 규칙과 전 케이스 일치(행위보존 확인).');
+console.log('✅ 골든테스트 통과 — 순수함수 13종(정규화 6 + 식별/매칭키 7)이 기준 규칙과 전 케이스 일치(행위보존 확인).');
