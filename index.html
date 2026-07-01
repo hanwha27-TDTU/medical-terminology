@@ -18188,7 +18188,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.83',
+  version: '1.84',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18197,7 +18197,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.83 — 연구노트: 열 때 자동 동기화(다른 기기 타임스탬프가 알아서 내려옴)',
+    title: '최신 · v1.84 — 연구노트: 카드 버튼을 더 직관적으로(툴팁·라벨·안내 보완)',
+    items: [
+      '각 기록 카드의 버튼이 "누르기 전에 뭘 하는지" 바로 보이도록 다듬었습니다.',
+      '라벨을 행동형으로: 상세→🔎 상세보기, 🏷️ 특허 후보→🏷️ 특허감으로 표시, ＋ 사람 결정→＋ 내 결정 덧붙이기, ↻ 정정→↻ 정정(수정본 추가), 삭제표시→🗑️ 삭제표시.',
+      '버튼마다 마우스를 올리면 동작 설명(툴팁)이 뜨고, 버튼 위에 "🔒 원본은 못 고치고, 원본을 보존한 채 연결된 새 기록을 추가한다"는 안내 한 줄을 넣었습니다.',
+      '특허감/내 결정/정정 폼을 열면, 상단 안내가 정정 유형별로 구체적으로 표시됩니다(예: "🏷️ 특허 후보 기록입니다 — 원본 보존").',
+    ]
+  },
+  {
+    title: 'v1.83 — 연구노트: 열 때 자동 동기화(다른 기기 타임스탬프가 알아서 내려옴)',
     items: [
       '연구노트를 열 때 자동으로 클라우드와 합치기를 돌립니다 — 다른 기기에서 받은 공인 타임스탬프·서명이 버튼을 누르지 않아도 알아서 내려옵니다.',
       '조용히·비차단으로 동작하고(20초 throttle), 새로 전파된 게 있을 때만 "☁️ 자동 동기화 · N건에 타임스탬프/서명 전파"로 알려줍니다.',
@@ -20367,12 +20376,13 @@ function rnCardHtml(e, notes) {
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">${patentTag}${corr}</div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px">
-        <button class="ui-btn sm" onclick="rnShowDetail('${e.id}')">상세</button>
-        <button class="ui-btn sm" onclick="rnMark('${e.id}','patent')">🏷️ 특허 후보</button>
-        <button class="ui-btn sm" onclick="rnMark('${e.id}','decision')">＋ 사람 결정</button>
-        <button class="ui-btn sm" onclick="rnOpenForm(null,{corrects_id:'${e.id}',correction_type:'amend'})">↻ 정정</button>
-        ${del ? '' : `<button class="ui-btn sm danger" onclick="rnMark('${e.id}','delete')">삭제표시</button>`}
+      <div style="font-size:10px;color:var(--text3);margin-top:9px;margin-bottom:4px">🔒 원본은 못 고칩니다 — 아래 버튼은 <b>원본을 보존한 채 연결된 새 기록</b>을 추가합니다 (상세는 열람만).</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        <button class="ui-btn sm" title="이 기록의 전체 내용·해시·서명·타임스탬프를 봅니다 (열람만, 변경 없음)" onclick="rnShowDetail('${e.id}')">🔎 상세보기</button>
+        <button class="ui-btn sm" title="이 주제를 특허 청구항 후보로 표시 — 원본은 그대로 두고, 신규성 등 특허 포인트를 담은 새 기록을 추가합니다" onclick="rnMark('${e.id}','patent')">🏷️ 특허감으로 표시</button>
+        <button class="ui-btn sm" title="이 기록에 대해 사람(발명자)이 내린 추가 결정·판단을 새 기록으로 덧붙입니다 (원본 보존)" onclick="rnMark('${e.id}','decision')">＋ 내 결정 덧붙이기</button>
+        <button class="ui-btn sm" title="내용을 고칠 때 — 원본은 못 고치므로, 원본을 가리키는 수정본을 새로 추가합니다 (원본·해시 보존)" onclick="rnOpenForm(null,{corrects_id:'${e.id}',correction_type:'amend'})">↻ 정정(수정본 추가)</button>
+        ${del ? '' : `<button class="ui-btn sm danger" title="이 기록을 삭제 표시 — 원본·해시는 보존되고, 삭제 사실도 기록으로 남습니다 (조용한 삭제 없음)" onclick="rnMark('${e.id}','delete')">🗑️ 삭제표시</button>`}
       </div>
     </div>`;
 }
@@ -20390,7 +20400,8 @@ function rnOpenForm(prefill, opts) {
   const groups = RN_FORM_FIELDS.map(g => `
     <div style="font-size:12px;font-weight:800;color:var(--accent);margin:12px 0 6px">${g.group}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${g.fields.map(f => rnFieldHtml(f[0], f[1], f[2])).join('')}</div>`).join('');
-  const corrNote = opts.corrects_id ? `<div style="font-size:11px;color:#b45309;background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.4);border-radius:8px;padding:7px 10px;margin-bottom:8px">↻ 이것은 <b>정정 기록</b>입니다. 원본(${escapeHtml(opts.corrects_id).slice(0, 8)}…)은 그대로 보존되고, 이 항목이 새로 추가됩니다.</div>` : '';
+  const _corrLabel = { patent: '🏷️ 특허 후보 기록', decision: '＋ 사람(발명자) 결정 기록', amend: '↻ 정정(수정) 기록', delete: '🗑️ 삭제표시 기록' }[opts.correction_type] || '↻ 정정 기록';
+  const corrNote = opts.corrects_id ? `<div style="font-size:11px;color:#b45309;background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.4);border-radius:8px;padding:7px 10px;margin-bottom:8px">이것은 <b>${_corrLabel}</b>입니다. 원본(${escapeHtml(opts.corrects_id).slice(0, 8)}…)은 <b>그대로 보존</b>되고, 이 항목이 원본에 연결된 새 기록으로 추가됩니다.</div>` : '';
   overlay.innerHTML = `
     <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
       <div class="developer-modal-head">
