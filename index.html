@@ -2004,6 +2004,39 @@ function _openDiseaseFromTree(id) {
   document.getElementById('diseaseTreeModal')?.remove();
   openDiseaseDrawer(null, id);
 }
+// 상위-하위질환 모음 — 하위질환을 가진 모든 상위질환의 가족 트리를 한 모달에 모아 보여준다.
+function showAllDiseaseHierarchies() {
+  injectDiseaseTreeStyles();
+  const all = getActiveDiseases();
+  const parents = all.filter(p => all.some(c => Number(c.parent_id) === Number(p.id)))
+    .sort((a, b) => diseaseDisplayName(a).localeCompare(diseaseDisplayName(b), 'ko'));
+  document.getElementById('diseaseTreeModal')?.remove();
+  const nm = dz => escapeHtml(diseaseDisplayName(dz));
+  const en = dz => dz.en_name ? `<span class="dz-tree-en"> · ${escapeHtml(dz.en_name)}</span>` : '';
+  const familyHtml = root => {
+    const children = all.filter(x => Number(x.parent_id) === Number(root.id))
+      .sort((a, b) => diseaseDisplayName(a).localeCompare(diseaseDisplayName(b), 'ko'));
+    const rootRow = `<div class="dz-tree-root" onclick="_openDiseaseFromTree(${Number(root.id)})" title="상위질환 카드 열기"><span style="font-size:17px">🩺</span><span class="dz-nm" style="flex:1;min-width:0">${nm(root)}${en(root)}</span><span class="drug-chip" style="border-color:var(--accent);color:var(--accent)">상위질환 · 하위 ${children.length}</span></div>`;
+    const childRows = children.map(c => `<div class="dz-tree-node" onclick="_openDiseaseFromTree(${Number(c.id)})" title="이 질환 카드 열기"><span class="dz-nm" style="min-width:0">${nm(c)}${en(c)}</span><span class="dz-tree-go">→</span></div>`).join('');
+    return `<div class="dz-tree" style="margin-bottom:16px">${rootRow}<div class="dz-tree-children">${childRows}</div></div>`;
+  };
+  const body = parents.length
+    ? parents.map(familyHtml).join('')
+    : '<div style="color:var(--text3);font-size:13px;padding:10px">아직 상위-하위질환 관계가 없습니다. 질환 편집에서 "상위질환"을 지정해보세요.</div>';
+  const overlay = document.createElement('div');
+  overlay.id = 'diseaseTreeModal'; overlay.className = 'developer-modal-overlay'; overlay.style.zIndex = '1003';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div><div style="font-size:15px;font-weight:900;color:var(--text)">🌳 상위-하위질환 모음</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">상위질환 ${parents.length}개 · 항목을 누르면 해당 질환 카드가 열립니다</div></div>
+        <button onclick="document.getElementById('diseaseTreeModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:14px 18px 20px;max-height:72vh;overflow-y:auto">${body}</div>
+    </section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
 function openDiseaseDrawer(e, id) {
   if (e) e.stopPropagation?.();
   const d = DISEASES.find(x => Number(x.id) === Number(id));
@@ -12425,9 +12458,16 @@ function setSectionLabel(text = '') {
     ? `<span class="section-label-text">${escapeHtml(clean)}</span>`
     : '';
   const addLabel = `+ ${currentDomainAddLabel()} 추가`;
+  // 질환 모드에서 상위-하위질환 관계가 하나라도 있으면 "모음" 버튼을 라벨 옆에 노출.
+  let hierarchyBtn = '';
+  try {
+    if (currentLibraryMode === 'diseases' && getActiveDiseases().some(d => Number(d.parent_id))) {
+      hierarchyBtn = `<button class="inline-add-btn" style="margin-left:10px" onclick="showAllDiseaseHierarchies()" title="모든 상위-하위질환 구조를 한 번에 보기">🌳 상위-하위질환 모음</button>`;
+    }
+  } catch (e) {}
   label.innerHTML = `
     <div class="section-label-row">
-      <span class="section-label-spacer">${labelText}</span>
+      <span class="section-label-spacer">${labelText}${hierarchyBtn}</span>
       <button class="inline-add-btn" onclick="showAddTermModal()">${addLabel}</button>
     </div>
   `;
@@ -18311,7 +18351,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.89',
+  version: '1.90',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18320,7 +18360,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.89 — 주요 질환: "상위-하위질환 구조" 모달을 세련되게 다듬음',
+    title: '최신 · v1.90 — 주요 질환: "상위-하위질환 모음" 버튼(전체 계층 한눈에)',
+    items: [
+      '질환 목록 상단(제목 옆)에 "🌳 상위-하위질환 모음" 버튼을 추가했습니다. 상위-하위 관계가 하나라도 있을 때만 나타납니다.',
+      '누르면 하위질환을 가진 모든 상위질환의 가족 트리를 한 모달에 모아 보여줍니다. 이름순 정렬, 각 상위질환에 "하위 N" 표시, 아무 항목이나 누르면 해당 질환 카드가 열립니다.',
+    ]
+  },
+  {
+    title: 'v1.89 — 주요 질환: "상위-하위질환 구조" 모달을 세련되게 다듬음',
     items: [
       '모달 제목을 "아형 구조" → "상위-하위질환 구조"로 바꿔 관계를 더 분명히 했습니다.',
       '트리 디자인을 단순 텍스트(├─)에서 둥근 노드 카드 + 세로 연결 레일 + 호버 강조(살짝 밀림·색 변화·→ 화살표)로 세련되게 바꿨습니다. 상위질환은 위에 강조 카드로, 하위질환은 아래 연결선으로 이어진 카드들로 표시됩니다.',
