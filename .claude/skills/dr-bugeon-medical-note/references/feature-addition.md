@@ -20,6 +20,7 @@
    - [ ] Supabase **`<domain>ToRow` / `rowTo<Domain>` 왕복**에 포함(+ 컬럼형 도메인이면 SQL `add column` 필요 → 사용자에게 SQL 실행 안내).
    - [ ] **`canonical<Domain>HashPayload`에 편집 필드 포함**(불변조건 11) — 누락하면 그 필드 단독 변경이
          동기화에서 "일치"로 오판돼 **다른 기기로 전파 안 됨**(parent_id·favorite가 여기서 샜다). (추가 시 그 도메인 스냅샷 해시 1회 재베이스라인은 정상.)
+         → **이 누락은 이제 CI가 잡는다**: `scripts/check-schema-drift.mjs`가 normalize 내용 필드 ↔ canonical payload를 정적 비교(in-app `computePropagationGaps`의 헤드리스 미러). 신규 필드를 normalize에만 넣고 payload에 빠뜨리면 CI 실패 = payload에 추가하라는 신호.
 6. **export/import 연결 (양쪽 parity):**
    - [ ] `createCompleteBackupObject`(export)에 포함 **+** `applyPendingDataImport`(restore)에서 복원 — 한쪽만 하면 왕복에서 유실.
    - [ ] 가져오기는 **모드 존중**(merge/append는 비파괴, replace만 교체 — 불변조건 20a).
@@ -27,7 +28,7 @@
 7. **검색/필터 반영 여부 판단** — 이 필드로 검색·필터·정렬이 되어야 하나? 되면 통합검색·필터 경로에 반영.
    (저장은 되는데 검색·필터·복구에서 누락되는 필드 없게.)
 8. **회귀 테스트:**
-   - [ ] `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/sync-instruction-doc.mjs --check`
+   - [ ] `node scripts/check-index-scripts.mjs` · `node scripts/golden-tests.mjs` · `node scripts/check-schema-drift.mjs` · `node scripts/sync-instruction-doc.mjs --check`
    - [ ] 새 **순수함수**를 만들었으면 golden-tests.mjs에 케이스 추가(행위보존/특성화).
    - [ ] 각 탭 열림 · 새 항목 저장·수정 · **새로고침 후 유지** · JSON export→import 왕복 유지 · 라이트/다크.
    - [ ] 🔴 CRITICAL ZONE(연구노트 해시) 영향 없음(있으면 명시적 요청 + 골든/매니페스트).

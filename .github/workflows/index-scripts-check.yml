@@ -9,11 +9,13 @@ on:
       - 'index.html'
       - 'scripts/check-index-scripts.mjs'
       - 'scripts/golden-tests.mjs'
+      - 'scripts/check-schema-drift.mjs'
   pull_request:
     paths:
       - 'index.html'
       - 'scripts/check-index-scripts.mjs'
       - 'scripts/golden-tests.mjs'
+      - 'scripts/check-schema-drift.mjs'
 
 jobs:
   check-index:
@@ -27,3 +29,5 @@ jobs:
         run: node scripts/check-index-scripts.mjs
       - name: 순수함수 골든테스트(행위보존 검증)
         run: node scripts/golden-tests.mjs
+      - name: 스키마 드리프트(propagation — normalize↔해시 payload)
+        run: node scripts/check-schema-drift.mjs
