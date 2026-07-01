@@ -1344,7 +1344,6 @@ async function rnBackfillTsa() { /* 토큰 없는 기록마다 _rnAttachTsa, ok/
 
 ## 부록 — 이 통합본이 반영한 실제 구현 버전(의료앱 기준)
 Part 1~2 = v1.66~v1.72, Part 3 = v1.73, Part 4 = v1.74~v1.75, Part 5 = v1.76 + §5.6 = v1.77. 어학앱은 버전 넘버만 자체 체계로.
-
 </script>
 <script>
 // ═══════════════════════════════════════════════════════
@@ -18189,7 +18188,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.80',
+  version: '1.81',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18198,7 +18197,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.80 — 연구노트: 통합 지시문을 앱에 내장(다른 앱 개발용 다운로드)',
+    title: '최신 · v1.81 — 연구노트: 내장 지시문 ↔ 원본 자동 동기화(drift 방지)',
+    items: [
+      '앱에 내장한 통합 지시문이 원본과 어긋나지 않도록 "단일 원본 + 동기화 + 자동 검사" 체계를 만들었습니다.',
+      '단일 원본은 docs/특허연구노트_통합지시문.md 파일 하나입니다. 지시문을 고칠 땐 이 파일만 고치고 scripts/sync-instruction-doc.mjs를 실행하면 index.html 내장 블록이 자동 갱신됩니다.',
+      'GitHub Actions(instruction-doc-sync)가 index.html·원본·스크립트 변경 시 자동으로 동기화 여부를 검사해, 어긋나면 실패시킵니다. 즉 깜빡하고 동기화를 안 하면 CI가 바로 잡아줍니다.',
+    ]
+  },
+  {
+    title: 'v1.80 — 연구노트: 통합 지시문을 앱에 내장(다른 앱 개발용 다운로드)',
     items: [
       '이 연구노트 시스템(해시체인·전자서명·서버시각·RFC3161 TSA·증거필드·공개 해시 매니페스트 등)을 다른 앱에 처음부터 끝까지 이식할 수 있는 완전 통합 지시문을 앱 안에 내장했습니다.',
       '연구노트 상단 "📄 연구노트 지시문 받기" 버튼으로 Markdown 파일을 바로 내려받아 다른 앱 개발에 활용할 수 있습니다. 앱이 자기 자신을 재현하는 설명서를 품고 다니는 셈입니다.',

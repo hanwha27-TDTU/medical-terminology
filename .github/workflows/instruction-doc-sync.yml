@@ -1,0 +1,28 @@
+name: Instruction Doc Sync Check
+
+# 연구노트 통합 지시문의 "단일 원본"(docs/특허연구노트_통합지시문.md)과
+# 앱 내장 블록(index.html의 rnPatentInstructionDoc)이 어긋나면 자동으로 실패시킨다.
+# → 지시문을 고치면 원본만 고치고 `node scripts/sync-instruction-doc.mjs`로 동기화해야 통과.
+
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'docs/특허연구노트_통합지시문.md'
+      - 'scripts/sync-instruction-doc.mjs'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'docs/특허연구노트_통합지시문.md'
+      - 'scripts/sync-instruction-doc.mjs'
+
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 내장 지시문 ↔ 원본 동기화 검사
+        run: node scripts/sync-instruction-doc.mjs --check
