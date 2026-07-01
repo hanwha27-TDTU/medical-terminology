@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.73',
+  version: '1.74',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.73 — 연구노트: 특허 증거 필드 대폭 확충(전문가 검토 3~10번 반영)',
+    title: '최신 · v1.74 — 연구노트: 내보내기 자동 기록 끄기(노이즈 제거)',
+    items: [
+      'JSON·CSV·Markdown·증거 보고서를 내보낼 때마다 연구노트에 "내보내기(export)" 항목이 자동으로 쌓이던 것을 없앴습니다. 내보내기는 열람 행위이지 발명 활동이 아니라서, 이제 다운로드만 하고 기록은 남기지 않습니다.',
+      '연구노트가 "생각·결정" 기록만 담아 훨씬 깔끔해집니다. (이미 쌓인 기존 내보내기 항목은 원본 불변·해시체인 원칙상 그대로 보존됩니다 — 새로 늘지 않을 뿐입니다.)',
+    ]
+  },
+  {
+    title: 'v1.73 — 연구노트: 특허 증거 필드 대폭 확충(전문가 검토 3~10번 반영)',
     items: [
       '특허 전문가 검토의 나머지 항목을 연구노트에 반영했습니다.',
       'AI 대화 원문(요약이 아닌 전문) 필드 추가 — 프롬프트·출력 전문을 그대로 보존하고 각각의 SHA-256을 자동 계산해 "AI가 낸 것 vs 사람이 낸 것"의 경계를 증거로 남깁니다.',
@@ -19812,9 +19819,10 @@ function rnShowDetail(id) {
 function rnExport(fmt) {
   const notes = _rnLoad(); if (!notes.length) { showToast('내보낼 기록이 없습니다'); return; }
   const stamp = new Date().toISOString().slice(0, 10);
-  if (fmt === 'json') { rnAddEntry('export', { feature_name: '내보내기', final_decision: 'JSON export' }); rnDownload(`research_notebook_${stamp}.json`, JSON.stringify(_rnLoad(), null, 2), 'application/json'); return; }
-  if (fmt === 'csv') { rnAddEntry('export', { feature_name: '내보내기', final_decision: 'CSV export' }); rnDownload(`research_notebook_${stamp}.csv`, _rnCsv(_rnLoad()), 'text/csv;charset=utf-8'); return; }
-  if (fmt === 'md') { const all = _rnLoad(); const md = all.map(e => _rnMd(e, all)).join('\n\n---\n\n'); rnAddEntry('export', { feature_name: '내보내기', final_decision: 'Markdown export' }); rnDownload(`research_notebook_${stamp}.md`, md, 'text/markdown;charset=utf-8'); return; }
+  // 내보내기는 열람 행위(발명 활동 아님)라 노트에 자동 기록하지 않는다 — 다운로드만.
+  if (fmt === 'json') { rnDownload(`research_notebook_${stamp}.json`, JSON.stringify(_rnLoad(), null, 2), 'application/json'); return; }
+  if (fmt === 'csv') { rnDownload(`research_notebook_${stamp}.csv`, _rnCsv(_rnLoad()), 'text/csv;charset=utf-8'); return; }
+  if (fmt === 'md') { const all = _rnLoad(); const md = all.map(e => _rnMd(e, all)).join('\n\n---\n\n'); rnDownload(`research_notebook_${stamp}.md`, md, 'text/markdown;charset=utf-8'); return; }
   if (fmt === 'print') {
     const all = _rnLoad(); const html = all.map(e => `<pre style="white-space:pre-wrap;font-size:12px;page-break-after:always">${escapeHtml(_rnMd(e, all))}</pre>`).join('');
     const w = window.open('', '_blank');
@@ -19822,7 +19830,7 @@ function rnExport(fmt) {
     w.document.write(`<html><head><title>Research Notebook ${stamp}</title><meta charset="utf-8"></head><body>${html}<script>window.onload=function(){window.print();}<\/script></body></html>`);
     w.document.close(); return;
   }
-  if (fmt === 'report') { rnAddEntry('export', { feature_name: '내보내기', final_decision: '증거 보고서 export' }); rnDownload(`research_evidence_report_${stamp}.md`, _rnReport(_rnLoad()), 'text/markdown;charset=utf-8'); return; }
+  if (fmt === 'report') { rnDownload(`research_evidence_report_${stamp}.md`, _rnReport(_rnLoad()), 'text/markdown;charset=utf-8'); return; }
 }
 // 증거 요약 보고서 — 사람 vs AI 기여, AI 사용 현황, 특허 후보·선행기술을 한 장으로 집계(원문은 아님·집계 지표).
 function _rnReport(notes) {
