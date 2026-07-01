@@ -2051,6 +2051,16 @@ function _renderDiseaseDrawerContent(d) {
   const emergencyChip = d.emergency ? `<span class="drug-chip" style="border-color:${emgColor};color:${emgColor}">${escapeHtml(d.emergency)}</span>` : '';
   const otherChips = [d.concept_category, d.category, d.acuity, d.progression, d.contagious].filter(Boolean)
     .map(c => `<span class="drug-chip">${escapeHtml(c)}</span>`).join('');
+  // 상위질환/아형 관계 — 자식은 parent_id로 부모를 가리키고, 부모는 parent_id 역조회로 아형 목록을 얻는다.
+  const _parentDz = Number(d.parent_id) ? getActiveDiseases().find(x => Number(x.id) === Number(d.parent_id)) : null;
+  const _childDz = getActiveDiseases().filter(x => Number(x.parent_id) === Number(d.id))
+    .sort((a, b) => diseaseDisplayName(a).localeCompare(diseaseDisplayName(b), 'ko'));
+  const parentLine = _parentDz
+    ? `<div class="microbe-memory-line"><span>상위</span><span onclick="openDiseaseDrawer(event, ${Number(_parentDz.id)})" style="color:var(--accent);cursor:pointer;font-weight:600" title="상위질환 카드 열기">▸ ${escapeHtml(diseaseDisplayName(_parentDz))}</span></div>`
+    : '';
+  const childChips = _childDz.length
+    ? `<div class="microbe-memory-line" style="align-items:flex-start"><span>아형</span><span style="display:flex;flex-wrap:wrap;gap:6px">${_childDz.map(c => `<span class="drug-chip" style="cursor:pointer;border-color:var(--accent);color:var(--accent)" onclick="openDiseaseDrawer(event, ${Number(c.id)})" title="아형 질환 카드 열기">${escapeHtml(diseaseDisplayName(c))}</span>`).join('')}</span></div>`
+    : '';
   // 기본정보 그리드: 제목/칩에 이미 나온 이름·분류·경과는 중복하지 않고, 나머지(IPA·태그·프로필)만 표시
   const profileSec = DISEASE_SECTIONS.find(s => s.key === 'profile');
   const baseGrid = [
@@ -2142,6 +2152,7 @@ function _renderDiseaseDrawerContent(d) {
         ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
         ${(d.body?.profile?.chief_complaints) ? `<div class="microbe-memory-line"><span>주호소</span>${escapeHtml(d.body.profile.chief_complaints)}</div>` : ''}
         ${(d.body?.definition?.ko) ? `<div class="microbe-memory-line"><span>정의</span>${escapeHtml(d.body.definition.ko)}</div>` : ''}
+        ${parentLine}${childChips}
         <div class="microbe-tts-row">
           <span class="tts-speed-label">속도</span>
           <input class="tts-speed-slider" type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}" oninput="ttsSpeed=parseFloat(this.value);document.querySelectorAll('.tts-speed-val').forEach(el=>el.textContent=ttsSpeed.toFixed(1)+'×')">
@@ -7254,6 +7265,7 @@ function diseaseToRow(d) {
   const now = new Date().toISOString();
   return {
     id: Number(d.id),
+    parent_id: (Number.isFinite(Number(d.parent_id)) && Number(d.parent_id) > 0) ? Number(d.parent_id) : null,
     ko_name: d.ko_name || '',
     en_name: d.en_name || '',
     uz_name: d.uz_name || '',
@@ -7277,6 +7289,7 @@ function diseaseToRow(d) {
 function rowToDisease(r) {
   return normalizeDiseaseForStorage({
     id: Number(r.id),
+    parent_id: r.parent_id != null ? Number(r.parent_id) : null,
     ko_name: r.ko_name || '',
     en_name: r.en_name || '',
     uz_name: r.uz_name || '',
@@ -8448,8 +8461,13 @@ function normalizeDiseaseForStorage(d) {
   const now = new Date().toISOString();
   const deletedAt = d.deletedAt || d.deleted_at || null;
   const updatedAt = d.updatedAt || d.updated_at || deletedAt || now;
+  const _selfId = Number(d.id) || 0;
+  const parentId = Number(d.parent_id != null ? d.parent_id : d.parentId);
   return {
     id: Number(d.id) || nextDiseaseId(),
+    // 상위질환(아형 관계) — 자식만 parent_id를 갖고, 부모의 아형 목록은 이 값으로 역조회(단일 진실원, 양방향 저장 금지).
+    // 자기 자신을 부모로 두는 것은 무효화(순환 방지의 최소 안전장치).
+    parent_id: (Number.isFinite(parentId) && parentId > 0 && parentId !== _selfId) ? parentId : null,
     ko_name: cleanTermString(d.ko_name || d.koName || d.ko || d.korean_name),
     en_name: cleanTermString(d.en_name || d.enName || d.en || d.english_name || d.name),
     uz_name: cleanTermString(d.uz_name || d.uzName || d.uz),
@@ -10178,6 +10196,9 @@ function renderDiseaseFrame(diseases = []) {
     return;
   }
   const _fIdx = buildFindingConceptIndex(); // 카드 주호소 → 용어 매칭용, 프레임당 1회
+  // 상위질환별 아형 개수(프레임당 1회) — 카드에 "아형 N" 배지 표시용.
+  const _dzChildCount = {};
+  active.forEach(x => { const p = Number(x.parent_id); if (p) _dzChildCount[p] = (_dzChildCount[p] || 0) + 1; });
   frame.innerHTML = `
     <section class="drug-frame">
       <div class="drug-frame-title">
@@ -10214,6 +10235,8 @@ function renderDiseaseFrame(diseases = []) {
           </div>
           <div class="drug-chip-row">
             ${emergencyChip}
+            ${Number(d.parent_id) ? `<span class="drug-chip" style="border-color:var(--accent);color:var(--accent)" title="어떤 상위질환의 아형입니다 — 상세에서 상위질환으로 이동">▸ 아형</span>` : ''}
+            ${_dzChildCount[Number(d.id)] ? `<span class="drug-chip" style="border-color:var(--accent);color:var(--accent)" title="아형 ${_dzChildCount[Number(d.id)]}개 — 상세에서 아형 카드로 이동">아형 ${_dzChildCount[Number(d.id)]}</span>` : ''}
             ${chips.map(chip => `<span class="drug-chip">${escapeHtml(chip)}</span>`).join('')}
           </div>
           ${d.one_line_summary ? `<div class="microbe-memory-line"><span>한 줄</span>${escapeHtml(d.one_line_summary)}</div>` : ''}
@@ -10427,6 +10450,20 @@ function diseaseSelectHtml(id, label, options, current, IS) {
   if (current && !options.includes(current)) opts = `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>` + opts;
   return `<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">${escapeHtml(label)}</label><select id="${id}" style="${IS}">${opts}</select></div>`;
 }
+// 상위질환(아형) 선택 옵션 — 자기 자신 제외, 이름순. 값은 질환 id(빈 값=상위질환 아님).
+function diseaseParentOptionsHtml(d = {}) {
+  const selfId = Number(d.id) || 0;
+  const cur = Number(d.parent_id) || 0;
+  const opts = [`<option value="">— 없음 (상위질환 아님) —</option>`];
+  getActiveDiseases()
+    .filter(x => Number(x.id) !== selfId)
+    .sort((a, b) => diseaseDisplayName(a).localeCompare(diseaseDisplayName(b), 'ko'))
+    .forEach(x => {
+      const xid = Number(x.id);
+      opts.push(`<option value="${xid}"${xid === cur ? ' selected' : ''}>${escapeHtml(diseaseDisplayName(x))}${x.en_name ? ' (' + escapeHtml(x.en_name) + ')' : ''}</option>`);
+    });
+  return opts.join('');
+}
 function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyle(true)) {
   const escVal = v => escapeHtml(String(v || '').replace(/"/g, '&quot;'));
   const body = (d && d.body && typeof d.body === 'object') ? d.body : {};
@@ -10481,6 +10518,11 @@ function diseaseFormFieldsHtml(prefix, d = {}, IS = inputStyle(), TA = inputStyl
       ${diseaseSelectHtml(`${prefix}_category`, 'System (대표 장기계)', VALID_CATS, d.category || 'General', IS)}
       <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">보조 장기계 태그 (쉼표 · 장기계 값만 인식)</label><input id="${prefix}_system_tags" value="${escVal(Array.isArray(d.system_tags) ? d.system_tags.join(', ') : '')}" placeholder="예: Pulmonary, ENT · 장기계 외 값은 '기타'로 처리" title="대표 장기계 외 보조 장기계만 인식합니다. 병리 특징·분류 같은 서술형 키워드는 해당 임상 섹션이나 한 줄 요약에 적어주세요." style="${IS}"></div>
     </div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">상위질환 (이 질환이 아형일 때만 · 선택)</label>
+      <select id="${prefix}_parent_id" style="${IS}">${diseaseParentOptionsHtml(d)}</select>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:4px">예: "빈맥-서맥 증후군"은 상위질환으로 "동기능부전증후군"을 고릅니다. 상위질환 카드에 아형 칩으로 표시되고, 이 카드엔 "▸ 상위: …" 링크가 생깁니다.</div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
       ${diseaseSelectHtml(`${prefix}_acuity`, '급성 / 아급성 / 만성', DISEASE_ACUITY_OPTIONS, d.acuity || '', IS)}
       ${diseaseSelectHtml(`${prefix}_emergency`, '응급도', DISEASE_EMERGENCY_OPTIONS, d.emergency || '', IS)}
@@ -10508,6 +10550,7 @@ function upsertDiseaseFromForm(id = null) {
   const next = normalizeDiseaseForStorage({
     ...(existing || {}),
     id: existing?.id || nextDiseaseId(),
+    parent_id: diseaseFieldValue(`${prefix}_parent_id`) || null, // 상위질환(아형 관계) — 빈 값이면 상위질환 없음
     ko_name: diseaseFieldValue(`${prefix}_ko_name`),
     en_name: diseaseFieldValue(`${prefix}_en_name`),
     uz_name: diseaseFieldValue(`${prefix}_uz_name`),
@@ -18188,7 +18231,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.85',
+  version: '1.86',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18197,7 +18240,17 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.85 — 연구노트: CSV를 Excel에서 열 때 한글 깨짐 수정(UTF-8 BOM)',
+    title: '최신 · v1.86 — 주요 질환: 상위질환↔아형 계층 구조 도입',
+    items: [
+      '질환에 상위질환(아형) 관계를 넣었습니다. 예: 상위질환 "동기능부전증후군" 아래에 아형 "빈맥-서맥 증후군 / 동정지 / 동방차단 / 변시성 심박수부전"을 별도 카드로 두고 연결합니다.',
+      '질환 편집/추가 폼에 "상위질환" 선택란을 추가했습니다. 어떤 질환을 다른 질환의 아형으로 지정하면, 상위질환 카드에 클릭 가능한 아형 칩이 뜨고, 아형 카드엔 "▸ 상위: …" 링크가 생깁니다(서로 오갈 수 있음).',
+      '목록 카드에도 "▸ 아형" / "아형 N" 배지로 계층을 한눈에 표시합니다.',
+      '관계는 아형의 parent_id 하나로만 저장하고(단일 진실원), 상위질환의 아형 목록은 역조회로 얻어 양쪽이 어긋나지 않습니다. 자기 자신을 상위질환으로 두는 것은 자동 무효화됩니다.',
+      '⚠️ 새 컬럼(parent_id)이 추가되어 Supabase에서 최신 SQL을 한 번 실행해야 클라우드 동기화가 됩니다(개발자 정보의 SQL 점검 참고).',
+    ]
+  },
+  {
+    title: 'v1.85 — 연구노트: CSV를 Excel에서 열 때 한글 깨짐 수정(UTF-8 BOM)',
     items: [
       '연구노트 CSV를 다운받아 윈도우 Excel에서 열면 한글이 깨져 보이던 문제를 고쳤습니다.',
       '원인: 파일은 UTF-8로 정상이었지만, Excel이 UTF-8을 자동 인식하지 못하고 옛 한글 코드(CP949)로 읽어 깨졌습니다. 데이터 자체는 멀쩡했고 JSON·Markdown은 정상이었습니다.',
@@ -18812,11 +18865,11 @@ const UPDATE_HISTORY = [
   }
 ];
 
-const SUPABASE_SCHEMA_VERSION = 'v4.57 · 연구노트(research_notes) 테이블 추가';
+const SUPABASE_SCHEMA_VERSION = 'v4.58 · 주요 질환에 상위질환(parent_id) 컬럼 추가';
 const SUPABASE_SCHEMA_UPDATED_AT = '2026년 7월 1일';
 const SUPABASE_SCHEMA_SQL = `-- Dr. Bugeon Medical Note Supabase 통합 스키마
 -- App version: v${APP_INFO.version} (${APP_INFO.updatedAt}) · 이 SQL이 포함된 앱 버전 — 자동 표기(APP_INFO에서)
--- Schema version: v4.16 · 연구노트(research_notes) 테이블 추가 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
+-- Schema version: v4.17 · 주요 질환에 상위질환(parent_id) 컬럼 추가 — 테이블/컬럼 '구조'가 바뀔 때만 올림(본문 동일하면 유지)
 -- 포함 도메인: 일반용어, 약물명 및 정보, 주요 의학계산공식, 미생물, 주요 질환, 개념·오답 노트, 학습상태, 최종본 메타
 -- 참고: 주요 질환의 상세 분류(원인 18종·상위분류 내/외인성 등)는 medical_diseases.body(jsonb)에 저장되므로 별도 컬럼이 필요 없습니다.
 -- 사용법: Supabase SQL Editor에 이 전체 블록을 한 번에 붙여넣고 실행하세요. (이미 만든 테이블이 있어도 안전 — create/alter 모두 if not exists)
@@ -19119,6 +19172,7 @@ create table if not exists public.medical_diseases (
   ipa text default '',
   concept_category text default 'Disease / Syndrome',
   category text default 'General',
+  parent_id bigint,
   one_line_summary text default '',
   acuity text default '',
   emergency text default '',
@@ -19139,6 +19193,7 @@ alter table public.medical_diseases
   add column if not exists ipa text default '',
   add column if not exists concept_category text default 'Disease / Syndrome',
   add column if not exists category text default 'General',
+  add column if not exists parent_id bigint,
   add column if not exists one_line_summary text default '',
   add column if not exists acuity text default '',
   add column if not exists emergency text default '',
