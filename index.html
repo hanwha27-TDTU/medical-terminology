@@ -8608,11 +8608,13 @@ function dedupeDiseasesById(diseases) {
 }
 
 function diseaseIdentityKey(d) {
-  const en = normalizeSyncText(d.en_name || d.name || d.en);
   const ko = normalizeSyncText(d.ko_name || d.ko);
+  const en = normalizeSyncText(d.en_name || d.name || d.en);
   const uz = normalizeSyncText(d.uz_name || d.uz);
-  if (en) return `en:${en}`;
+  // 한국어명 우선 — 영어명 표기가 달라도(괄호↔쉼표 등) 한국어명이 같으면 같은 질환으로 인식(중복 판정·가져오기).
+  // 한국어 의학 학습 앱이라 한국어명이 사실상 식별자. (drug/microbe는 영어·학명이 기준이라 그대로 둔다.)
   if (ko) return `ko:${ko}`;
+  if (en) return `en:${en}`;
   if (uz) return `uz:${uz}`;
   return `id:${Number(d.id) || 'empty'}`;
 }
@@ -18382,7 +18384,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.94',
+  version: '1.95',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18391,7 +18393,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.94 — 주요 질환: 임상 드롭다운을 "한국어 (영어)"로 병기',
+    title: '최신 · v1.95 — 주요 질환: 중복 판정 기준을 한국어명 우선으로(가져오기)',
+    items: [
+      '이미 있는 질환을 JSON으로 다시 붙여넣을 때, 영어명 표기만 조금 달라도(예: 괄호↔쉼표) 새 항목으로 잡히던 문제를 고쳤습니다.',
+      '중복 판정 기준을 영어명 우선 → 한국어명 우선으로 바꿨습니다. 이제 한국어명이 같으면 영어명이 달라도 같은 질환으로 인식되어, 중복 비교 검토(덮어쓰기/건너뛰기)를 할 수 있습니다.',
+      '(약물·미생물은 영어명·학명이 사실상 식별자라 그대로 두었습니다. 이번 변경은 주요 질환에만 적용됩니다.)',
+    ]
+  },
+  {
+    title: 'v1.94 — 주요 질환: 임상 드롭다운을 "한국어 (영어)"로 병기',
     items: [
       '질환 편집/추가 폼의 임상 드롭다운(급성도·응급도·진행성 여부·전염성 여부) 옵션을 "한국어 (영어)"로 병기해 뜻을 바로 알 수 있게 했습니다. 예: Episodic → "삽화성 (Episodic)", Urgent → "긴급 (Urgent)".',
       '저장되는 값은 그대로(영어/한국어 원값)라 기존 데이터·동기화에 영향이 없습니다. 표시 라벨만 병기됩니다.',
