@@ -18560,7 +18560,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.10',
+  version: '2.11',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18569,7 +18569,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.10 — 매칭·파서 견고화: TSV 관대화 + 이름 오연결·과매칭 방지',
+    title: '최신 · v2.11 — 노트 즐겨찾기(favorite)를 무결성 해시에 포함',
+    items: [
+      '개념·오답 노트의 즐겨찾기(favorite)는 클라우드에 통째로 동기화되는 사용자 편집 값인데 무결성 해시에서 빠져 있어, 즐겨찾기만 바뀐 경우 무결성 검증·기기 비교가 "일치"로 잘못 보고하던 문제를 고쳤습니다(parent_id 수정과 같은 원칙).',
+      '이 변경으로 기존 노트 스냅샷 해시가 1회 재계산될 수 있습니다(손상 아님 · 정상). 전면 검토 후속 수정 시리즈의 마지막 코드 수정입니다.',
+    ]
+  },
+  {
+    title: 'v2.10 — 매칭·파서 견고화: TSV 관대화 + 이름 오연결·과매칭 방지',
     items: [
       '헤더 없는 TSV/CSV 붙여넣기에서 열 수가 10처럼 애매한 행이 하나만 있어도 전체가 거부되던 것을, "최소 9열 이상이면 허용(여분 열은 무시)"으로 바꿔 다른 정상 행까지 버리지 않게 했습니다.',
       '이름으로 카드를 잇는 링크(질환·미생물·약물)에서 부분일치 후보가 여러 개면 임의로 첫 항목을 골라 엉뚱한 카드로 연결되던 것을, "정확히 1건일 때만 링크"로 바꿔 오연결을 막았습니다.',
@@ -25943,6 +25950,9 @@ initApp();
         linkedMicrobes: Array.isArray(n.linkedMicrobes) ? n.linkedMicrobes : [],
         linkedFormulas: Array.isArray(n.linkedFormulas) ? n.linkedFormulas : [],
         originalMcq: n.originalMcq || {},
+        // favorite는 noteToRow가 data(jsonb)로 통째 동기화하는 사용자 편집 필드 → 해시에 포함해야
+        // canonical 검증·기기비교가 즐겨찾기 변경을 "일치"로 오판하지 않는다(parent_id와 동일 원칙).
+        favorite: Boolean(n.favorite),
       }));
   }
   function computeNoteRecordIdsHash(notes) {
