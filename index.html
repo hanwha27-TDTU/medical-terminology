@@ -7454,6 +7454,23 @@ function applyListInitialCaps(obj, domain) {
   return obj;
 }
 
+// 한국어 이름을 붙여쓰기로 통일(등록 시) — 쉼표 동의어 구조는 유지하고 각 동의어 안의 공백만 제거.
+// "동 기능부전증후군, 굴 기능부전증후군" → "동기능부전증후군, 굴기능부전증후군".
+// 띄어쓰기/붙여쓰기가 섞여 서로 다른 항목으로 인식되던 문제를 저장 시점에 없앤다(매칭은 normalizeSyncText가 공백 무시로 별도 보장).
+function collapseKoNameSpaces(value) {
+  const s = String(value == null ? '' : value);
+  if (!s.trim()) return s.trim();
+  return s.split(',').map(tok => tok.trim().replace(/\s+/g, '')).filter(Boolean).join(', ');
+}
+const KO_NAME_FIELD = { terms: 'ko', drugs: 'ko_name', microbes: 'ko_name', diseases: 'ko_name' };
+function applyKoNameCollapse(obj, domain) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const key = (domain === 'microbe') ? 'microbes' : (domain === 'drug') ? 'drugs' : (domain === 'disease') ? 'diseases' : (domain === 'term') ? 'terms' : domain;
+  const f = KO_NAME_FIELD[key];
+  if (f && obj[f]) obj[f] = collapseKoNameSpaces(obj[f]);
+  return obj;
+}
+
 function normalizeConceptCategory(value, source = {}) {
   const raw = cleanTermString(value || source.conceptCategory || source.concept);
   if (CONCEPT_CATEGORIES.includes(raw)) return raw;
@@ -8097,7 +8114,8 @@ function computeDiseaseSnapshotHash(diseases) {
 }
 
 function normalizeSyncText(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  // 이름 식별/중복판정 전용 — 공백을 전부 제거해 "동 기능부전증후군"과 "동기능부전증후군"을 같은 항목으로 인식한다.
+  return String(value || '').toLowerCase().replace(/\s+/g, '');
 }
 
 function termIdentityKey(t) {
@@ -9808,6 +9826,7 @@ function upsertMicrobeFromForm(id = null) {
     updatedAt: new Date().toISOString(),
   });
   applyListInitialCaps(next, 'microbe'); // 용어 나열형 필드 첫 글자 대문자 통일(업로드 시)
+  applyKoNameCollapse(next, 'microbe'); // 한국어 미생물명 붙여쓰기 통일(업로드 시)
   if (!next.organism && !next.ko_name) { showToast('⚠️ 미생물명(영어 또는 한국어)을 입력해주세요'); return null; }
   const duplicateIdx = MICROBES.findIndex((m, idx) => {
     if (isEdit && Number(m.id) === Number(id)) return false;
@@ -10033,6 +10052,7 @@ function upsertDiseaseFromForm(id = null) {
     updatedAt: new Date().toISOString(),
   });
   applyListInitialCaps(next, 'disease'); // 용어 나열형 필드(주호소·증상·징후·감별 등) 첫 글자 대문자 통일(업로드 시)
+  applyKoNameCollapse(next, 'disease'); // 한국어 질환명 붙여쓰기 통일(업로드 시)
   if (!next.ko_name && !next.en_name) { showToast('⚠️ 질환명(한국어 또는 영어)을 입력해주세요'); return null; }
   const duplicateIdx = DISEASES.findIndex(d => {
     if (isEdit && Number(d.id) === Number(id)) return false;
@@ -10746,6 +10766,7 @@ function saveDrugEdit(id) {
     updatedAt: new Date().toISOString(),
   });
   applyListInitialCaps(next, 'drug'); // 용어 나열형 필드 첫 글자 대문자 통일(업로드 시)
+  applyKoNameCollapse(next, 'drug'); // 한국어 약물명 붙여쓰기 통일(업로드 시)
   if (!next.generic_name && !next.ko_name && !next.brand_name) {
     showToast('⚠️ 약물명(영어) 또는 약물명(한국어) 중 하나 이상 필요합니다');
     return;
@@ -14034,18 +14055,18 @@ async function importTsvPaste(mode = 'merge', rawText = null) {
   let overwriteCount = 0;
   overwriteRows.forEach(({ t, existIdx }) => {
     const existing = TERMS[existIdx];
-    TERMS[existIdx] = normalizeTermForStorage({
+    TERMS[existIdx] = applyKoNameCollapse(normalizeTermForStorage({
       ...t,
       id: existing.id, // 기존 id 유지
       updatedAt: new Date().toISOString()
-    });
+    }), 'terms');
     saveTermToCloud(TERMS[existIdx]);
     overwriteCount++;
   });
   if (overwriteCount > 0) { saveTermsToLocalStorage(); applyFilters(); }
 
   // 전부 즉시 저장 (AI 없음 — 내보내기 탭 '일괄 빈칸 채우기'로 별도 실행)
-  const addedTerms = newRows.map(t => normalizeTermForStorage({ ...t, id: makeId() }));
+  const addedTerms = newRows.map(t => applyKoNameCollapse(normalizeTermForStorage({ ...t, id: makeId() }), 'terms'));
   TERMS.push(...addedTerms);
   addedTerms.forEach(saveTermToCloud);
   saveTermsToLocalStorage();
@@ -14191,6 +14212,7 @@ async function submitAddTerm() {
     finding_type: readFindingTypeChecks('add_finding_symptom', 'add_finding_sign'),
     refs: [], icd11: null, fdaDrug: null, rxclassATC: null, trials: null,
   };
+  applyKoNameCollapse(newTerm, 'terms'); // 한국어 용어명 붙여쓰기 통일(업로드 시) — 이후 모든 push 경로에 반영
 
   // API 키가 실제로 있을 때만 AI 자동완성. 키가 없으면 지연 없이 기본 저장한다.
   const canUseAI = hasKey;
@@ -14366,6 +14388,7 @@ async function submitAddDrug() {
 
   const drug = normalizeDrugForStorage(drugInput);
   applyListInitialCaps(drug, 'drug'); // 용어 나열형 필드(동일계열 약물·적응증·부작용·주의) 첫 글자 대문자 통일(업로드 시)
+  applyKoNameCollapse(drug, 'drug'); // 한국어 약물명 붙여쓰기 통일(업로드 시)
 
   if (findDrugIndexByIdentity(drug) >= 0) {
     showAddFormNotice('⚠️ 중복된 약물입니다.');
@@ -14876,6 +14899,7 @@ function saveEdit(id) {
     usmle:    document.getElementById('edit_usmle')?.value.trim()    || '',
     finding_type: readFindingTypeChecks('edit_finding_symptom', 'edit_finding_sign'),
   });
+  applyKoNameCollapse(TERMS[idx], 'terms'); // 한국어 용어명 붙여쓰기 통일(편집 시)
 
   TERMS[idx].updatedAt = new Date().toISOString();
   saveTermsToLocalStorage();
@@ -16998,13 +17022,13 @@ async function previewDataImport(event, kind) {
 async function applyPendingDataImport(options = {}) {
   if (!pendingDataImport) return false;
   const mode = options.mode || document.getElementById('dataImportMode')?.value || 'merge';
-  const incoming = dedupeTermsById(pendingDataImport.terms);
-  // 가져오기(파일·JSON·AI 붙여넣기·중복검토)도 "업로드"이므로 incoming 클론에만 용어 나열형 첫 글자 대문자 통일을 적용.
+  const incoming = dedupeTermsById(pendingDataImport.terms).map(t => applyKoNameCollapse(t, 'terms'));
+  // 가져오기(파일·JSON·AI 붙여넣기·중복검토)도 "업로드"이므로 incoming 클론에만 용어 나열형 첫 글자 대문자·한국어 이름 붙여쓰기 통일을 적용.
   // dedupe* 가 새 객체를 만들어 주므로 라이브 배열(기존 데이터)은 건드리지 않는다.
-  const incomingDrugs = dedupeDrugsById(pendingDataImport.drugs || []).map(d => applyListInitialCaps(d, 'drug'));
+  const incomingDrugs = dedupeDrugsById(pendingDataImport.drugs || []).map(d => applyKoNameCollapse(applyListInitialCaps(d, 'drug'), 'drug'));
   const incomingFormulas = dedupeFormulasById(pendingDataImport.formulas || []);
-  const incomingMicrobes = dedupeMicrobesById(pendingDataImport.microbes || []).map(m => applyListInitialCaps(m, 'microbe'));
-  const incomingDiseases = dedupeDiseasesById(pendingDataImport.diseases || []).map(d => applyListInitialCaps(d, 'disease'));
+  const incomingMicrobes = dedupeMicrobesById(pendingDataImport.microbes || []).map(m => applyKoNameCollapse(applyListInitialCaps(m, 'microbe'), 'microbe'));
+  const incomingDiseases = dedupeDiseasesById(pendingDataImport.diseases || []).map(d => applyKoNameCollapse(applyListInitialCaps(d, 'disease'), 'disease'));
   const hasTermPayload = !!pendingDataImport.hasTermPayload;
   const hasDrugPayload = !!pendingDataImport.hasDrugPayload;
   const hasFormulaPayload = !!pendingDataImport.hasFormulaPayload;
@@ -17682,7 +17706,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.63',
+  version: '1.64',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17691,7 +17715,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.63 — 스키마 드리프트 자기점검 (SQL 누락 컬럼 자동 감지)',
+    title: '최신 · v1.64 — 한국어 이름 띄어쓰기/붙여쓰기 통일 (다른 단어 오인식 제거)',
+    items: [
+      '"동 기능부전증후군"과 "동기능부전증후군"처럼 띄어쓰기만 다른 이름을 이제 같은 항목으로 인식합니다(중복 판정·동기화·검색·연결 전반). 기존에 저장된 데이터에도 바로 적용됩니다.',
+      '추가·편집·가져오기로 한국어 이름(용어·질환·약물·미생물)을 저장할 때 자동으로 붙여쓰기로 통일합니다(쉼표로 구분한 동의어는 그대로 유지). 예: "동 기능부전증후군, 굴 기능부전증후군" → "동기능부전증후군, 굴기능부전증후군".',
+    ]
+  },
+  {
+    title: 'v1.63 — 스키마 드리프트 자기점검 (SQL 누락 컬럼 자동 감지)',
     items: [
       '코드가 실제로 저장하는 컬럼과 동봉 SQL을 자동 대조하는 안전장치를 넣었습니다. 필드를 추가하고 SQL 갱신을 깜빡하면, 개발자 정보의 SQL 섹션에 ⚠️로 어느 테이블의 어떤 컬럼이 빠졌는지 표시됩니다(문제 없으면 ✅).',
       '앱을 열 때도 드리프트가 있으면 상단 "개발자" 버튼에 ⚠️가 붙어 클릭 없이 바로 눈에 띄고, 콘솔에도 경고가 남습니다. 현재는 5개 도메인(일반용어·약물·공식·미생물·주요 질환) 모두 일치 상태입니다.',
