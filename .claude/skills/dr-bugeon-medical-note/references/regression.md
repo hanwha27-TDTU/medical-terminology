@@ -12,6 +12,7 @@ node scripts/golden-tests.mjs          # 순수함수 16종 행위보존 + stabl
 node scripts/check-schema-drift.mjs    # 스키마 드리프트: normalize 필드 ↔ canonical 해시 payload(전파 누락 = parent_id/favorite 급소)
 node scripts/sync-instruction-doc.mjs --check   # 내장 지시문 드리프트
 node scripts/check-skill-docs.mjs      # 스킬 문서 정합성: 참고문서 목록·게이트 목록 ↔ 현실(문서가 "적어만 두고" 어긋나는 것 차단)
+node scripts/check-version-bump.mjs    # index.html 변경 시 버전 +0.01·새 이력·"최신 ·" 1개 강제(base=origin/main)
 ```
 
 - **위 명령 전부 CI(push마다)** 실행. **하나라도 실패하면 머지 금지**(AGENTS.md §2 머지 게이트).
