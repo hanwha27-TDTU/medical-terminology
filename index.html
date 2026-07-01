@@ -18707,7 +18707,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.30',
+  version: '2.31',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18716,7 +18716,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.30 — 자료 내보내기에서 "Anki TSV" 버튼 제거',
+    title: '최신 · v2.31 — 🎴 플래시카드(전 도메인 랜덤 능동 회상) 추가',
+    items: [
+      '학습 퀴즈 화면에 플래시카드 기능을 추가했습니다. 저장한 자료(일반용어·약물·공식·미생물·주요 질환·개념·오답 노트)를 랜덤으로 카드처럼 뽑아, 앞면(질문)을 보고 답을 떠올린 뒤 "답 보기"로 확인하고 틀림/어려움/보통/쉬움으로 평가합니다. 검색만 하던 자료를 시험처럼 능동적으로 회상하는 훈련 도구입니다.',
+      '전체 랜덤 또는 도메인별(용어/약물/공식/미생물/질환/개념·오답)로 시작할 수 있습니다. 도메인마다 카드 뒷면 구성이 다릅니다 — 예: 약물은 기전·부작용, 미생물은 그람·치료·USMLE 단서, 질환은 요약·본문, 개념·오답 노트는 틀린 이유·정답 포인트.',
+      '중요: 플래시카드는 원본 데이터를 절대 바꾸지 않습니다. 카드는 저장된 자료를 "읽어서" 보여줄 뿐이고, 평가 기록은 이 기기에만 따로 저장되어 동기화·백업·삭제 구조에 영향이 없습니다. (다음 단계로 오답·어려움 가중, 복습 간격(SRS)까지 확장 가능하게 설계했습니다.)',
+    ],
+  },
+  {
+    title: 'v2.30 — 자료 내보내기에서 "Anki TSV" 버튼 제거',
     items: [
       '데이터 관리 → 자료 내보내기에서 "Anki TSV" 내보내기 버튼을 없앴습니다(일반용어에만 있던 기능이라 활용도가 낮았습니다). Excel·CSV 내보내기는 그대로 유지됩니다.',
     ],
@@ -22342,6 +22350,113 @@ function updateQuizSetupUi() {
   if (countEl) countEl.textContent = `${quizSessionLabel(scope, cat)} · ${pool.length}개 가능`;
 }
 
+// ══════════ 🎴 플래시카드(전 도메인 랜덤 능동 회상) — Tier 1 MVP ══════════
+// 원칙: 원본(terms/drugs/…)은 절대 안 건드린다. 원본을 "읽어서" 카드 view만 만들고,
+// 학습기록(평가)은 별도 로컬 flashcardStats(cardId 키)에만 저장 → 동기화·백업·tombstone 무영향(불변조건 2·17).
+const FLASHCARD_STORAGE_KEY = 'kma_medical_terms_v2_flashcard_stats';
+let _flashcardState = null; // { pool, idx, revealed, domain, done }
+function _loadFlashcardStats() { return safeJsonParse(localStorage.getItem(FLASHCARD_STORAGE_KEY), {}) || {}; }
+function _saveFlashcardStats(m) { safeSetItem(FLASHCARD_STORAGE_KEY, JSON.stringify(m)); }
+function _fcRow(label, val) {
+  if (Array.isArray(val)) val = val.filter(Boolean).join('; ');
+  val = (val == null ? '' : String(val)).trim();
+  return val ? `<div style="margin:7px 0"><span style="color:var(--text3);font-size:11px;font-weight:800">${label}</span><br><span style="color:var(--text);font-size:13px;line-height:1.6">${escapeHtml(val)}</span></div>` : '';
+}
+// 도메인별 카드 빌더(원본 → 카드 view). cardId는 domain:id로 안정 고정(기록 섞임 방지).
+function buildFlashcardPool(domain = 'all') {
+  const cards = [];
+  const push = c => { if (c && c.front && String(c.back || '').trim()) cards.push(c); };
+  const want = d => domain === 'all' || domain === d;
+  if (want('terms')) dedupeTermsById(TERMS).filter(t => !t.deletedAt).forEach(t => push({
+    cardId: `term:${t.id}`, domain: 'terms', label: '📘 일반용어', front: escapeHtml(t.en || t.ko || t.uz || ''),
+    back: _fcRow('한국어', t.ko) + _fcRow('English', t.en) + _fcRow("O'zbek", t.uz) + _fcRow('정의(한)', t.def_ko) + _fcRow('정의(영)', t.def_en) + _fcRow('USMLE', t.usmle) + _fcRow('발음', t.ipa),
+  }));
+  if (want('drugs')) dedupeDrugsById(DRUGS).filter(d => !d.deletedAt).forEach(d => push({
+    cardId: `drug:${d.id}`, domain: 'drugs', label: '💊 약물', front: escapeHtml(d.generic_name || d.ko_name || d.brand_name || ''),
+    back: _fcRow('한국어명', d.ko_name) + _fcRow('계열', d.drug_class) + _fcRow('기전(MOA)', d.moa) + _fcRow('임상 사용', d.clinical_uses) + _fcRow('부작용', d.adverse_effects) + _fcRow('주의', d.precautions) + _fcRow('USMLE', d.usmle_strategy),
+  }));
+  if (want('formulas')) dedupeFormulasById(FORMULAS).filter(f => !f.deletedAt).forEach(f => push({
+    cardId: `formula:${f.id}`, domain: 'formulas', label: '∑ 공식', front: escapeHtml(f.name || f.short_name || ''),
+    back: _fcRow('식', f.formula) + _fcRow('약칭', f.short_name) + _fcRow('분류', f.category),
+  }));
+  if (want('microbes')) dedupeMicrobesById(MICROBES).filter(m => !m.deletedAt).forEach(m => push({
+    cardId: `microbe:${m.id}`, domain: 'microbes', label: '🧫 미생물', front: escapeHtml(m.organism || m.ko_name || ''),
+    back: _fcRow('한국어명', m.ko_name) + _fcRow('그람', m.gram_stain) + _fcRow('유형', m.microbe_type) + _fcRow('관련 질환', m.diseases) + _fcRow('치료', m.treatment) + _fcRow('USMLE 단서', m.usmle_clues),
+  }));
+  if (want('diseases')) dedupeDiseasesById(DISEASES).filter(d => !d.deletedAt).forEach(d => push({
+    cardId: `disease:${d.id}`, domain: 'diseases', label: '🩺 주요 질환', front: escapeHtml(d.ko_name || d.en_name || ''),
+    back: _fcRow('영어명', d.en_name) + _fcRow('한줄 요약', d.one_line_summary) + _fcRow('중증도', d.acuity) + _fcRow('본문', typeof diseaseBodyText === 'function' ? String(diseaseBodyText(d) || '').slice(0, 500) : ''),
+  }));
+  if (want('notes')) (Array.isArray(window.NOTEBOOK) ? window.NOTEBOOK.filter(n => !n.deletedAt) : []).forEach(n => push({
+    cardId: `note:${n.id}`, domain: 'notes', label: '🧠 개념·오답 노트', front: escapeHtml(n.title || (n.noteType === 'wrong' ? '이 문제를 틀린 이유는?' : '이 개념의 핵심은?')),
+    back: _fcRow('요약', n.summary) + _fcRow('핵심 포인트', n.keyPoint) + _fcRow('틀린 이유', n.wrongReason) + _fcRow('정답', n.correctAnswer) + _fcRow('비교', n.comparison),
+  }));
+  return cards;
+}
+function showFlashcards(domain = 'all') {
+  const pool = buildFlashcardPool(domain);
+  if (!pool.length) { showToast('⚠️ 카드로 만들 데이터가 없습니다(선택한 영역이 비었을 수 있어요)'); return; }
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  _flashcardState = { pool, idx: 0, revealed: false, domain, done: 0 };
+  document.getElementById('utilityModal')?.remove(); // 퀴즈 설정 모달이 떠 있으면 닫고 카드 모달로
+  const overlay = document.createElement('div');
+  overlay.id = 'flashcardModal';
+  overlay.className = 'note-modal-overlay';
+  overlay.innerHTML = `
+    <div class="note-modal note-view-modal" role="dialog" aria-modal="true" style="max-width:560px">
+      <div class="note-modal-head">
+        <div><h2>🎴 플래시카드</h2><p id="flashcardProgress"></p></div>
+        <button class="drawer-close-btn" onclick="closeFlashcards()" aria-label="닫기">×</button>
+      </div>
+      <div class="note-modal-body" id="flashcardBody"></div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeFlashcards(); });
+  document.body.appendChild(overlay);
+  renderFlashcard();
+}
+function closeFlashcards() { document.getElementById('flashcardModal')?.remove(); _flashcardState = null; }
+function renderFlashcard() {
+  const body = document.getElementById('flashcardBody'); const prog = document.getElementById('flashcardProgress');
+  const st = _flashcardState; if (!body || !st) return;
+  const c = st.pool[st.idx];
+  if (!c) {
+    if (prog) prog.textContent = '';
+    body.innerHTML = `<div style="text-align:center;padding:34px 10px">
+      <div style="font-size:44px">🎉</div>
+      <div style="font-size:17px;font-weight:850;color:var(--text);margin-top:10px">${st.done}장 완료!</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">평가는 이 기기에 저장됩니다.</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:20px">
+        <button class="ui-btn primary" onclick="showFlashcards('${st.domain}')">다시 돌기</button>
+        <button class="ui-btn" onclick="closeFlashcards()">닫기</button>
+      </div></div>`;
+    return;
+  }
+  if (prog) prog.textContent = `${st.idx + 1} / ${st.pool.length} · ${c.label}`;
+  body.innerHTML = `
+    <div style="min-height:120px;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:14px">
+      <div style="font-size:23px;font-weight:850;color:var(--text);line-height:1.5">${c.front}</div>
+    </div>
+    ${st.revealed ? `
+      <div style="margin-top:14px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px">${c.back}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:14px">
+        <button class="ui-btn sm" style="border-color:#f87171;color:#f87171" onclick="rateFlashcard('again')">틀림</button>
+        <button class="ui-btn sm" style="border-color:#fbbf24;color:#d97706" onclick="rateFlashcard('hard')">어려움</button>
+        <button class="ui-btn sm" onclick="rateFlashcard('good')">보통</button>
+        <button class="ui-btn sm" style="border-color:var(--accent2);color:var(--accent2)" onclick="rateFlashcard('easy')">쉬움</button>
+      </div>` : `
+      <button class="ui-btn primary" style="width:100%;margin-top:14px;padding:12px" onclick="revealFlashcard()">답 보기</button>`}`;
+}
+function revealFlashcard() { if (_flashcardState) { _flashcardState.revealed = true; renderFlashcard(); } }
+function rateFlashcard(rating) {
+  const st = _flashcardState; if (!st) return; const c = st.pool[st.idx];
+  try {
+    const m = _loadFlashcardStats(); const s = m[c.cardId] || { seenCount: 0, ratings: {} };
+    s.seenCount = (s.seenCount || 0) + 1; s.ratings[rating] = (s.ratings[rating] || 0) + 1;
+    s.lastRating = rating; s.lastSeenAt = new Date().toISOString(); m[c.cardId] = s; _saveFlashcardStats(m);
+  } catch (e) { console.warn('flashcard stat save failed', e); }
+  st.done++; st.idx++; st.revealed = false; renderFlashcard();
+}
+
 function showQuizSetup() {
   const main = document.getElementById('mainContent');
   if (!main) return;
@@ -22377,6 +22492,20 @@ function showQuizSetup() {
         ${quizScopeCardHtml('learning', '학습 중', learningCount, '마스터 전 단계의 용어를 반복합니다.')}
         ${quizScopeCardHtml('all', '랜덤 점검', terms.length, '전체 용어에서 무작위로 확인합니다.')}
         ${quizScopeCardHtml('category', '장기계 집중', Object.values(catCounts).reduce((a,b)=>a+b,0), '특정 장기계만 골라 집중합니다.')}
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:850;color:var(--text)">🎴 플래시카드 <span style="font-size:11px;color:var(--text3);font-weight:600">— 전 도메인 능동 회상(앞→답 보기)</span></div>
+        <div style="font-size:11px;color:var(--text3);margin:5px 0 10px;line-height:1.6">저장한 자료를 랜덤 카드로 뽑아 답을 떠올려 보세요. 원본 데이터는 바뀌지 않고, 평가(틀림/어려움/보통/쉬움)는 이 기기에 기록됩니다.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="ui-btn sm primary" onclick="showFlashcards('all')">전체 랜덤</button>
+          <button class="ui-btn sm" onclick="showFlashcards('terms')">📘 일반용어</button>
+          <button class="ui-btn sm" onclick="showFlashcards('drugs')">💊 약물</button>
+          <button class="ui-btn sm" onclick="showFlashcards('formulas')">∑ 공식</button>
+          <button class="ui-btn sm" onclick="showFlashcards('microbes')">🧫 미생물</button>
+          <button class="ui-btn sm" onclick="showFlashcards('diseases')">🩺 질환</button>
+          <button class="ui-btn sm" onclick="showFlashcards('notes')">🧠 개념·오답</button>
+        </div>
       </div>
 
       <div id="quizCategoryWrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px">

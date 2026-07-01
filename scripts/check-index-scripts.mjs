@@ -30,6 +30,8 @@ const REQUIRED_SYMBOLS = [
   // → 헤드리스 환경에서 실제 클릭 대신 "핵심 흐름 함수 존재"로 정적 감지(수동 UI 체크리스트의 자동 보조).
   'function setLibraryMode', 'function applyFilters', 'function renderFilterControls', 'function showAddTermModal',
   'window.openIntegratedNoteModal', 'function renderDiseaseFrame',
+  // 플래시카드(전 도메인 능동 회상) — 원본 불변·별도 로컬 기록
+  'function buildFlashcardPool', 'function showFlashcards', 'function renderFlashcard',
 ];
 // 컬럼-스키마 점검 대상 도메인만(medical_notes는 jsonb-blob이라 컬럼 드리프트 점검 대상이 아님 — 의도적 제외).
 const REQUIRED_TABLES = ['medical_terms', 'medical_drugs', 'medical_formulas', 'medical_microbes', 'medical_diseases', 'research_notes_med'];
