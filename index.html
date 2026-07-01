@@ -18188,7 +18188,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.82',
+  version: '1.83',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18197,7 +18197,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.82 — 연구노트: 공인 타임스탬프·서명·서버시각이 기기 간 전파되도록 수정',
+    title: '최신 · v1.83 — 연구노트: 열 때 자동 동기화(다른 기기 타임스탬프가 알아서 내려옴)',
+    items: [
+      '연구노트를 열 때 자동으로 클라우드와 합치기를 돌립니다 — 다른 기기에서 받은 공인 타임스탬프·서명이 버튼을 누르지 않아도 알아서 내려옵니다.',
+      '조용히·비차단으로 동작하고(20초 throttle), 새로 전파된 게 있을 때만 "☁️ 자동 동기화 · N건에 타임스탬프/서명 전파"로 알려줍니다.',
+      '참고: 예전에 기기마다 따로 받은 토큰은 그대로 유지됩니다(덮어쓰지 않음). 같은 내용에 대한 여러 유효한 도장이라 손실·충돌 없이 모두 유효합니다. 앞으로 새 기록은 한 번 받으면 자동으로 통일됩니다.',
+    ]
+  },
+  {
+    title: 'v1.82 — 연구노트: 공인 타임스탬프·서명·서버시각이 기기 간 전파되도록 수정',
     items: [
       '한 기기(예: 윈도우)에서 공인 타임스탬프를 받으면, 다른 기기(태블릿·모바일)에서 "☁️ 클라우드에서 합치기"만 눌러도 그 토큰이 내려오도록 고쳤습니다 — 이제 기기마다 일일이 다시 받을 필요가 없습니다.',
       '원인: 기존 "합치기"는 로컬에 없는 기록만 새로 추가하고, 이미 있는 기록은 건너뛰어서 나중에 붙은 타임스탬프가 전파되지 않았습니다.',
@@ -20285,7 +20293,27 @@ function rnOpenNotebook() {
     </section>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
-  _rnEnsureGenesis().then(rnRenderList);
+  _rnEnsureGenesis().then(() => { rnRenderList(); _rnAutoSync(); });
+}
+// 연구노트 열 때 자동으로 클라우드와 합치기 → 다른 기기에서 받은 공인 타임스탬프·서명이 알아서 내려온다(사용자가 버튼 누를 필요 없음).
+// 조용히·비차단(fire-and-forget), 20초 throttle로 잦은 재호출 방지, 바뀐 게 있을 때만 알림.
+let _rnLastAutoSync = 0;
+async function _rnAutoSync() {
+  if (!getSupabaseConfig()) return;
+  const now = Date.now();
+  if (now - _rnLastAutoSync < 20000) return;
+  _rnLastAutoSync = now;
+  try {
+    const r = await rnPull();
+    if (!r || !r.ok) return;
+    if (r.added || r.enriched) {
+      if (document.getElementById('researchNoteModal')) rnRenderList();
+      const parts = [];
+      if (r.enriched) parts.push(`${r.enriched}건에 타임스탬프/서명 전파`);
+      if (r.added) parts.push(`새 기록 ${r.added}건`);
+      showToast(`☁️ 자동 동기화 · ${parts.join(' · ')}`);
+    }
+  } catch (e) {}
 }
 function rnSetFilter() {
   _rnFilter.event_type = document.getElementById('rnFilterType')?.value || '';
