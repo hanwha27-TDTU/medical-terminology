@@ -18188,7 +18188,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.81',
+  version: '1.82',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18197,7 +18197,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.81 — 연구노트: 내장 지시문 ↔ 원본 자동 동기화(drift 방지)',
+    title: '최신 · v1.82 — 연구노트: 공인 타임스탬프·서명·서버시각이 기기 간 전파되도록 수정',
+    items: [
+      '한 기기(예: 윈도우)에서 공인 타임스탬프를 받으면, 다른 기기(태블릿·모바일)에서 "☁️ 클라우드에서 합치기"만 눌러도 그 토큰이 내려오도록 고쳤습니다 — 이제 기기마다 일일이 다시 받을 필요가 없습니다.',
+      '원인: 기존 "합치기"는 로컬에 없는 기록만 새로 추가하고, 이미 있는 기록은 건너뛰어서 나중에 붙은 타임스탬프가 전파되지 않았습니다.',
+      '수정: 원문·해시는 절대 건드리지 않고, 해시에서 제외되는 "사후 부착" 증거(TSA 토큰·서버시각·전자서명)만 로컬이 비었을 때 클라우드 값으로 채웁니다. 합치기 후 "N건에 타임스탬프/서명 전파"로 알려줍니다.',
+    ]
+  },
+  {
+    title: 'v1.81 — 연구노트: 내장 지시문 ↔ 원본 자동 동기화(drift 방지)',
     items: [
       '앱에 내장한 통합 지시문이 원본과 어긋나지 않도록 "단일 원본 + 동기화 + 자동 검사" 체계를 만들었습니다.',
       '단일 원본은 docs/특허연구노트_통합지시문.md 파일 하나입니다. 지시문을 고칠 땐 이 파일만 고치고 scripts/sync-instruction-doc.mjs를 실행하면 index.html 내장 블록이 자동 갱신됩니다.',
@@ -20081,11 +20089,27 @@ async function rnPull() {
     const rows = await res.json();
     const cloud = (Array.isArray(rows) ? rows : []).map(r => r.data).filter(x => x && x.id);
     const byId = new Map(_rnLoad().map(e => [e.id, e]));
-    let added = 0;
-    cloud.forEach(e => { if (!byId.has(e.id)) { byId.set(e.id, e); added++; } });
+    let added = 0, enriched = 0;
+    cloud.forEach(e => {
+      const local = byId.get(e.id);
+      if (!local) { byId.set(e.id, e); added++; return; }
+      // 이미 있는 기록: 원문·해시는 절대 안 건드리고, 해시에서 제외되는 "사후 부착" 증거만 로컬이 비었을 때 클라우드에서 채운다.
+      // → 한 기기에서 받은 공인 타임스탬프·서명·서버시각이 다른 기기로 전파됨(기기마다 다시 받을 필요 없음).
+      let changed = false;
+      if (!local.tsa_token && e.tsa_token) {
+        ['tsa_provider', 'tsa_request_hash', 'tsa_timestamp', 'tsa_token'].forEach(k => { if (e[k] != null) local[k] = e[k]; });
+        local.tsa_status = 'success'; local.tsa_error = ''; changed = true;
+      }
+      if (!local.server_time && e.server_time) { local.server_time = e.server_time; changed = true; }
+      if (!local.entry_hash_signature && e.entry_hash_signature) {
+        local.entry_hash_signature = e.entry_hash_signature; local.public_key_jwk = e.public_key_jwk;
+        local.signature_algo = e.signature_algo; local.signature_status = e.signature_status || 'self_signed_ecdsa'; changed = true;
+      }
+      if (changed) enriched++;
+    });
     const merged = [...byId.values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
     _rnSave(merged);
-    return { ok: true, added, total: merged.length };
+    return { ok: true, added, enriched, total: merged.length };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 // ── 지난 개발 이력(UPDATE_HISTORY)을 소급 기록으로 가져오기(백데이팅 아님 — 작성일=지금, 서술=버전 로그 재구성) ──
@@ -20552,7 +20576,7 @@ async function rnCloudRestore() {
   if (!getSupabaseConfig()) { showToast('⚠️ Supabase 설정이 없어 불러올 수 없습니다'); return; }
   showToast('☁️ 클라우드에서 연구노트 불러오는 중...');
   const r = await rnPull();
-  if (r.ok) { showToast(`✅ 합치기 완료 · 새로 ${r.added}건 추가(총 ${r.total}건)`); rnRenderList(); }
+  if (r.ok) { showToast(`✅ 합치기 완료 · 새로 ${r.added}건 추가${r.enriched ? ` · ${r.enriched}건에 타임스탬프/서명 전파` : ''}(총 ${r.total}건)`); rnRenderList(); }
   else showToast(`⚠️ 불러오기 실패 · ${r.reason || ''}`);
 }
 async function rnRunVerify() {
