@@ -9005,6 +9005,29 @@ function hideLocalDiseaseTombstonesFromTrash(ids) {
   saveLocalDiseaseTombstones(rows);
 }
 
+// 6도메인 휴지통 목록을 "한 번에" 비우기(숨김만) — tombstone은 보존해 기기 간 부활 방지 유지.
+// 도메인별 6버튼을 이 버튼 하나로 대체(v2.26). 복원(휴지통 열기)은 그대로 남는다.
+function confirmEmptyAllTrash() {
+  const visT  = loadLocalTombstones().filter(t => !t.hiddenAt);
+  const visD  = loadLocalDrugTombstones().filter(t => !t.hiddenAt);
+  const visM  = loadLocalMicrobeTombstones().filter(t => !t.hiddenAt);
+  const visF  = loadLocalFormulaTombstones().filter(t => !t.hiddenAt);
+  const visDz = loadLocalDiseaseTombstones().filter(t => !t.hiddenAt);
+  const visN  = typeof window.getIntegratedNoteVisibleTrashCount === 'function' ? window.getIntegratedNoteVisibleTrashCount() : 0;
+  const total = visT.length + visD.length + visM.length + visF.length + visDz.length + visN;
+  if (!total) { showToast('✅ 휴지통이 모두 비어 있습니다'); return; }
+  showConfirm(`전체 휴지통 목록 <b>${total}개</b>(용어·미생물·약물·공식·질환·노트)를 한 번에 비울까요?<br><span style="font-size:11px;color:var(--text3)">목록에서 숨김만 하며, 기기 간 부활 방지를 위해 내부 삭제 기록(tombstone)은 보존됩니다.</span>`, () => {
+    if (visT.length)  hideLocalTombstonesFromTrash(visT.map(t => t.id));
+    if (visD.length)  hideLocalDrugTombstonesFromTrash(visD.map(t => t.id));
+    if (visM.length)  hideLocalMicrobeTombstonesFromTrash(visM.map(t => t.id));
+    if (visF.length)  hideLocalFormulaTombstonesFromTrash(visF.map(t => t.id));
+    if (visDz.length) hideLocalDiseaseTombstonesFromTrash(visDz.map(t => t.id));
+    if (visN && typeof window.hideIntegratedNoteTrashFromList === 'function') window.hideIntegratedNoteTrashFromList();
+    showToast(`🗑️ 휴지통 일괄 비우기 완료 · ${total}개 숨김 · 삭제 동기화 기록은 보존됨`);
+    showExportMenu();
+  });
+}
+
 function pruneOldLocalTombstones(days = TOMBSTONE_PRUNE_DAYS) {
   const cutoff = Date.now() - days * 86400000;
   const rows = loadLocalTombstones().filter(t => {
@@ -16246,13 +16269,8 @@ function showExportMenu() {
               <div class="data-section-label" style="color:#fca5a5">개념·오답 노트 휴지통</div>
               <button class="data-action-btn outline" data-note-trash-status onclick="showIntegratedNoteTrashManager()">개념·오답 노트 휴지통 열기</button>
               <div class="data-section-label" style="color:#fca5a5">휴지통 목록 비우기</div>
-              <div class="data-button-row">
-                <button class="data-action-btn red" onclick="confirmEmptyTrash()">용어 휴지통</button>
-                <button class="data-action-btn red" onclick="confirmEmptyMicrobeTrash()">미생물 휴지통</button>
-                <button class="data-action-btn red" onclick="confirmEmptyDiseaseTrash()">주요 질환 휴지통</button>
-                <button class="data-action-btn red" onclick="confirmEmptyDrugTrash()">약물 휴지통</button>
-                <button class="data-action-btn red" onclick="confirmEmptyFormulaTrash()">공식 휴지통</button>
-                <button class="data-action-btn red" onclick="confirmEmptyIntegratedNoteTrash()">노트 휴지통</button>
+              <button class="data-action-btn red" onclick="confirmEmptyAllTrash()">🗑️ 휴지통 일괄 삭제 (전체 도메인)</button>
+              <div class="data-button-row" style="margin-top:8px">
                 <button class="data-action-btn outline" onclick="pruneAllProtectedRecords().then(ok => { if (ok !== false) { showToast('🧹 90일 지난 삭제 보호 기록 정리 완료'); showExportMenu(); } })">90일 지난 보호 기록</button>
                 <button class="data-action-btn outline" onclick="confirmClearAllProtectedRecords()">보호기록 전체 삭제</button>
               </div>
@@ -18642,7 +18660,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.25',
+  version: '2.26',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18651,7 +18669,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.25 — 추가 모달: "JSON 붙여넣기" 탭을 맨 앞·기본으로',
+    title: '최신 · v2.26 — 휴지통 단순화: 도메인별 6개 "비우기"를 "휴지통 일괄 삭제" 하나로',
+    items: [
+      '데이터 관리의 휴지통 정리를 단순화했습니다. 용어·미생물·약물·공식·질환·노트 6개로 나뉘어 있던 "휴지통 비우기" 버튼을 "🗑️ 휴지통 일괄 삭제 (전체 도메인)" 버튼 하나로 합쳤습니다. 한 번에 모든 도메인의 휴지통 목록을 비웁니다.',
+      '동작은 기존과 동일하게 안전합니다 — 목록에서 숨김만 하고, 기기 간 부활 방지를 위한 내부 삭제 기록(tombstone)은 그대로 보존합니다. 삭제 항목 복원 기능("복원"·"휴지통 열기")은 그대로 유지되어 실수로 지운 항목을 되살릴 수 있습니다.',
+    ],
+  },
+  {
+    title: 'v2.25 — 추가 모달: "JSON 붙여넣기" 탭을 맨 앞·기본으로',
     items: [
       '용어·약물 등 추가 모달의 입력 방식 탭 순서를 바꿔 "🤖 JSON 붙여넣기"를 맨 앞에 두고 기본 탭으로 만들었습니다. AI가 만든 JSON을 붙여넣어 추가하는 흐름이 주 사용 방식이라, 모달을 열면 바로 JSON 붙여넣기 화면이 뜹니다.',
       '나머지 방식(단어 하나·TSV 붙여넣기·Excel 신규만)은 그대로 있고 탭만 누르면 됩니다.',
@@ -25832,6 +25857,12 @@ initApp();
 
   window.getIntegratedNoteVisibleTrashCount = function getIntegratedNoteVisibleTrashCount() {
     return loadIntegratedNoteTombstones().filter(n => !n.hiddenAt).length;
+  };
+
+  // 노트 휴지통 목록을 숨김만(tombstone 보존) — "휴지통 일괄 삭제"(confirmEmptyAllTrash)에서 확인창 없이 직접 호출.
+  window.hideIntegratedNoteTrashFromList = function hideIntegratedNoteTrashFromList() {
+    const rows = loadIntegratedNoteTombstones().map(n => n.hiddenAt ? n : { ...n, hiddenAt: noteNow() });
+    saveIntegratedNoteTombstones(rows);
   };
 
   window.pruneIntegratedNoteTombstones = async function pruneIntegratedNoteTombstones(days = TOMBSTONE_PRUNE_DAYS, options = {}) {
