@@ -22,6 +22,10 @@
 
 ### 8.1.1 도메인에 선택 필드(컬럼) 추가 시 parity 체크리스트 (v1.36 finding_type 사례)
 
+> **자동 안전장치(v1.63):** `computeSchemaDrift(SUPABASE_SCHEMA_SQL)`가 각 `xToRow({id:1})` 출력 키(=코드가 쓰는 DB 컬럼)를 SQL의 `create table`/`add column`에서 뽑은 컬럼과 대조한다. 누락되면 **개발자 정보 모달의 SQL 섹션에 ⚠️ 배너**(누락 테이블·컬럼 나열)와, 로드 시 **"개발자" 헤더 버튼에 ⚠️**·콘솔 경고로 드러난다(문제 없으면 ✅). 그래도 이 체크는 `create table` 컬럼 유무만 보므로 **배지·날짜·Schema version 주석(3번)까지 자동 검사하진 않는다** — 아래 체크리스트는 여전히 사람이 지킨다. 컬럼 추출은 `_sqlColumnsForTable`(테이블별 create 블록 첫 토큰 + alter add column). 대상은 최상위 `xToRow`가 있는 5개 도메인(notes는 nested라 제외).
+
+
+
 용어 같은 "명시적 컬럼" 도메인에 새 선택 필드 하나를 더하면 **아래를 한 번에 모두** 맞춘다(한 곳만 빠지면 그 경로에서 값이 증발):
 1. normalize(`normalizeTermForStorage`) — 기본값 + 입력 정규화 헬퍼.
 2. cloud row 양방향(`termToRow`/`rowToTerm`) — snake_case 컬럼명.
