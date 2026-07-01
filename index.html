@@ -17716,7 +17716,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '1.77',
+  version: '1.78',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -17725,7 +17725,17 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v1.77 — 연구노트: TSA 상태 관리 · Evidence Chain ID · openssl 검증 명령(특허 전문가 2차 검토 반영)',
+    title: '최신 · v1.78 — 연구노트: 공개용 "해시 매니페스트"(원문 0% · 신규성 안전 공개 증명)',
+    items: [
+      '특허에서 가장 위험한 실수 중 하나가 출원 전 "공개 공지(public disclosure)"로 신규성을 잃는 것입니다. 이를 막으면서도 공개 증명을 얻는 방법을 넣었습니다.',
+      '연구노트 상단 "🔓 해시 매니페스트(공개용)" — 발명 원문은 0%, 각 기록의 해시·시각·전자서명·TSA 토큰만 담은 JSON을 만듭니다. 무엇이 나갈지는 화이트리스트(허용 목록)로 강제해, 제목·문제·아이디어·AI 전문·특허 메타·발명자 개인정보·첨부파일은 절대 포함되지 않습니다.',
+      '이 매니페스트는 공개 저장소/Release에 올려도 안전합니다 — "이 해시들이 그 시각에 존재했다"를 GitHub 시각으로 공개 증명하되 발명 내용 노출은 0. TSA·서명·git과 완벽 보완됩니다.',
+      'GitHub Actions 워크플로(research-manifest.yml)도 추가 — Supabase에서 읽어 매니페스트를 만들고 공개 Release에 자동 첨부(수동 실행). 서버 측에도 동일 화이트리스트 + 허용목록 밖 키 발견 시 중단하는 안전장치를 넣었습니다.',
+      '(참고: 앱은 원래도 연구노트 원문을 공개 레포에 올리지 않습니다 — 원문은 기기·본인 Supabase에만 존재. 이 기능은 "공개로 증명하고 싶을 때"를 위한 안전한 수단입니다.)',
+    ]
+  },
+  {
+    title: 'v1.77 — 연구노트: TSA 상태 관리 · Evidence Chain ID · openssl 검증 명령(특허 전문가 2차 검토 반영)',
     items: [
       'TSA 요청 상태(tsa_status: pending/success/failed)를 기록별로 저장하고, 실패 사유(tsa_error)도 남깁니다. 카드에 ⏱️ 공인시각/TSA대기/TSA실패로 구분 표시해 어느 기록이 안 됐는지 한눈에 보입니다(전에는 토스트로만 알림).',
       'Evidence Chain ID(예: EC-20260701-000001)를 각 기록에 부여했습니다 — 연구노트·PDF·git 커밋·TSA·특허출원을 하나의 사건번호로 묶어 법률 실무 관리가 쉬워집니다. 생성 시 고정되어 해시에 포함(변조 방지)됩니다.',
@@ -19728,6 +19738,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
           <button class="ui-btn sm" onclick="rnExport('print')">🖨️ 인쇄(PDF)</button>
           <button class="ui-btn sm" onclick="rnExport('report')">📊 증거 보고서</button>
+          <button class="ui-btn sm" onclick="rnExport('manifest')" title="발명 원문 없이 해시·시각·서명·TSA만 — 공개 레포/Release에 올려도 신규성 안전">🔓 해시 매니페스트(공개용)</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           <button class="ui-btn sm safe" onclick="rnCloudBackup()">☁️ 클라우드 백업 올리기</button>
@@ -19942,6 +19953,32 @@ function rnCopyOpensslCmd(id) {
   } catch (er) {}
   rnDownload(`verify_${(e.evidence_chain_id || e.id).toString().slice(0, 24)}.sh`, cmd, 'text/x-sh');
 }
+// ── 공개용 해시 매니페스트 — 발명 원문 0%, 해시·시각·서명·TSA만. 공개 레포/Release에 올려도 신규성 안전. ──
+// ⚠️ 반드시 화이트리스트(허용 목록)로만 추출. 블랙리스트(제외 목록)는 새 필드가 생기면 원문이 샐 수 있어 금지.
+// 여기 없는 필드(feature_name·problem_statement·human_idea·ai_*·patent_*·files·witness·발명자 개인정보 등)는 절대 안 나간다.
+const RN_MANIFEST_FIELDS = ['id', 'evidence_chain_id', 'created_at', 'server_time', 'app_version', 'event_type',
+  'entry_hash', 'previous_entry_hash', 'signature_algo', 'entry_hash_signature', 'public_key_jwk',
+  'tsa_provider', 'tsa_request_hash', 'tsa_timestamp', 'tsa_token', 'tsa_status'];
+function _rnManifestEntry(e) {
+  const o = {};
+  RN_MANIFEST_FIELDS.forEach(k => { if (e[k] !== undefined && e[k] !== null && e[k] !== '') o[k] = e[k]; });
+  return o;
+}
+function _rnManifest() {
+  const notes = _rnLoad();
+  const entries = notes.map(_rnManifestEntry);
+  return {
+    manifest_version: 1,
+    type: 'hash-only-manifest',
+    note: '발명 원문 없음(해시·시각·서명·TSA만). "이 해시들이 그 시각에 존재했다"의 공개 증명용 — public disclosure(신규성 상실) 방지. 원문은 발명자 기기·비공개 저장소에만 있음.',
+    project: (APP_INFO && APP_INFO.name) || '',
+    generated_at: new Date().toISOString(),
+    count: entries.length,
+    chain_head: notes.length ? (notes[notes.length - 1].entry_hash || '') : '',
+    allowlist: RN_MANIFEST_FIELDS,
+    entries,
+  };
+}
 function rnExport(fmt) {
   const notes = _rnLoad(); if (!notes.length) { showToast('내보낼 기록이 없습니다'); return; }
   const stamp = new Date().toISOString().slice(0, 10);
@@ -19957,6 +19994,12 @@ function rnExport(fmt) {
     w.document.close(); return;
   }
   if (fmt === 'report') { rnDownload(`research_evidence_report_${stamp}.md`, _rnReport(_rnLoad()), 'text/markdown;charset=utf-8'); return; }
+  if (fmt === 'manifest') {
+    const m = _rnManifest();
+    rnDownload(`research_hash_manifest_${stamp}.json`, JSON.stringify(m, null, 2), 'application/json');
+    showToast(`🔓 해시 매니페스트 ${m.count}건 저장 — 발명 원문 없음(공개 안전). 열어서 원문이 없는지 직접 확인하세요.`);
+    return;
+  }
 }
 // 증거 요약 보고서 — 사람 vs AI 기여, AI 사용 현황, 특허 후보·선행기술을 한 장으로 집계(원문은 아님·집계 지표).
 function _rnReport(notes) {
