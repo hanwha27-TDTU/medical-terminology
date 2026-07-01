@@ -37,6 +37,33 @@
 - 노트는 JSONB(`data` 통째) → SQL 컬럼 변경 불필요. 단 **`normalizeIntegratedNote` 화이트리스트 등록 필수**(안 하면 소실),
   충돌판정(`noteContentDiffers`)·해시 payload도 함께(불변조건 10).
 
+## 필드 흐름 추적 (추가 시 배선 체크 + "저장 안 됨" 디버그 시 역추적 공용)
+
+한 필드가 **각 계층에 다 있는지** 아래 흐름으로 따라간다. 하나라도 빠지면 **그 지점이 유실 원인**이다.
+(위 5~7단계와 같은 배선을 "필드 하나 따라가기" 렌즈로 본 것 — 별도 규칙 아님, 같은 진실원.)
+
+```
+입력 폼 → normalize<Domain>ForStorage → localStorage/IDB(save*ToLocalStorage)
+       → Supabase(<domain>ToRow ↔ rowTo<Domain> + 컬럼) → canonical<Domain>HashPayload
+       → export(createCompleteBackupObject) → import(applyPendingDataImport) → 검색/필터 → UI 렌더
+```
+
+| 단계 | 확인 | 빠지면 증상 |
+|---|---|---|
+| 입력 폼 | 폼에 입력 칸 존재 | 사용자가 값을 못 넣음 |
+| normalize | 화이트리스트 등록 | 저장·동기화 때 조용히 소실 |
+| 로컬 저장 | `save*ToLocalStorage` 포함 | 새로고침하면 사라짐 |
+| Supabase 왕복 | `*ToRow`/`rowTo*` + 컬럼(SQL) | **다른 기기로 전파 안 됨** |
+| 해시 payload | `canonical*HashPayload` 포함 | 변경이 "일치" 오판 → 전파 안 됨(parent_id·favorite 사례) |
+| export/import | 양쪽 parity·모드존중 | 백업 왕복에서 유실 |
+| 검색/필터 | 필요 시 반영 | 저장돼도 못 찾음 |
+| UI 렌더 | 카드/드로어 표시 | 저장됐는데 안 보임 |
+
+**디버그 용법:** "필드 X가 다른 기기에 안 뜬다" → 위 표를 위→아래로 짚어 처음 빠지는 계층이 원인.
+예) 노트 `wrong_reason`: 폼 → `normalizeIntegratedNote` 화이트리스트 → `data`(jsonb) 통째 저장 →
+`createCompleteBackupObject`·`applyIntegratedNotesImport` 왕복 → UI. 이 중 하나만 빠지면 그게 원인.
+(질환 `parent_id` 사례: 폼·normalize·toRow는 있었지만 **해시 payload가 빠져** "다른 기기 전파 안 됨" → v2.07/2.15에서 해결.)
+
 ## 한 줄 요약
 **필드 하나 추가 = normalize + 저장(로컬/클라우드 왕복) + 해시 payload + export/import(parity·모드존중) + 검색/필터 + 회귀.**
 이 중 하나만 빠져도 "보이기만 하고 저장/전파 안 됨"이 된다.
