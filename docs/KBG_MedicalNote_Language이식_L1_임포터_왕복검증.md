@@ -96,8 +96,8 @@ medLangRecord = {
 
 | 단계 | 내용 | index.html 변경 | SQL |
 |---|---|---|---|
-| **L1 (본 문서)** | 임포터 설계 + 왕복 무손실 증명 + 오디오 정합 + 연구노트 방침 | 없음 | 없음 |
-| **L2** | 언어 도메인 저장/모델 확정 — `medLangRecord` 내부모델, IndexedDB 래퍼 재사용, tombstone 3함수 등록, 백업/복원 편입, 해시 페이로드 포함. **BOM-aware 임포터** 실장 + 왕복검증을 앱 내부에서 재현 | 있음(스키마 무관 로직) | 없음 |
+| **L1 ✅ 완료** | 임포터 설계 + 왕복 무손실 증명 + 오디오 정합 + 연구노트 방침 | 없음 | 없음 |
+| **L2 ✅ 완료(v2.52)** | 언어 도메인 저장/모델 확정(`installLanguageDomain` IIFE) — `normalizeLangRecord` 내부모델, IndexedDB large-cache 재사용, tombstone 3함수 등록, 전체 백업 편입, **BOM-aware `importLanguageBackupData`** 실장. **인앱 왕복검증 2013/0** (headless 브라우저에서 실제 백업으로 확인) | 있음(스키마 무관 로직) | 없음 |
 | **L3** | 방(임상 어학 / CPX·OSCE) type 필터 렌더 + 학습기능 전부 이식(SRS `REVIEW_STEPS`·별표·needCheck·IPA·녹음 재생/다운로드/삭제/첨부/즉석녹음) + **ZIP→Cloudinary 재업로드 매핑** | 있음 | 없음 |
 | **L4** | 마무리(연결/마인드맵 편입, UI 폴리시) + **단일 SQL 마이그레이션 한 방**(신규 도메인 테이블/컬럼 + `check-schema-drift` + `*ToRow/rowTo*` + canonical 메타 + sync) | 있음 | **여기서 1회** |
 

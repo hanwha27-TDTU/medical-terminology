@@ -131,6 +131,8 @@
 | `kma_medical_terms_v2_tombstones` | 용어 삭제기록 |
 | `kma_medical_terms_v2_drug_tombstones` / `_formula_tombstones` / `_microbe_tombstones` / `_disease_tombstones` | 도메인별 삭제기록 |
 | `dr_bugeon_integrated_note_tombstones_v1` | 노트 삭제기록 |
+| `dr_bugeon_language_records_v1` / `_meta` | 어학 도메인 본체/메타 (v2.52 L2 — 폐기 어학앱 흡수) |
+| `dr_bugeon_language_tombstones_v1` / `_meta` | 어학 삭제기록 |
 | `kma_medical_terms_v2_learning` | 학습상태 |
 | `kma_medical_terms_v2_sync_meta` | 로컬 동기화 메타(기준본 버전/리비전/pending 상태) |
 | `kma_medical_terms_v2_device_id` | 기기 고유 UUID |
@@ -321,6 +323,7 @@
   - **연결 시각화(읽기전용):** `_renderConnMap`(공용 방사형 SVG)·`noteConnectionMap`(노트 링크5, 이름기반)·`entityConnectionMap`(엔티티 중심=역링크 노트+공동링크+질환 유사/계층, id기반). z-index 오버레이 위(1900), 노드 클릭 시 맵 닫고 열기.
   - **기타:** `AppSchema`(canonical 태그사전, read-only·`normalize*ForStorage` 미포함)·`sidebarFooterHtml`(⚙️Settings→기존 `showAISettings`)·`brandHtml`+`KBG_MEDNOTE_LOGO`(로고 base64 내장, 원본 `assets/Dr_Bugeon_Logo.png`).
   - **🔴 불변:** 기존 함수/DOM id 이동·rename 금지(check-index 정확명 보호), namespace는 신규 코드에만. 표시 브랜드만 바꾸고 **`APP_INFO.name`·`RN_PROJECT_NAME`은 불변**(연구노트 격리·백업 식별).
+- **어학 도메인(Language) — L2 저장 계층(v2.52, additive IIFE `installLanguageDomain`)**: 폐기 예정 어학앱의 복원 데이터를 흡수하는 별도 로컬 도메인(JSONB-blob, 노트와 동일 구조). `LANGRECORDS`(window 노출)·`normalizeLangRecord`(원본 16필드 무손실 흡수: `audio_url↔audioUrl`·`updated_at↔updatedAt` 리네이밍 외 항등, `learning{level,needCheck,starred,updatedAt}` verbatim, id 문자열 그대로)·`langToBackupRecord`(역변환)·`loadLanguageRecords/saveLanguageRecords/bootstrapLanguageRecords`(large-cache/IDB)·`importLanguageBackupData(input,{mode})`(**BOM 안전** — 어학 full backup `records` + 자체 `languageRecords` 양쪽 수용, mode replace/merge/append)·`exportLanguageBackupData`(어학형식 왕복)·`window.__langRoundTripSelfTest`(무손실 self-check). 전체 백업 편입: `createCompleteBackupObject`를 **다시 감싸** `backup.languageRecords/languageTombstones/languageMeta` 추가(노트 패치 위 체이닝). tombstone: `getLanguageTombstoneCount/clearLanguageTombstones/pruneLanguageTombstones`(window) + 3함수(`getProtectedRecordCounts`·`confirmClearAllProtectedRecords`·`pruneAllProtectedRecords`)에 방어적 등록(불변조건 13). **경계:** 이번 단계는 **데이터 계층만** — 방(UI) 렌더·표준 복원 UI 배선(`readDataImportFile`/`applyPendingDataImport`)·녹음 ZIP→Cloudinary 이관은 L3, **Supabase(SQL)는 L4에서 단일 마이그레이션 한 방**(지금 신규 테이블·`*ToRow/rowTo*` 없음 → check-index parity·schema/restore-drift 대상 아님). **🔴 어학앱 연구노트 100건은 이 경로로 넣지 않음** — `project_name='Dr 김부건의 언어 마스터를 위한 여정'`이라 `_rnIsOwnProject`가 자동 격리, 레거시 증거로 보존(법적효력 유지). 상세: `docs/KBG_MedicalNote_Language이식_L1_임포터_왕복검증.md`.
 
 ### 12.1 업로드 전용 정규화는 `normalize*ForStorage`에 넣지 말 것 (v1.50)
 
