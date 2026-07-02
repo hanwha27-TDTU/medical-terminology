@@ -6638,7 +6638,7 @@ function safeSetItem(key, value, options = {}) {
   } catch (err) {
     console.warn('localStorage save failed:', key, err);
     if (!options.silent && typeof showToast === 'function') {
-      showToast(options.message || '⚠️ 브라우저 저장공간 부족으로 일부 설정을 저장하지 못했습니다');
+      showToast(options.message || '⚠️ 브라우저 저장공간 부족으로 일부 데이터를 저장하지 못했습니다 · 데이터 관리에서 백업 후 공간을 정리하세요');
     }
     return false;
   }
@@ -13103,6 +13103,7 @@ function clearSearch() {
 // 상단 제목·하단 "검색" 탭 버튼 공용. btn 없으면(제목 클릭) 하단 검색 버튼을 활성표시로 잡는다.
 function goSearchHome(btn) {
   switchTab('search', btn || getNavButton('search'));
+  window._incompleteTermsView = false;   // 미완성 목록보기 해제 — 라벨이 약속한 "홈으로 해제" 경로(v2.27에서 finishAddFlow에 잘못 들어갔던 것을 v2.32에서 교정)
   window.clearTimeout(searchInputDebounceTimer);
   const si = document.getElementById('searchInput'); if (si) si.value = '';
   currentFilter = 'all';
@@ -16591,19 +16592,22 @@ function _aiRemapIdsByName(parsed) {
     ['microbes', MICROBES, single(microbeIdentityKey), nextMicrobeId],
     ['diseases', DISEASES, diseaseMatchKeys, nextDiseaseId],
   ];
+  const diseaseIdRemap = new Map(); // 구버전(id 포함) 양식 방어 — 질환 old id → 재배정 id (parent_id 형제 참조 번역용)
   domains.forEach(([key, arr, keysFn, gen]) => {
     if (!Array.isArray(parsed[key])) return;
     const byKey = new Map();
     (Array.isArray(arr) ? arr : []).forEach(r => { keysFn(r).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, r); }); });
     parsed[key] = parsed[key].map(rec => {
       if (!rec || typeof rec !== 'object') return rec;
+      const oldId = (key === 'diseases' && rec.id != null && Number.isFinite(Number(rec.id))) ? Number(rec.id) : null;
       let match = null;
       for (const k of keysFn(rec)) { if (k && byKey.has(k)) { match = byKey.get(k); break; } }
       // 이름이 기존 항목과 일치 → 그 id로 매핑(정확한 갱신). 불일치 = 신규 → 새 고유 id 발급.
       // ⚠️ 신규에 새 id를 안 주면, AI가 매 응답마다 재사용하는 placeholder id(예: 8000000000001)들이
       //    서로/기존과 충돌해 "하나 추가하고 또 추가하면 앞엣것이 덮어써져 사라짐"이 난다(가져오기 id 매칭).
-      if (match) return { ...rec, id: match.id };
+      if (match) { if (oldId != null) diseaseIdRemap.set(oldId, match.id); return { ...rec, id: match.id }; }
       const fresh = { ...rec, id: gen() };
+      if (oldId != null) diseaseIdRemap.set(oldId, fresh.id);
       keysFn(fresh).forEach(k => { if (k && !byKey.has(k)) byKey.set(k, fresh); }); // 같은 배치 내 동일 이름은 같은 새 id로(배치내 중복 방지)
       return fresh;
     });
@@ -16614,14 +16618,20 @@ function _aiRemapIdsByName(parsed) {
     const nkey = s => normalizeSyncText(s || '');
     const nameToId = new Map();
     const put = (n, id) => { const kk = nkey(n); if (kk && id != null) nameToId.set(kk, Number(id)); };
-    (Array.isArray(DISEASES) ? DISEASES : []).forEach(d => { put(d.ko_name, d.id); put(d.en_name, d.id); });
-    parsed.diseases.forEach(rec => { if (rec && rec.id != null) { put(rec.ko_name, rec.id); put(rec.en_name, rec.id); } });
+    const knownIds = new Set(); // 실재하는 질환 id(기존 + 이번 배치 재배정본) — parent_id 댕글링 판정용
+    (Array.isArray(DISEASES) ? DISEASES : []).forEach(d => { put(d.ko_name, d.id); put(d.en_name, d.id); knownIds.add(Number(d.id)); });
+    parsed.diseases.forEach(rec => { if (rec && rec.id != null) { put(rec.ko_name, rec.id); put(rec.en_name, rec.id); knownIds.add(Number(rec.id)); } });
     parsed.diseases.forEach(rec => {
-      if (rec && rec.parent_name && (rec.parent_id == null || rec.parent_id === '')) {
+      if (!rec) return;
+      // 구버전(id 포함) 양식 방어: parent_id가 배치 내 형제의 옛 placeholder id면 재배정된 새 id로 번역.
+      if (rec.parent_id != null && rec.parent_id !== '' && diseaseIdRemap.has(Number(rec.parent_id))) rec.parent_id = diseaseIdRemap.get(Number(rec.parent_id));
+      // parent_id가 없거나 실재하지 않는 id(댕글링)면 parent_name으로 해석 — 이름이 있는데 낡은 숫자에 밀려 링크를 잃지 않게.
+      const pidKnown = rec.parent_id != null && rec.parent_id !== '' && knownIds.has(Number(rec.parent_id));
+      if (rec.parent_name && !pidKnown) {
         const pid = nameToId.get(nkey(rec.parent_name));
         if (pid) rec.parent_id = pid;
       }
-      if (rec && 'parent_name' in rec) delete rec.parent_name; // 임시 필드(저장 스키마엔 없음)
+      if ('parent_name' in rec) delete rec.parent_name; // 임시 필드(저장 스키마엔 없음)
     });
   }
   return parsed;
@@ -17898,7 +17908,7 @@ function _previewCounts(incoming, existing, keyOf, mode) {
     const ex = exMap.get(keyOf(item));
     if (!ex) { added++; return; }
     if (mode === 'replace') updated++;
-    else if (mode === 'merge' && (Date.parse(item.updatedAt) || Date.now()) >= (Date.parse(ex.updatedAt) || 0)) updated++;
+    else if (mode === 'merge' && (Date.parse(item.updatedAt) || 0) >= (Date.parse(ex.updatedAt) || 0)) updated++; // 대칭 폴백(코드베이스 표준) — 타임스탬프 없는 가져오기 행이 최신 로컬을 못 덮게
     // append, 또는 merge인데 기존이 더 최신 → 변화 없음(카운트 안 함)
   });
   let removed = 0;
@@ -18102,7 +18112,7 @@ async function applyPendingDataImport(options = {}) {
         const existing = pendingDataImport.kind === 'json' ? byId.get(String(term.id)) : byName.get(termIdentityKey(term));
         if (!existing) {
           if (!term.deletedAt) TERMS.push(term); // tombstone(deletedAt) 행은 active에 넣지 않는다(다른 4도메인과 동일)
-        } else if (mode === 'merge' && (Date.parse(term.updatedAt) || Date.now()) >= (Date.parse(existing.updatedAt) || 0)) {
+        } else if (mode === 'merge' && (Date.parse(term.updatedAt) || 0) >= (Date.parse(existing.updatedAt) || 0)) { // 대칭 폴백 — 미리보기(_previewCounts)와 동일 규칙 유지
           const index = TERMS.findIndex(t => String(t.id) === String(existing.id));
           TERMS[index] = mergeDuplicateTerms(existing, normalizeTermForStorage({ ...term, id: existing.id }));
         }
@@ -18707,7 +18717,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.31',
+  version: '2.32',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18716,7 +18726,19 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.31 — 🎴 플래시카드(전 도메인 랜덤 능동 회상) 추가',
+    title: '최신 · v2.32 — 전면 재점검(신규 모델 눈) 후속: 확정 결함 7건 일괄 수정',
+    items: [
+      '미완성 용어 목록보기가 상단 제목/하단 검색(홈) 버튼으로 해제되지 않던 문제를 고쳤습니다(해제 코드가 다른 함수에 잘못 들어가 있었음). 이제 라벨의 안내("홈으로 해제")대로 동작합니다.',
+      '플래시카드에서 한 바퀴 끝내고 "다시 돌기"를 누르면 빈 모달이 뜨고 닫기를 두 번 눌러야 하던 문제를 고쳤습니다(재진입 시 기존 카드 모달을 먼저 정리).',
+      '연구노트 저장 경합을 막았습니다 — 기록 저장 직전에 최신 상태를 다시 읽어, 저장하는 순간 자동 클라우드 합치기·타임스탬프 부착이 함께 돌아도 서로의 변경을 덮어쓰지 않습니다(기존 기록·해시는 무변경).',
+      '저장공간 부족(quota) 시 무엇이 저장 실패했는지 구체적으로 알립니다 — 연구노트(특허 증거)와 노트 삭제기록은 전용 경고("삭제한 노트가 되살아날 수 있음" 등)를 띄우고, 공통 문구도 "설정"이 아니라 "데이터"로 정정했습니다.',
+      '가져오기(merge)에서 날짜 정보가 없는 행이 항상 최신 취급되어 더 새로운 로컬 수정본을 덮어쓸 수 있던 비대칭을 고쳤습니다 — 이제 날짜 없는 행은 기존 데이터를 이기지 못합니다(미리보기·적용 동일 규칙).',
+      '노트 충돌 사본의 ID 발급을 다른 모든 경로와 같은 충돌 불가 방식(nextNoteId)으로 통일했고(v2.21 잔존), 노트 출처 검색 입력에 디바운스를 넣어 큰 노트북에서 키 입력마다 전체 목록을 다시 그리던 부하를 줄였습니다.',
+      '구버전 AI 양식(id 포함)으로 만든 질환 붙여넣기에서 상위질환 링크(parent_id)가 형제의 옛 id를 가리키다 끊기던 것을 방어했습니다 — 배치 내 재배정 id로 번역하고, 해석 불가면 상위질환 이름(parent_name)으로 연결합니다.',
+    ],
+  },
+  {
+    title: 'v2.31 — 🎴 플래시카드(전 도메인 랜덤 능동 회상) 추가',
     items: [
       '학습 퀴즈 화면에 플래시카드 기능을 추가했습니다. 저장한 자료(일반용어·약물·공식·미생물·주요 질환·개념·오답 노트)를 랜덤으로 카드처럼 뽑아, 앞면(질문)을 보고 답을 떠올린 뒤 "답 보기"로 확인하고 틀림/어려움/보통/쉬움으로 평가합니다. 검색만 하던 자료를 시험처럼 능동적으로 회상하는 훈련 도구입니다.',
       '전체 랜덤 또는 도메인별(용어/약물/공식/미생물/질환/개념·오답)로 시작할 수 있습니다. 도메인마다 카드 뒷면 구성이 다릅니다 — 예: 약물은 기전·부작용, 미생물은 그람·치료·USMLE 단서, 질환은 요약·본문, 개념·오답 노트는 틀린 이유·정답 포인트.',
@@ -20761,7 +20783,10 @@ function _rnIsOwnProject(e) { return !!e && (e.project_name === RN_PROJECT_NAME 
 // _rnLoad를 단일 관문으로 필터 → 렌더·집계·검증·체인 prev·내보내기·매니페스트·제네시스·중복검사 전 경로가
 // 자동으로 이 프로젝트만 본다. 섞여 저장된 남의 행은 다음 _rnSave 때 자동 정리(내 기록은 유실 0).
 function _rnLoad() { const a = safeJsonParse(localStorage.getItem(RESEARCH_NOTES_KEY), []); return Array.isArray(a) ? a.filter(_rnIsOwnProject) : []; }
-function _rnSave(arr) { safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr)); }
+function _rnSave(arr) {
+  // 연구노트=특허 증거 — 저장 실패(quota)를 일반 문구로 뭉개지 않고 무엇이 유실 위기인지 명시한다.
+  return safeSetItem(RESEARCH_NOTES_KEY, JSON.stringify(arr), { message: '⚠️ 연구노트(특허 증거) 로컬 저장 실패 — 저장공간 부족. 백업 후 공간을 정리하고 다시 시도하세요.' });
+}
 // 발명자(사람) 신원 — 특허 증거에서 "누가 착상했는가"를 명확히 하기 위해 모든 기록에 자동 귀속한다.
 // 기본 발명자는 앱에 못 박아둔다(모든 기기 공통). 사용자가 바꾸지 않는 한 이 값으로 귀속된다.
 const RN_INVENTOR_KEY = 'drbugeon_rn_inventor';
@@ -20915,7 +20940,10 @@ async function rnAddEntry(eventType, data, opts) {
   entry.entry_hash = await _rnComputeHash(entry);
   const s = await _rnSign(entry.entry_hash); // 전자서명(ECDSA) 부착 — 가능할 때만
   if (s) { entry.entry_hash_signature = s.sig; entry.public_key_jwk = s.pub; entry.signature_algo = 'ECDSA_P-256_SHA-256'; entry.signature_status = 'self_signed_ecdsa'; }
-  notes.push(entry); _rnSave(notes);
+  // 저장 직전 재로드(lost-update 방지): 위 두 await 동안 rnPull 자동합치기·TSA/server_time 부착이 같은 키를
+  // 저장했을 수 있다 — 위에서 만든 notes 스냅샷으로 덮으면 그 변경이 유실된다. 신선본에 append만 한다.
+  // (previous_entry_hash가 그 사이 낡았을 수 있으나 이는 다기기 병합과 동일한 "갈래"로, v2.16 순서무관 검증이 정상 수용. 기존 엔트리 무수정.)
+  const freshNotes = _rnLoad(); freshNotes.push(entry); _rnSave(freshNotes);
   rnPushOne(entry); // 자동 클라우드 백업 + 서버 타임스탬프 부착(설정 있으면) — fire-and-forget
   _rnAttachTsa(entry); // RFC3161 공인 타임스탬프 요청(릴레이 배포됐을 때만) — fire-and-forget
   return entry;
@@ -22398,6 +22426,7 @@ function showFlashcards(domain = 'all') {
   if (!pool.length) { showToast('⚠️ 카드로 만들 데이터가 없습니다(선택한 영역이 비었을 수 있어요)'); return; }
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   _flashcardState = { pool, idx: 0, revealed: false, domain, done: 0 };
+  document.getElementById('flashcardModal')?.remove(); // "다시 돌기" 등 재진입 시 기존 카드 모달 제거(중복 id 2겹 → 빈 모달 방지)
   document.getElementById('utilityModal')?.remove(); // 퀴즈 설정 모달이 떠 있으면 닫고 카드 모달로
   const overlay = document.createElement('div');
   overlay.id = 'flashcardModal';
@@ -23624,9 +23653,12 @@ if (window.speechSynthesis) {
 document.getElementById('searchInput').addEventListener('input', e => {
   scheduleSearchInputUpdate(e.target.value);
 });
+let _sourceSearchDebounceTimer = null;
 document.getElementById('sourceSearchInput')?.addEventListener('input', () => {
   if (typeof updateSourceSearchUi === 'function') updateSourceSearchUi();
-  applyFilters();
+  // 노트 목록은 페이지네이션 없는 전체 innerHTML 재구성이라 키 입력마다 돌리면 무겁다 — 메인 검색과 같은 140ms 디바운스.
+  window.clearTimeout(_sourceSearchDebounceTimer);
+  _sourceSearchDebounceTimer = window.setTimeout(() => applyFilters(), 140);
 });
 document.getElementById('sourceSearchInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
@@ -24258,7 +24290,8 @@ initApp();
     } catch { return []; }
   }
   function saveIntegratedNoteTombstones(rows) {
-    safeSetItem(NOTE_TOMBSTONE_KEY, JSON.stringify(rows.map(normalizeIntegratedNote).filter(n => n.deletedAt)));
+    // 삭제기록(tombstone) 저장 실패 = 지운 노트가 다음 클라우드 병합에서 부활할 수 있음 — 구체적으로 경고.
+    return safeSetItem(NOTE_TOMBSTONE_KEY, JSON.stringify(rows.map(normalizeIntegratedNote).filter(n => n.deletedAt)), { message: '⚠️ 노트 삭제기록 저장 실패(저장공간 부족) — 삭제한 노트가 동기화에서 되살아날 수 있습니다. 공간을 정리하세요.' });
   }
   function mergeIntegratedNotesForImport(incomingRows = [], localRows = [], tombstoneRows = []) {
     const byId = new Map();
@@ -26578,7 +26611,7 @@ initApp();
       if (cl && noteSyncTime(cl) > noteSyncTime(loc) && noteContentDiffers(loc, cl)) {
         conflictCopies.push(normalizeIntegratedNote({
           ...loc,
-          id: Date.now() + Math.floor(Math.random() * 100000),
+          id: nextNoteId(),   // v2.21 통일에서 빠졌던 마지막 잔존 — 충돌 불가 생성기로(레거시 Date.now() id와 동일 ms 충돌 예방)
           title: `${loc.title || '제목 없음'} (충돌 사본)`,
           createdAt: noteNow(), updatedAt: noteNow(), deletedAt: null,
         }));
