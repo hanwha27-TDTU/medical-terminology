@@ -6458,6 +6458,21 @@ document.addEventListener('keydown', e => {
  .kbg-stat-grid{grid-template-columns:1fr 1fr}
  .kbg-panel-grid{grid-template-columns:1fr}
 }
+/* ===== KBG Shell — 데스크톱 상시 좌측 사이드바(개념도 전면 개편 Phase 1 · v2.39) ===== */
+/* 마크업 이동 없음: 기존 앱을 오른쪽으로 밀고(padding-left) 좌측에 고정 사이드바. 비-라이브러리 룸은 패널로 메인 영역만 덮음. 모바일(≤1100px)은 기존 레이아웃 유지(사이드바 숨김 · 🏠 버튼 오버레이). */
+.kbg-shell-sidebar{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:150;background:var(--surface);border-right:1px solid var(--border);display:none;flex-direction:column;padding:14px 10px;gap:2px;overflow-y:auto}
+.kbg-shell-panel{position:fixed;left:248px;right:0;top:0;bottom:0;z-index:120;background:var(--bg);overflow-y:auto;display:none}
+.kbg-shell-panel.on{display:block}
+@media (min-width:1101px){
+  body.kbg-shell-on{padding-left:248px}
+  body.kbg-shell-on .bottom-nav{left:248px}
+  body.kbg-shell-on .kbg-shell-sidebar{display:flex}
+  body.kbg-shell-on .kbg-plat-btn{display:none}
+}
+@media (max-width:1100px){
+  .kbg-shell-sidebar,.kbg-shell-panel{display:none !important}
+  body.kbg-shell-on{padding-left:0 !important}
+}
 </style>
 </head>
 <body>
@@ -6485,6 +6500,10 @@ document.addEventListener('keydown', e => {
   15. App Init          → 부트스트랩 + KBG_MedicalNote.init()
   상세: docs/KBG_MedicalNote_2차_구조고정.md · 연결 보존: docs/KBG_MedicalNote_상호데이터연결_지도와보존.md
 ===================================================================== -->
+
+<!-- KBG Shell (데스크톱 상시 사이드바 · v2.39) — 모바일은 CSS로 숨김, 기존 🏠 오버레이 유지 -->
+<aside class="kbg-shell-sidebar" id="kbgShellSidebar"></aside>
+<div class="kbg-shell-panel" id="kbgShellPanel"></div>
 
 <header>
   <div class="header-top">
@@ -18809,7 +18828,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.38',
+  version: '2.39',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18818,7 +18837,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.38 — 연결 시각화(마인드맵): 노트의 상호 연결을 한눈에',
+    title: '최신 · v2.39 — 디자인 전면 개편 1단계: 데스크톱 좌측 상시 사이드바(8룸 셸)',
+    items: [
+      '개념도대로 디자인 틀을 개편하는 첫 단계입니다. 넓은 화면(데스크톱, 1101px 이상)에서 좌측에 8룸 사이드바(Dashboard·Medical Core·Clinical Language·CPX/OSCE·Review Engine·Unified Search·Data Management·Evidence)가 상시 표시되고, 기존 앱은 오른쪽 메인 영역으로 배치됩니다. 사이드바에서 룸을 고르면 해당 화면이 메인 영역에 뜨고, "Medical Core"는 기존 라이브러리(용어·약물·미생물·공식·질환·노트)를 그대로 보여줍니다.',
+      '표현(레이아웃)만 바꿨습니다 — 기존 코드/함수/DOM id/데이터/localStorage/IndexedDB/Supabase/해시체인/TSA/백업은 전혀 건드리지 않았고, 마크업도 옮기지 않고 CSS로 감쌌습니다. 모바일·태블릿(1100px 이하)은 기존 화면 그대로 유지되고 헤더 🏠 플랫폼 버튼으로 같은 8룸에 접근합니다(데스크톱은 사이드바 상시라 버튼 숨김).',
+      '다음 단계 예정: 상단바(로고·검색·설정) 정리 → Dashboard를 기본 랜딩으로 + 카드 채우기 → 각 룸을 개념도 샘플에 맞춰 다듬기.',
+    ],
+  },
+  {
+    title: 'v2.38 — 연결 시각화(마인드맵): 노트의 상호 연결을 한눈에',
     items: [
       '개념·오답 노트 상세 화면에 "🔗 연결 지도 보기" 버튼을 추가했습니다. 누르면 그 노트를 중심으로 연결된 용어·약물·미생물·공식·질환이 방사형 마인드맵(SVG)으로 그려지고, 노드를 클릭하면 해당 자료로 바로 이동합니다. 이 앱의 핵심인 데이터 간 상호 연결을 시각적으로 확인하는 첫 단계입니다.',
       '완전히 읽기 전용입니다 — 기존에 저장된 연결(linkedTerms/Drugs/Microbes/Formulas/Diseases) 데이터를 그림으로 보여줄 뿐, 새로 저장하거나 기존 데이터·동기화·해시·백업·Supabase 스키마를 전혀 바꾸지 않습니다. 다크/라이트 테마 색을 그대로 따릅니다.',
@@ -27441,6 +27468,7 @@ const KBG_MedicalNote = {
 
   init() {
     try { this.AppUI.renderSidebar(); } catch (e) { console.warn('[KBG] sidebar', e); }
+    try { this.Shell.init(); } catch (e) { console.warn('[KBG] shell', e); }
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { const ov = document.getElementById('kbgPlatformOverlay'); if (ov && ov.classList.contains('open')) this.close(); }
     });
@@ -27624,6 +27652,45 @@ KBG_MedicalNote.AppUI.roomCpxOsce = function () {
   return `<div class="kbg-ph"><b>🩺 CPX / OSCE — 준비 중인 방</b>
     <p>임상 실습(CPX 문진·증례, OSCE 술기, 환자 설명)이 이식될 방입니다. 소스 확보 후 채웁니다.</p>
     <div class="kbg-chips">${chips.map(c => `<span class="kbg-chip">${KBG_MedicalNote._esc(c)}</span>`).join('')}</div></div>`;
+};
+
+// ── 룸 HTML 헬퍼(오버레이·셸 공용) ──
+KBG_MedicalNote.AppUI.roomHtml = function (key) {
+  const R = this;
+  const map = {
+    dashboard: R.roomDashboard, medicalCore: R.roomMedicalCore, clinicalLanguage: R.roomClinicalLanguage,
+    cpxOsce: R.roomCpxOsce, reviewEngine: R.roomReviewEngine, unifiedSearch: R.roomUnifiedSearch,
+    dataManagement: R.roomDataManagement, evidence: R.roomEvidence,
+  };
+  return map[key] ? map[key].call(R) : '';
+};
+
+// ── Shell — 데스크톱(≥1101px) 상시 좌측 사이드바(개념도 Phase 1). 마크업 이동 없이 기존 앱을 오른쪽으로 밀고,
+//    비-라이브러리 룸은 패널로 메인 영역만 덮는다. Medical Core 룸 = 기존 앱(패널 off). 모바일은 CSS로 숨김(기존 유지). ──
+KBG_MedicalNote.Shell = {
+  current: 'medicalCore',
+  init() {
+    const sb = document.getElementById('kbgShellSidebar'); if (!sb) return;
+    document.body.classList.add('kbg-shell-on');
+    sb.innerHTML =
+      '<div class="kbg-brand"><span class="kbg-logo">🩺</span><b>KBG Medical Note</b></div>' +
+      KBG_MedicalNote.AppConfig.rooms.map(r =>
+        `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.Shell.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
+      ).join('');
+    this.go('medicalCore'); // 기본: 기존 라이브러리(패널 off) — Phase 1 안전 기본(Dashboard 랜딩은 Phase 3)
+  },
+  go(key) {
+    this.current = key;
+    document.querySelectorAll('#kbgShellSidebar .kbg-navbtn').forEach(b => b.classList.toggle('active', b.getAttribute('data-room') === key));
+    const panel = document.getElementById('kbgShellPanel'); if (!panel) return;
+    if (key === 'medicalCore') {
+      panel.classList.remove('on'); panel.innerHTML = ''; // 기존 앱(라이브러리)이 그대로 노출
+      return;
+    }
+    const room = (KBG_MedicalNote.AppConfig.rooms.find(r => r.key === key) || {});
+    panel.innerHTML = `<div class="kbg-topbar"><h2>${KBG_MedicalNote._esc(room.label || '')}</h2></div><div class="kbg-body">${KBG_MedicalNote.AppUI.roomHtml(key)}</div>`;
+    panel.classList.add('on'); panel.scrollTop = 0;
+  },
 };
 
 // ── 연결 시각화(마인드맵) — 읽기 전용 · 기존 링크 데이터 기반, 저장/동기화/해시/SQL 무변경 ──
