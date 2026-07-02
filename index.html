@@ -6498,8 +6498,9 @@ document.addEventListener('keydown', e => {
 .kbg-topsearch:focus{border-color:var(--accent)}
 .kbg-topicon{background:transparent;border:1px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .kbg-topicon:hover{border-color:var(--accent);color:var(--text)}
-/* 셸 프레임(좌측 사이드바+상단바)은 태블릿·데스크톱(≥768px)에 적용. 폰 세로(<768px)는 기존 모바일+🏠 오버레이. */
-@media (min-width:768px){
+/* 셸 프레임(좌측 사이드바+상단바)은 태블릿·데스크톱·폴더블 펼침(≥600px)에 적용. 폰 세로(<600px)는 기존 모바일+🏠 오버레이.
+   분기점 768→600(v2.61): 폴더블 펼침(보통 670~900px)이 좁은 오버레이 대신 좌측 바 프레임을 받도록. 폰 세로(≤430px)는 그대로 오버레이. */
+@media (min-width:600px){
   html{overflow-x:hidden} /* 셸 padding으로 화면 밖 fixed 드로어가 문서 가로스크롤 유발 → 클립(헤더는 static이라 sticky 영향 없음) */
   body.kbg-shell-on{padding-left:248px;padding-top:52px}
   body.kbg-shell-on header{position:static}
@@ -6509,7 +6510,7 @@ document.addEventListener('keydown', e => {
   body.kbg-shell-on .kbg-shell-panel{top:52px}
   body.kbg-shell-on .kbg-plat-btn{display:none}
 }
-@media (max-width:767px){
+@media (max-width:599px){
   .kbg-shell-sidebar,.kbg-shell-panel,.kbg-shell-topbar{display:none !important}
   body.kbg-shell-on{padding-left:0 !important;padding-top:0 !important}
 }
@@ -18880,7 +18881,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.60',
+  version: '2.61',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18889,7 +18890,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.60 — 통합 SQL 헤더 주석 최신화(어학 도메인 반영)',
+    title: '최신 · v2.61 — 폴더블 펼침도 좌측 사이드바 프레임(셸 분기점 768→600px)',
+    items: [
+      '폴더블(폴드)을 펼쳤을 때도 태블릿·윈도우처럼 좌측 사이드바+상단바 프레임으로 열리게 했습니다. 셸이 적용되는 최소 화면폭을 768px에서 600px로 낮췄습니다(폴더블 펼침은 보통 670~900px라 이전엔 좁은 오버레이가 떴습니다).',
+      '폰 세로(600px 미만)는 기존 화면 + 🏠 플랫폼 오버레이를 그대로 유지합니다. 폭이 넓은 가로 화면도 프레임을 받습니다. 가로 스크롤 방지(화면 밖 드로어 클립)도 새 분기점에 맞춰 적용했습니다.',
+    ],
+  },
+  {
+    title: 'v2.60 — 통합 SQL 헤더 주석 최신화(어학 도메인 반영)',
     items: [
       '설정 SQL의 본문은 이미 어학(language_records + language-audio 버킷)까지 포함돼 있었지만, 헤더 주석의 "Schema version"과 "포함 도메인" 표기가 옛 값(v4.17·어학 누락)으로 남아 있어 최신(v4.59·어학 포함)으로 맞췄습니다. SQL 실제 동작·본문은 변화 없음(표기 일관성만 정정).',
     ],
