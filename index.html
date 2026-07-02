@@ -6450,6 +6450,21 @@ document.addEventListener('keydown', e => {
 .kbg-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
 .kbg-chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;font-size:12px;color:var(--text3)}
 .kbg-note{font-size:12px;color:var(--text3);margin:16px 0 0;padding:10px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
+.kbg-uni-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 16px;color:var(--text);font-size:14px;font-family:inherit;margin:6px 0 12px;outline:none}
+.kbg-uni-input:focus{border-color:var(--accent)}
+.kbg-uni-scopes{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.kbg-uni-chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12.5px;color:var(--text2);cursor:pointer;font-family:inherit}
+.kbg-uni-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.kbg-uni-results{display:flex;flex-direction:column;gap:14px}
+.kbg-uni-group{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.kbg-uni-gh{font-size:13px;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.kbg-uni-gh b{color:var(--accent)}
+.kbg-uni-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit}
+.kbg-uni-item:hover{background:var(--surface2)}
+.kbg-uni-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.kbg-uni-t{font-weight:600;white-space:nowrap;flex-shrink:0}
+.kbg-uni-s{color:var(--text3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kbg-uni-more{font-size:11.5px;color:var(--text3);padding:4px 8px}
 @media (max-width:820px){
  .kbg-overlay.open{flex-direction:column}
  .kbg-sidebar{width:100%;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--border)}
@@ -18828,7 +18843,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.40',
+  version: '2.41',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18837,7 +18852,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.40 — 사이드바 하단 "⚙️ Settings" 추가(API·Supabase·Cloudinary 키 관리 연결)',
+    title: '최신 · v2.41 — Unified Search: 한 필드로 전체 + 도메인별 탭 크로스 검색(읽기 전용)',
+    items: [
+      'Unified Search 룸을 실제 통합 검색으로 만들었습니다. 검색창 하나에 입력하면 용어·약물·미생물·공식·질환·노트를 한 번에 찾아 도메인별로 묶어 개수와 함께 보여주고, 상단 탭(전체/용어/약물/미생물/공식/질환/노트)으로 특정 도메인만 좁혀 볼 수 있습니다. 결과를 누르면 기존 상세 드로어(용어·약물·미생물·공식·질환·노트)가 그대로 열립니다.',
+      '완전히 읽기 전용입니다 — 기존 데이터를 검색만 하고, 저장/동기화/해시/백업/Supabase 스키마를 전혀 바꾸지 않습니다. 한국어·영어·우즈베크어로 검색됩니다. ("언어 검색 / CPX·OSCE 검색 / 연결 시각화"는 어학 기능 이식 후 확장 예정.)',
+    ],
+  },
+  {
+    title: 'v2.40 — 사이드바 하단 "⚙️ Settings" 추가(API·Supabase·Cloudinary 키 관리 연결)',
     items: [
       '좌측 사이드바(및 모바일 🏠 오버레이) 하단에 "⚙️ Settings" 버튼을 추가했습니다. 누르면 기존 설정 화면이 열려 AI(API 키)·Supabase(URL/키)·Cloudinary(cloud name/preset/folder) 키를 한 곳에서 관리합니다.',
       '새 설정 화면을 만들지 않고 기존 설정(showAISettings, 이미 3개 섹션 보유)으로 연결만 했습니다 — 중복 없음, 저장 구조·키 저장 위치(localStorage) 변경 없음. 헤더의 ⚙️ 설정 버튼도 그대로 동작합니다.',
@@ -27616,14 +27638,51 @@ KBG_MedicalNote.AppUI.roomReviewEngine = function () {
     <div class="kbg-note">ℹ️ "언어 카드 / CPX·OSCE 카드 / Anki·TSV 내보내기"는 어학 기능 이식 후 추가 예정입니다.</div>`;
 };
 
-// ── Unified Search(기존 통합 검색 홈으로 연결) ──
+// ── Unified Search — 크로스 도메인 검색(읽기 전용). 한 필드로 전체, 탭으로 도메인별. 결과 클릭 → 기존 드로어 ──
 KBG_MedicalNote.AppUI.roomUnifiedSearch = function () {
+  const scopes = [['all', '전체'], ['terms', '용어'], ['drugs', '약물'], ['microbes', '미생물'], ['formulas', '공식'], ['diseases', '질환'], ['notes', '노트']];
+  KBG_MedicalNote.AppStore.uniScope = KBG_MedicalNote.AppStore.uniScope || 'all';
+  const cur = KBG_MedicalNote.AppStore.uniScope;
+  const chips = scopes.map(([k, l]) => `<button class="kbg-uni-chip${k === cur ? ' active' : ''}" data-scope="${k}" onclick="KBG_MedicalNote.AppUI.uniSetScope('${k}')">${l}</button>`).join('');
   return `
-    <p class="kbg-sub">통합 검색 — 기존 검색 홈으로 이동합니다.</p>
-    <div class="kbg-cards">
-      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('goSearchHome')"><div class="kbg-card-ic">🔍</div><b>전체 검색</b><span>용어·약물·미생물·공식·질환·노트</span></button>
-    </div>
+    <p class="kbg-sub">통합 검색 — 한 필드로 전체를, 또는 도메인 탭으로 좁혀서. (읽기 전용 · 결과 클릭 시 해당 자료 열림)</p>
+    <input id="kbgUniInput" class="kbg-uni-input" type="text" placeholder="용어·약물·미생물·공식·질환·노트 검색 (한국어·영어·우즈베크어)…" oninput="KBG_MedicalNote.AppUI.uniSearch()" autocomplete="off">
+    <div class="kbg-uni-scopes">${chips}</div>
+    <div id="kbgUniResults" class="kbg-uni-results"><div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div></div>
     <div class="kbg-note">ℹ️ "언어 검색 / CPX·OSCE 검색 / 연결 시각화"는 어학 기능 이식 후 추가 예정입니다.</div>`;
+};
+KBG_MedicalNote.AppUI.uniSetScope = function (k) {
+  KBG_MedicalNote.AppStore.uniScope = k;
+  document.querySelectorAll('.kbg-uni-chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-scope') === k));
+  KBG_MedicalNote.AppUI.uniSearch();
+};
+KBG_MedicalNote.AppUI.uniSearch = function () {
+  const box = document.getElementById('kbgUniResults'); if (!box) return;
+  const q = (document.getElementById('kbgUniInput')?.value || '').trim().toLowerCase();
+  const scope = KBG_MedicalNote.AppStore.uniScope || 'all';
+  const esc = KBG_MedicalNote._esc, safe = KBG_MedicalNote._safe;
+  if (q.length < 2) { box.innerHTML = '<div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div>'; return; }
+  const norm = s => String(s == null ? '' : s).toLowerCase();
+  const DOMAINS = [
+    { key: 'terms', label: '용어', color: '#58a6ff', get: () => (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt), fields: t => [t.ko, t.en, t.uz], title: t => t.ko || t.en || t.uz || '(무제)', sub: t => [t.en, t.uz].filter(Boolean).join(' · '), open: t => `openDrawer(${JSON.stringify(t.id)})` },
+    { key: 'drugs', label: '약물', color: '#3fb950', get: () => getActiveDrugs(), fields: d => [d.generic_name, d.ko_name, d.brand_name], title: d => d.ko_name || d.generic_name || '(무제)', sub: d => [d.generic_name, d.brand_name].filter(Boolean).join(' · '), open: d => `openDrugDrawer(${JSON.stringify(d.id)})` },
+    { key: 'microbes', label: '미생물', color: '#d29922', get: () => getActiveMicrobes(), fields: m => [m.organism, m.ko_name, m.latin_name], title: m => m.ko_name || m.organism || m.latin_name || '(무제)', sub: m => [m.organism, m.latin_name].filter(Boolean).join(' · '), open: m => `openMicrobeDrawer(event,${JSON.stringify(m.id)})` },
+    { key: 'formulas', label: '공식', color: '#a78bfa', get: () => getActiveFormulas(), fields: f => [f.name, f.short_name, f.formula], title: f => f.name || f.short_name || '(무제)', sub: f => f.short_name || '', open: f => `openFormulaEditModal(event,${JSON.stringify(f.id)})` },
+    { key: 'diseases', label: '질환', color: '#f778ba', get: () => getActiveDiseases(), fields: d => [d.ko_name, d.en_name, d.uz_name], title: d => d.ko_name || d.en_name || '(무제)', sub: d => [d.en_name].filter(Boolean).join(' · '), open: d => `openDiseaseDrawer(event,${JSON.stringify(d.id)})` },
+    { key: 'notes', label: '노트', color: '#7ee787', get: () => (window.NOTEBOOK || []).filter(n => n && !n.deletedAt && !n.hiddenAt), fields: n => [n.title, n.summary, n.keyPoint, (n.tags || []).join(' ')], title: n => n.title || '(무제 노트)', sub: n => n.summary || n.keyPoint || '', open: n => `openIntegratedNoteView(${JSON.stringify(n.id)})` },
+  ];
+  const cap = scope === 'all' ? 6 : 100;
+  let total = 0, html = '';
+  DOMAINS.forEach(d => {
+    if (scope !== 'all' && scope !== d.key) return;
+    const rows = safe(() => d.get(), []).filter(x => d.fields(x).some(f => norm(f).includes(q)));
+    if (!rows.length) return;
+    total += rows.length;
+    const items = rows.slice(0, cap).map(x => `<button class="kbg-uni-item" onclick='${d.open(x)}'><span class="kbg-uni-dot" style="background:${d.color}"></span><span class="kbg-uni-t">${esc(d.title(x))}</span><span class="kbg-uni-s">${esc((d.sub(x) || '').slice(0, 70))}</span></button>`).join('');
+    const more = rows.length > cap ? `<div class="kbg-uni-more">…외 ${rows.length - cap}개 · "${esc(d.label)}" 탭에서 전체 보기</div>` : '';
+    html += `<div class="kbg-uni-group"><div class="kbg-uni-gh"><span class="kbg-uni-dot" style="background:${d.color}"></span>${esc(d.label)} <b>${rows.length}</b></div>${items}${more}</div>`;
+  });
+  box.innerHTML = total ? html : `<div class="kbg-empty">"${esc(q)}" 결과 없음</div>`;
 };
 
 // ── Data Management(기존 데이터 관리·버전 확인으로 연결) ──
