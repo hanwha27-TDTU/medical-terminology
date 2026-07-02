@@ -182,7 +182,7 @@
 - `noteToRow(note) = {id, data: normalizeIntegratedNote(note), updated_at, deleted_at}` / `rowToNote` 역변환.
 - push/pull/merge가 위와 동형. **양기기 동시편집 충돌 시 "(충돌 사본)"으로 자동 보존**(절대 유실 안 함) — `syncNotesWithCloud`.
 - 노트 push는 `sbPushAll` 성공 후 래퍼(`patchedSbPushAllWithNotes`)가 이어서 실행.
-- ⚠️AUDIT(충돌판정 필드셋 — 링크 편집 소실 HIGH): 클라우드가 더 최신일 때 "충돌 사본을 만들지(=로컬 보존)" 판단하는 `noteContentDiffers`는 **`linkedTerms`만 비교하면 안 되고 `linkedDrugs`/`linkedMicrobes`/`linkedFormulas`까지 4종 전부 + `tags`/`originalMcq`/`images` 등 모든 내용 필드를 비교**해야 한다(= `canonicalNoteHashPayload`와 동일 필드셋). 링크 4종 중 일부만 비교하면, 로컬이 약물/미생물/공식 링크만 바꾼 경우 "동일"로 오판 → 충돌 사본 없이 클라우드 버전 채택 → **로컬 링크 편집이 조용히 소실**된다. 해시 페이로드와 충돌판정의 필드셋을 항상 일치시킨다.
+- ⚠️AUDIT(정정 · v2.37 — 링크는 충돌판정 제외 + union 보존): 초기 명세는 "`noteContentDiffers`가 링크까지 전부 비교해 링크 편집 소실을 막으라"였으나, **shipped 코드는 그 반대로 진화했고 그게 현재 진실**이다. 링크 5종(`linkedTerms/Drugs/Microbes/Formulas/Diseases`)은 본문에서 자동 파생(+선택 수동)되는 배열이라, 이를 충돌 트리거로 쓰면 용어 수정·앱 버전·멀티탭만으로도 텍스트가 같은데 **불필요한 "충돌 사본"이 양산됐다(실제 발생)**. → 현재 설계: **(a) `noteContentDiffers`에서 링크 5종 전부 제외**(비링크 내용 필드만 비교), **(b) 대신 `mergeIntegratedNotesForSync`가 양쪽 링크를 합집합(union)으로 보존**(`mergeNoteLists`) → 어느 편집(수동 포함)도 유실 0. 링크는 해시 페이로드엔 포함(스냅샷 비교로 변경 전파)하되 충돌판정엔 넣지 말 것. **"해시 페이로드=충돌판정 필드셋 일치"는 링크에 한해 성립하지 않는다(의도).** 새 링크 종류 추가 시 union 병합 블록에도 반드시 등록.
 - ⚠️AUDIT(로드 전 push 금지): 노트는 `bootstrapIntegratedNotes`가 `NOTEBOOK`을 채운 뒤에만 클라우드에 push해야 한다. `_notebookLoaded` 플래그를 실제로 검사하지 않으면, 로드 전 사용자 트리거 push(`pushNotesToCloud`/`sbPushAll` 래퍼)가 빈 `NOTEBOOK` 기준으로 모든 클라우드 노트를 `removed`로 처리해 **대량 soft-delete**될 수 있다. push/merge 진입부에서 `_notebookLoaded`를 가드한다.
 
 ### 5.7 멀티기기 상태 "내 기기들" (v4.52)
@@ -195,10 +195,12 @@
 ## 6. 단권화 노트 시스템
 
 ### 6.1 노트 객체 필드 (normalizeIntegratedNote가 화이트리스트로 강제)
-`id, title, system, noteType('concept'|'wrong'), summary, keyPoint, comparison, bodyHtml, linkedTerms[], linkedDrugs[], linkedMicrobes[], linkedFormulas[], wrongStem, myAnswer, correctAnswer, wrongReason, trap, nextCue, originalMcq{}, usmleSource, kmleSource, tags[], images[], favorite, createdAt, updatedAt, deletedAt, hiddenAt`
+`id, title, system, noteType('concept'|'wrong'), summary, keyPoint, comparison, bodyHtml, linkedTerms[], linkedDrugs[], linkedMicrobes[], linkedFormulas[], linkedDiseases[], wrongStem, myAnswer, correctAnswer, wrongReason, trap, nextCue, originalMcq{}, usmleSource, kmleSource, tags[], images[], favorite, createdAt, updatedAt, deletedAt, hiddenAt`
+
+> **링크는 5종(v2.37+):** `linkedTerms/linkedDrugs/linkedMicrobes/linkedFormulas/linkedDiseases`. 질환(`linkedDiseases`)은 v2.37에 5번째 링크로 추가 — 자동링크 인프라(`noteAutoLinkTargetList`/`detectNoteResourceLinksFromText`/`openNoteLinkedResource`)는 이미 질환을 지원했고 저장 필드만 없어서, 미생물 패턴대로 전 지점(normalize·검색·필터·뷰 그룹·편집폼·저장 autoLink·통계·CSV·해시 payload·sync union 병합)에 복제 추가했다. **새 링크 종류를 늘릴 땐 이 전 지점 + 아래 불변조건 10을 함께 갱신**(한 곳 누락이 최빈 결함).
 
 > **함정:** `normalizeIntegratedNote`는 **명시된 필드만 남기고 나머지는 버린다.** 새 필드를 추가하면 반드시 여기에 등록해야 저장·동기화된다(이미지 `images` 추가 시 핵심이었음).
-> ⚠️AUDIT: 위 필드 중 **내용 비교가 필요한 모든 필드**는 §5.3 snapshot 해시 페이로드와 §5.6 `noteContentDiffers` **양쪽에 동일하게** 들어가야 한다. 한쪽에만 넣으면 "해시는 다르다는데 충돌판정은 같다"는 모순으로 편집이 유실된다. MCQ 정답 인덱스는 앱 전체에서 **0-base로 일관**되게 유지한다(`parseNoteMcqQuickText`/`normalizeNoteMcq`/뷰 렌더 모두 0-base).
+> ⚠️AUDIT(정정 · v2.37): 비링크 내용 필드(tags/originalMcq/images 등)는 §5.3 해시 페이로드와 §5.6 `noteContentDiffers` **양쪽에 동일하게** 넣는다. **단 링크 5종은 예외** — 해시 페이로드에는 포함(스냅샷 비교용)하되 `noteContentDiffers`(충돌 사본 판정)에서는 **제외**하고 동기화 병합 union으로 보존한다(불변조건 10 갱신 참조). MCQ 정답 인덱스는 앱 전체에서 **0-base로 일관**되게 유지한다(`parseNoteMcqQuickText`/`normalizeNoteMcq`/뷰 렌더 모두 0-base).
 
 ### 6.2 bodyHtml 새니타이저 (`sanitizeNoteHtml`) — XSS 방지
 - 허용 태그: `B,STRONG,I,EM,U,BR,P,DIV,H3,H4,UL,OL,LI,TABLE,THEAD,TBODY,TR,TH,TD,SPAN,FIGURE,FIGCAPTION,IMG`.
@@ -264,7 +266,7 @@
 > - **상태: 불변조건 9~17 전부 코드 반영 완료.** 가드레일은 재발 방지를 위해 문서에 그대로 유지한다. (남은 LOW/후속은 신규 발견 시 추가.)
 
 9. **fence는 로컬 tombstone을 버리지 않는다(삭제 부활 방지).** `filterLocalRowsAfterCanonicalFence`에서 `deletedAt` 행을 무조건 제거하면 기준본 이후 삭제가 병합에 도달 못 해 클라우드에서 부활한다. tombstone은 fence 통과 → 병합 우선. (§5.5, §15.1)
-10. **노트 충돌판정 = 해시 페이로드와 같은 필드셋.** `noteContentDiffers`는 `linkedTerms`뿐 아니라 `linkedDrugs/linkedMicrobes/linkedFormulas` 4종 전부 비교. 누락하면 링크 편집이 동기화 중 소실. (§5.6, §6.1)
+10. **노트 링크는 충돌판정에서 제외 + 동기화 union으로 보존(v2.37 정정).** ~~옛 규칙: noteContentDiffers가 링크 4종 전부 비교~~ → 실제 shipped 설계는 **링크 5종(terms/drugs/microbes/formulas/diseases)을 `noteContentDiffers`에서 제외**(자동파생이라 충돌 사본 양산 방지)하고, **`mergeIntegratedNotesForSync`가 합집합(union)으로 보존**해 편집 유실을 막는다. 링크는 해시 페이로드엔 포함(스냅샷 전파용), 충돌판정엔 제외 — 링크에 한해 "해시=충돌 필드셋 일치"는 성립 안 함(의도). 새 링크 추가 시 normalize 화이트리스트·해시 payload·union 병합 3곳 동시 등록. (§5.6, §6.1)
 11. **snapshot 해시 페이로드에 편집 가능 내용 필드를 전부 포함.** 타임스탬프만 제외. 미생물 `ipa`·공식 `tags` 등 누락 시 그 필드 단독 수정이 다른 기기로 전파 안 됨. (§5.3) **질환 `parent_id`(v2.07)·노트 `favorite`(v2.11)도 이 규칙으로 뒤늦게 추가** — 동기화되는 편집 필드인데 해시에서 빠지면 canonical 검증·기기비교가 그 변경을 "일치"로 오판한다. 새 편집 필드 추가 시 해당 도메인 `canonical*HashPayload`에도 반드시 등록(추가 시 그 도메인 스냅샷 해시 1회 재베이스라인은 정상).
 12. **이미지 삭제 보호집합 = 트레이 ∪ 본문 임베드 publicId.** 본문(`bodyHtml`)에 남은 이미지를 보호집합에서 빠뜨리면 표시 중인 원본이 삭제됨. (§6.3)
 13. **tombstone 운영(정리·집계·전체삭제)은 질병 포함 전 도메인.** `pruneOldLocalTombstones`/`getProtectedRecordCounts`/`confirmClearAllProtectedRecords` 등에서 한 도메인이라도 빠지면 그 도메인 tombstone이 영구 잔존. 도메인 추가 시 누락 점검. (§4.3)
@@ -312,6 +314,8 @@
 - `showSavedVersionInfo / showDeveloperInfo / showSyncDiagnostics` — 진단/정보 패널.
 - `getDeviceId / getDeviceReadableLabel` — 기기 식별.
 - `rn* / _rn*` — 연구노트(특허 증거 로그): `_rnLoad/_rnSave`(격리 필터)·`rnAddEntry`·`_rnComputeHash/_rnSign`·`_rnRequestTsa/_rnAttachTsa`·`rnPushAll/rnPull`·`rnMigrateToOwnTable`·`rnVerifyChain/rnAnnotateChainBreaks`·`_rnManifest`. 상수 `RN_PROJECT_NAME/RESEARCH_NOTES_TABLE(_LEGACY)/RN_MIGRATED_KEY`.
+  - **v2.0 보강(v2.35, additive):** `_rnBlank`에 특허 필드를 **조건부 스프레드**로 추가(`technical_decision·architecture·algorithm·patent_points·claim_candidates·inventor_score` — chain_annotation과 동일 패턴이라 필드 미사용 엔트리는 해시 페이로드 바이트 동일 → 과거 기록·서명·TSA 무영향). `_rnObjHasContent`(값 있을 때만 저장)·`RN_RETRO_DISCLAIMER`(PART14 소급 필수문구, `_rnMd`가 retrospective에 자동 표시)·`rnQualityCheck`(엔트리 10항)·`rnAnalyzeNotebook`(읽기 전용 특허 커버리지/품질 리포트, 기존 기록 무수정). **`_rnComputeHash`/`stableForHash`/제외목록은 절대 미변경**(골든 고정해시로 잠금).
+- `KBG_MedicalNote.*` — **플랫폼 셸(v2.34~, additive namespace, 신규 코드 전용)**: 단일 HTML 내부 8-룸 정보구조 내비게이션. `AppConfig.rooms`·`AppRouter.go`(기존 `switchTab`/`setLibraryMode`/`showQuizSetup`/`showFlashcards`/`goSearchHome`/`showExportMenu`/`rnOpenNotebook`를 **호출만**)·`AppUI.room*`(Dashboard 실데이터/Medical Core/Review/Search/Data/Evidence 연결, Clinical Language·CPX/OSCE 빈 방)·`AppSchema`(canonical 태그사전, v2.36, 읽기전용·`normalize*ForStorage` 미포함)·`AppUI.noteConnectionMap`+`window.showNoteConnectionMap`(연결 마인드맵, v2.38, 읽기전용 SVG). 헤더 `🏠 플랫폼` 버튼으로 진입. **기존 함수/DOM id 이동·rename 금지**(check-index 정확명 보호) — namespace는 신규 코드에만.
 
 ### 12.1 업로드 전용 정규화는 `normalize*ForStorage`에 넣지 말 것 (v1.50)
 

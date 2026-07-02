@@ -58,7 +58,7 @@
 | 방(뷰) 분리로 같은 entity를 방마다 복제 저장 | **금지.** 방은 뷰/라우팅만 — 저장은 단일 entity(§5). 링크는 entity id를 가리키므로 뷰가 늘어도 링크 불변. |
 | 새 메뉴("해부·생리"/"검사·수치")를 새 테이블로 | **금지.** `medical_terms` 태그 필터 뷰 → 같은 행을 여러 메뉴가 공유, 링크 유지. |
 | DOM id/함수 rename으로 자동링크·열기 끊김 | 기존 `detectNoteResourceLinksFromText`/`openNoteLinkedResource`/`find*ByName` **호출만**, rename 금지(CI 정확명 보호). |
-| 노트 sync 경로 리팩터링으로 linked* 누락 | L1·L2 준수 — 4종 전부 비교/해시. 변경 후 `rg`로 4개 도메인 대조. |
+| 노트 sync 경로 리팩터링으로 linked* 누락 | L1·L2 준수 — 링크 5종은 충돌판정 제외 + union 병합 + 해시 payload 포함. 변경 후 `rg`로 5종 대조. |
 | 어학/CPX 데이터 추가 시 링크 대상에서 누락 | 새 도메인도 자동링크·검색·연결 대상에 편입(도메인 parity — 불변조건 17). |
 
 ---
@@ -68,7 +68,19 @@
 - 링크(`linked*`)와 유사질환·자동링크는 **대상 entity 1개(id/이름)**를 가리킨다.
 - 같은 개념을 여러 카테고리에 **중복 저장하면** 링크가 어느 사본을 가리킬지 갈라지고(파편화), 자동링크·검색·시각화가 사본마다 따로 걸린다.
 - 따라서 **canonical entity(단일 저장) + `primaryCategory`/`tags`/`linkedConcepts`(다중 노출)** 는 연결 무결성의 **전제**다. (deliverable 7과 이 문서는 한 쌍.)
-- 예: `pneumonia`(단일 질환 entity) ← 노트 `linkedDiseases`(향후), 약물 `amoxicillin` 치료 링크, 미생물 `S. pneumoniae` 원인 링크, CPX 흔한증례 태그 — 전부 **하나의 pneumonia id**를 가리켜야 그래프가 성립.
+- 예: `pneumonia`(단일 질환 entity) ← 노트 `linkedDiseases`(v2.37 완료), 약물 `amoxicillin` 치료 링크, 미생물 `S. pneumoniae` 원인 링크, CPX 흔한증례 태그 — 전부 **하나의 pneumonia id**를 가리켜야 그래프가 성립.
+
+---
+
+## 6.5 백업/복원 호환 검증 (2026-07-02 · v2.37/v2.38 변경 대상)
+
+이번 연결 강화(노트 `linkedDiseases`, 연구노트 v2.0 필드)가 백업/복원 호환을 지키는지 **코드+브라우저로 검증함**. 결과: 세 방향 모두 호환.
+
+- **경로:** 백업은 `patchedCreateCompleteBackupObject`가 `backup.notes = NOTEBOOK.map(normalizeIntegratedNote)`(+`researchNotes:_rnLoad()`)로 주입, 복원은 `importData.notes.map(normalizeIntegratedNote)`(index.html 24505·26522)로 **양쪽 다 같은 화이트리스트**를 거친다.
+- **① 옛 백업 → 새 앱:** `linkedDiseases` 키 없는 노트 → normalize가 `[]` 기본, 크래시 0, 타 필드 보존(브라우저 `oldNoteNormalizedSafe:true`). `notes` 키 없는 백업도 `hasNotePayload` 가드로 안전.
+- **② 새 앱 왕복:** `linkedDiseases` 백업에 실려 왕복 보존(`exportKeepsLinkedDiseases:true`). 연구노트 v2.0 필드는 whole-object 저장이라 entry_hash와 함께 보존(해시 검증 유효).
+- **③ 새 백업 → 옛 앱:** 옛 화이트리스트가 `linkedDiseases`를 조용히 드롭(무해·forward-incompat, 개인 단일앱이라 실질 무영향).
+- **주의(항구):** CI `check-restore-drift`는 **컬럼형 5도메인만** 왕복 검사하고 **노트·연구노트(jsonb blob)는 대상 아님** → 노트/연구노트에 새 필드 추가 시 백업/복원은 **수동 검증**이 규칙(normalize 화이트리스트 등록 필수). (스킬 import-backup-media §8.1.2)
 
 ---
 

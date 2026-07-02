@@ -32,6 +32,8 @@
 
 ## 최근 회귀 방지 규칙
 
+- **단일 HTML 앱을 구조적으로 확장할 땐 기존 코드를 옮기지 말고 additive namespace(신규 코드 전용)로 얹는다.** 정보구조 재편·새 상위 내비게이션 등은 새 최상위 namespace(예: `KBG_MedicalNote.AppRouter/AppUI`)에 두고 **기존 함수를 "호출만"** 한다. 기존 함수/DOM id/상수를 namespace 안으로 이동·rename하면, 정확명 심볼을 추출하는 CI(check-index·golden)가 즉시 깨지고 inline `onclick` 핸들러도 끊긴다. 뷰/라우팅 계층 추가는 저장소·데이터를 건드리지 않는다(방=뷰, 저장은 단일 canonical entity).
+- **노트 등 "연결(link) 필드"를 늘리면 전 지점을 함께 갱신하고, 링크는 충돌판정에서 제외 + 병합 union으로 보존한다.** 링크 배열은 자동 파생이라 충돌 트리거로 쓰면 스퓨리어스 "충돌 사본"이 양산된다 → `noteContentDiffers`에서는 제외, `merge*ForSync`에서 합집합 보존, 해시 페이로드엔 포함(스냅샷 전파). 새 링크 종류 추가 시 normalize 화이트리스트·검색·필터·뷰·편집폼·저장 autoLink·통계·CSV·해시 payload·union 병합 + 백업(수동 검증, jsonb는 자동 게이트 없음)까지 한 번에. (reconstruction-spec 불변조건 10·§6.1)
 - 퀴즈, 복습, 추천, 랜덤 출제처럼 순서 무작위화가 학습 품질에 영향을 주는 곳에서는 `array.sort(() => Math.random() - 0.5)`를 쓰지 않는다. 균등 셔플이 필요하면 Fisher-Yates 셔플을 사용하고, 취약/미완성/복습 예정 항목처럼 우선순위가 의미 있는 목록은 셔플하지 않는다.
 - 외부 JSON, 구버전 백업, CSV/Excel 등에서 tombstone을 가져올 때 `updated_at`/`updatedAt`이 없고 `deleted_at`/`deletedAt`만 있으면 삭제 시각을 `updated_at`으로 보정한다. 가져오기 시각으로 임의 승격하면 정상 레코드를 잘못 숨길 수 있다.
 - 통계, 퀴즈, 학습 현황, 필터 카운트처럼 사용자에게 현재 항목 수를 보여주거나 학습 대상을 고르는 로직은 tombstone/soft delete 항목을 제외한 활성 항목 기준으로 계산한다.

@@ -39,6 +39,15 @@
 8. completeness 점수(`termCompletenessScore`/`termCompletionPercent`)에는 **선택 태그를 넣지 않는다**(대부분 비어 penalty).
 - **TSV/CSV에 열을 "추가"할 때 헤더 없는 입력 하위호환을 깨지 마라.** 헤더없음 검증·매핑이 `COLS.length`를 기준으로 하면, 열을 늘리는 순간 **기존 N열 파일이 전부 거부/오매핑**된다. 직전 표준 열 수를 상수로 고정(`STD_LEN=11`)해 검증은 `count >= STD_LEN || count === LEGACY`, 매핑 schema는 새 COLS(말미에 새 열)로 — 11열은 새 열이 빈칸, 12열은 인식. **새 열은 반드시 말미에 append**(중간 삽입 금지).
 
+### 8.1.2 jsonb-blob 도메인(노트·연구노트)에 새 필드 추가 시 — 백업/복원 호환 (v2.37 linkedDiseases 사례)
+
+노트(`medical_notes`)·연구노트(`research_notes_med`)는 **`data(jsonb)` 통째 저장**이라 컬럼형 5도메인과 다르다. 자동 점검(`computeSchemaDrift`/`computeRestoreGaps`/`check-restore-drift`)은 **컬럼형 5도메인만** 대상이고 **노트·연구노트는 대상이 아니다** → 새 필드 백업/복원 호환은 **수동 검증**한다.
+
+- **왜 대체로 안전한가:** 백업은 `patchedCreateCompleteBackupObject`가 `backup.notes = NOTEBOOK.map(normalizeIntegratedNote)`(+`researchNotes:_rnLoad()`)로 **객체를 통째로** 싣고, 복원은 `importData.notes.map(normalizeIntegratedNote)`로 **같은 화이트리스트**를 다시 거친다. → 옛 백업(새 필드 키 없음)은 normalize가 기본값(`[]`/'')으로 채워 **크래시·타 필드 유실 0**, 새 백업은 왕복 보존.
+- **필수 조건:** 새 필드를 `normalizeIntegratedNote` 화이트리스트에 **반드시 등록**(안 하면 export·import 양쪽에서 증발). 연구노트는 조건부 스프레드 필드라도 whole-object 저장이라 자동 통과.
+- **linkedDiseases(v2.37) 실제 검증:** 새 노트(linkedDiseases 있음)→백업→보존, 옛 노트(키 없음)→normalize→`[]` 안전, 연구노트 v2.0 필드→whole 보존(+entry_hash 함께라 해시 검증 유효)까지 브라우저로 확인. **새 백업→옛 앱**은 옛 화이트리스트가 새 필드를 조용히 드롭(무해·forward-incompat, 개인 단일앱이라 실질 무영향).
+- **완료 보고에 명시:** "노트/연구노트(jsonb) 새 필드 백업/복원 수동 검증함"(자동 게이트가 없으므로).
+
 ### 8.2 ID 처리
 
 - 가져온 ID는 UUID 또는 앱이 정한 정상 id 형식만 보존한다.
