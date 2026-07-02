@@ -43,7 +43,7 @@ medLangRecord = {
   domain: 'language',                  // ← Medical Note 신규 도메인 태그
   type, subtype, category, situation,  // 분류 → 방 필터(General/Vocabulary/Frame→임상 어학, CPX/CPX_CASE/OSCE→CPX·OSCE)
   uzbek, korean, english, ipa, note, example,   // 다국어 콘텐츠
-  audioUrl,                            // = audio_url (L3에서 Cloudinary로 재지정)
+  audioUrl,                            // = audio_url (L4에서 Medical Note Supabase Storage로 재지정)
   model, date, updatedAt,              // provenance
   learning:{ level, needCheck, starred, updatedAt },   // SRS 상태 verbatim
   deleted:false                        // Medical Note tombstone 봉투(부가·기본값)
@@ -67,15 +67,18 @@ medLangRecord = {
 | ZIP에 있으나 audio_url 빈값(로컬전용) | 0 |
 | 고아 ZIP 파일 | 0 |
 
-**결론:** 매핑에서 단 한 필드도 손실되지 않으며, 오디오 소스는 ZIP 55개로 **완전 정합**. → L3 재업로드 매핑은 자명(파일명 `NNN_ID-{recordId}_{slug}.ext`의 recordId → Cloudinary 업로드 → 해당 레코드 `audioUrl` 갱신).
+**결론:** 매핑에서 단 한 필드도 손실되지 않으며, 오디오 소스는 ZIP 55개로 **완전 정합**. → L4 재업로드 매핑은 자명(파일명 `NNN_ID-{recordId}_{slug}.ext`의 recordId → **Medical Note Supabase Storage** 업로드 → 해당 레코드 `audioUrl` 갱신).
 
 ---
 
-## 3. 오디오 이관 전략 (L3)
+## 3. 오디오 이관 전략 (L4 — Supabase 통합과 함께)
+
+> **저장소 역할 정의(확정):** **Supabase = 텍스트 + 오디오 녹음(Storage 버킷)**, **Cloudinary = 이미지 + 영상**. 오디오는 Cloudinary가 아니라 Medical Note Supabase Storage로 간다(오디오는 이미지/영상 변환 파이프에서 얻을 게 없고, 텍스트와 같은 백엔드에 두어야 인증·수명주기·백업·삭제(tombstone)가 통일됨).
 
 - 어학앱 Supabase(`rjhbfgbfhwdhtdzcdvtu…`)의 55개 URL은 **앱 폐기 시 깨짐** → 신뢰 불가.
-- **유일한 신뢰 소스 = 녹음 ZIP.** L3에서 ZIP 55개를 Medical Note의 **Cloudinary**로 재업로드하고 `audioUrl`을 새 주소로 갈아끼운다. 어학앱 Supabase는 폐기.
-- 재업로드 파이프는 기존 `uploadImageToCloudinary` 계열 재사용(신규 미디어 파이프 금지).
+- **유일한 신뢰 소스 = 녹음 ZIP.** ZIP 55개를 **Medical Note Supabase Storage**(예: `language-audio` 버킷)로 재업로드하고 `audioUrl`을 새 주소로 갈아끼운다. 어학앱 Supabase는 폐기.
+- 원래 어학앱도 오디오를 자기 Supabase Storage에 뒀으므로 like-for-like 흡수. 오디오/텍스트가 한 백엔드에 모여 "SQL 한방에 통합" 목표와 정합.
+- **시점:** 오디오 재업로드·신규 녹음 업로드는 Supabase 작업이므로 **L4(단일 Supabase 통합)에 포함**. L3는 녹음 캡처/재생 UI까지, 영속화는 L4.
 
 ---
 
@@ -98,8 +101,8 @@ medLangRecord = {
 |---|---|---|---|
 | **L1 ✅ 완료** | 임포터 설계 + 왕복 무손실 증명 + 오디오 정합 + 연구노트 방침 | 없음 | 없음 |
 | **L2 ✅ 완료(v2.52)** | 언어 도메인 저장/모델 확정(`installLanguageDomain` IIFE) — `normalizeLangRecord` 내부모델, IndexedDB large-cache 재사용, tombstone 3함수 등록, 전체 백업 편입, **BOM-aware `importLanguageBackupData`** 실장. **인앱 왕복검증 2013/0** (headless 브라우저에서 실제 백업으로 확인) | 있음(스키마 무관 로직) | 없음 |
-| **L3** | 방(임상 어학 / CPX·OSCE) type 필터 렌더 + 학습기능 전부 이식(SRS `REVIEW_STEPS`·별표·needCheck·IPA·녹음 재생/다운로드/삭제/첨부/즉석녹음) + **ZIP→Cloudinary 재업로드 매핑** | 있음 | 없음 |
-| **L4** | 마무리(연결/마인드맵 편입, UI 폴리시) + **단일 SQL 마이그레이션 한 방**(신규 도메인 테이블/컬럼 + `check-schema-drift` + `*ToRow/rowTo*` + canonical 메타 + sync) | 있음 | **여기서 1회** |
+| **L3** | 방(임상 어학 / CPX·OSCE) type 필터 렌더 + 표준 복원 UI 배선(복원 버튼) + 학습기능 전부 이식(SRS `REVIEW_STEPS`·별표·needCheck·IPA·녹음 **캡처/재생** 재생/다운로드/삭제/첨부/즉석녹음 UI) | 있음 | 없음 |
+| **L4** | 마무리(연결/마인드맵 편입, UI 폴리시) + **오디오 영속화**(ZIP 55개 + 신규 녹음 → **Supabase Storage** 재업로드·`audioUrl` 갱신) + **단일 SQL 마이그레이션 한 방**(신규 도메인 테이블/컬럼 + Storage 버킷 + `check-schema-drift` + `*ToRow/rowTo*` + canonical 메타 + sync) | 있음 | **여기서 1회** |
 
 **게이트:** 각 코드 단계에서 `check-index-scripts` / `golden-tests` / `check-schema-drift` / `check-restore-drift` / `check-version-bump` / `sync-instruction-doc` / `check-skill-docs` 전부 통과.
 
@@ -110,7 +113,7 @@ medLangRecord = {
 1. **BOM 제거**: `if(raw.charCodeAt(0)===0xFEFF) raw=raw.slice(1)` 후 파싱.
 2. **id 보존**: 문자열 그대로, 재발급·정규화 금지(짧은 id/UUID 혼재 정상).
 3. **learning verbatim**: level/needCheck/starred/updatedAt 값 변형 금지.
-4. **audio_url는 L2에선 보존만**, L3에서 Cloudinary로 재지정.
+4. **audio_url는 L2~L3에선 보존만**, L4에서 **Medical Note Supabase Storage**로 재지정(오디오=Supabase, 이미지/영상=Cloudinary).
 5. **researchNotes 100건은 언어 도메인 임포트 경로와 분리** — Medical Note 연구노트 체인에 넣지 않음(레거시 아카이브 전용).
 6. **review_log 비어있음** — 없다고 실패하지 말 것(선택 필드).
 7. 신규 도메인은 tombstone 3함수/canonical 메타/백업복원/해시 페이로드/`check-index-scripts` parity **6곳 동시 갱신**(도메인 추가 최빈 결함).
