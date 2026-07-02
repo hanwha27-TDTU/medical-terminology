@@ -6499,6 +6499,7 @@ document.addEventListener('keydown', e => {
 .kbg-topicon{background:transparent;border:1px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .kbg-topicon:hover{border-color:var(--accent);color:var(--text)}
 @media (min-width:1101px){
+  html{overflow-x:hidden} /* 셸 padding으로 화면 밖 fixed 드로어가 문서 가로스크롤 유발 → 데스크톱에서 클립(헤더는 static이라 sticky 영향 없음) */
   body.kbg-shell-on{padding-left:248px;padding-top:52px}
   body.kbg-shell-on header{position:static}
   body.kbg-shell-on .bottom-nav{left:248px}
@@ -18872,7 +18873,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.49',
+  version: '2.50',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18881,7 +18882,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.49 — "Unified Search" 룸 이름을 "통합검색"으로 변경',
+    title: '최신 · v2.50 — 좁은 데스크톱(1101~1200px)에서 가로 스크롤 발생 수정',
+    items: [
+      '넓지 않은 데스크톱 창(약 1101~1200px)에서 화면이 좌우로 살짝 스크롤되던 문제를 고쳤습니다. 원인은 사이드바 여백(padding) 때문에 화면 밖에 대기하던 상세 드로어가 문서를 가로로 늘렸던 것으로, 데스크톱(사이드바가 켜지는 폭)에서 가로 넘침을 잘라내도록 했습니다. 상세 드로어 열기·닫기 동작은 그대로입니다.',
+      '검토 범위: 폰(390)·폰가로(600)·태블릿(768/1024)·경계(1101)·노트북(1120)·데스크톱(1280/1440) × 다크·라이트 전 조합에서 가로 스크롤 없음을 확인했습니다.',
+    ],
+  },
+  {
+    title: 'v2.49 — "Unified Search" 룸 이름을 "통합검색"으로 변경',
     items: [
       '사이드바·룸 제목·Dashboard 빠른 이동 카드의 "Unified Search" 표기를 "통합검색"으로 바꿨습니다(표시 라벨만 변경, 기능·라우팅 키(unifiedSearch)는 그대로).',
     ],
