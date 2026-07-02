@@ -103,7 +103,8 @@ medLangRecord = {
 | **L2 ✅ 완료(v2.52)** | 언어 도메인 저장/모델 확정(`installLanguageDomain` IIFE) — `normalizeLangRecord` 내부모델, IndexedDB large-cache 재사용, tombstone 3함수 등록, 전체 백업 편입, **BOM-aware `importLanguageBackupData`** 실장. **인앱 왕복검증 2013/0** (headless 브라우저에서 실제 백업으로 확인) | 있음(스키마 무관 로직) | 없음 |
 | **L3-① ✅ 완료(v2.53~2.54)** | 방(임상 어학 / CPX·OSCE) type 필터 렌더 + 검색·상세 + **복원 2경로**(방 📥버튼 + 표준 "데이터 관리 → 가져오기"가 어학 백업 BOM·records 구제 수용, 미리보기 "어학 추가 N"). **인앱 확인:** clinical 2010 / cpx 3 / 총 2013, 표준 가져오기 0→2013·기존 도메인 무손상 | 있음 | 없음 |
 | **L3-② ✅ 완료(v2.55)** | 학습기능 이식(SRS `[0,1,3,7,14,30]`·별표·needCheck·레벨·복습 큐·streak·🔊TTS·녹음 **캡처/재생** UI). **인앱 확인:** good→L+1/hard→L−1·reviewedAt·streak·복습모달·상세 학습바, 저장 persistence 정상 | 있음 | 없음 |
-| **L4** | 마무리(연결/마인드맵 편입, UI 폴리시) + **오디오 영속화**(ZIP 55개 + 신규 녹음 → **Supabase Storage** 재업로드·`audioUrl` 갱신) + **단일 SQL 마이그레이션 한 방**(신규 도메인 테이블/컬럼 + Storage 버킷 + `check-schema-drift` + `*ToRow/rowTo*` + canonical 메타 + sync) | 있음 | **여기서 1회** |
+| **L4a ✅ 완료(v2.56)** | Supabase 동기화(notes식 jsonb, `language_records` id=text) + 통합 SQL 한 방(테이블·인덱스·`language-audio` Storage 버킷·정책) + 3진입점 wrap + `_langLoaded` 가드·inert. **단위검증:** `langToRow/rowToLang` 왕복 2013/0, 미설정 시 graceful(throw 없음). **라이브는 사용자가 SQL 적용 후 확인** | 있음 | **SQL 제공(사용자 실행)** |
+| **L4b ✅ 완료(v2.57)** | 오디오 영속화 — 캡처 녹음 "☁ 저장(업로드)" + **녹음 일괄 이관**(다중 파일 선택, 파일명 recordId 매칭 → `language-audio` 업로드 → `audioUrl` 갱신), 삭제 시 Storage 원본 정리. **단위검증:** ZIP 55/55 파일명 파싱·매칭, 미설정 graceful. **라이브 업로드는 사용자가 SQL+설정 후 확인** | 있음 | (버킷은 L4a SQL에서 생성) |
 
 **게이트:** 각 코드 단계에서 `check-index-scripts` / `golden-tests` / `check-schema-drift` / `check-restore-drift` / `check-version-bump` / `sync-instruction-doc` / `check-skill-docs` 전부 통과.
 
