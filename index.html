@@ -6453,6 +6453,13 @@ document.addEventListener('keydown', e => {
 .kbg-ph b{display:block;color:var(--text2);font-size:15px;margin-bottom:8px}
 .kbg-ph p{font-size:13px;margin:0 auto;max-width:460px;line-height:1.6}
 .kbg-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.kbg-soon-list{display:flex;flex-direction:column;gap:10px}
+.kbg-soon{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kbg-soon-ic{font-size:20px;width:26px;text-align:center;flex-shrink:0}
+.kbg-soon-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.kbg-soon-t b{font-size:14px;color:var(--text)}
+.kbg-soon-t span{font-size:12px;color:var(--text3)}
+.kbg-soon-badge{font-size:11px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 10px;flex-shrink:0}
 .kbg-chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;font-size:12px;color:var(--text3)}
 .kbg-note{font-size:12px;color:var(--text3);margin:16px 0 0;padding:10px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
 .kbg-uni-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 16px;color:var(--text);font-size:14px;font-family:inherit;margin:6px 0 12px;outline:none}
@@ -18865,7 +18872,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.47',
+  version: '2.48',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18874,7 +18881,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.47 — 사이드바에 로고 이미지 임베드(Dr. Bugeon의 Medical Learning Platform)',
+    title: '최신 · v2.48 — 디자인 개편 4단계(일부): Clinical Language·CPX/OSCE 빈 방 구조화',
+    items: [
+      'Clinical Language와 CPX/OSCE 방을 단순 칩 나열에서 구조화된 목록(아이콘·이름·설명·"준비 중" 배지)으로 다듬었습니다. 어학 소스가 이식될 자리(일반회화·의학문장·단어장·회화프레임·IPA/발음·녹음/재생 · CPX문진·CPX증례·OSCE술기·환자설명·진료실대화)를 한눈에 볼 수 있는 셸입니다.',
+      '표시(레이아웃)만 변경했습니다. 시스템 코어(저장·동기화·연구노트·TSA·백업)는 그대로이며, 소스 확보 후 이 목록이 실제 기능으로 채워집니다.',
+    ],
+  },
+  {
+    title: 'v2.47 — 사이드바에 로고 이미지 임베드(Dr. Bugeon의 Medical Learning Platform)',
     items: [
       '좌측 사이드바(및 모바일 오버레이) 상단 브랜드를 이모지+텍스트에서 실제 로고 이미지로 교체했습니다(청진기+인체 엠블럼 + "Dr. Bugeon의 Medical Learning Platform" 일체형). 로고는 단일 HTML 원칙에 맞게 이미지 자체를 파일에 내장(base64)했으며, 오프라인에서도 표시됩니다. 크기 최적화(사이드바용 460px JPEG ≈ 15KB)로 파일 비대화를 최소화했습니다.',
       '표시(브랜드)만 변경했습니다 — 내부 식별자(APP_INFO.name·RN_PROJECT_NAME)와 저장/동기화/해시/백업은 그대로입니다. 로고 원본은 저장소 assets/Dr_Bugeon_Logo.png에 보관됩니다.',
@@ -27799,19 +27813,35 @@ KBG_MedicalNote.AppUI.roomEvidence = function () {
 };
 
 // ── Clinical Language(빈 방 · 어학 소스 이식 예정) ──
+KBG_MedicalNote.AppUI._soonList = function (items) {
+  const esc = KBG_MedicalNote._esc;
+  return '<div class="kbg-soon-list">' + items.map(([ic, name, desc]) =>
+    `<div class="kbg-soon"><span class="kbg-soon-ic">${ic}</span><div class="kbg-soon-t"><b>${esc(name)}</b><span>${esc(desc)}</span></div><span class="kbg-soon-badge">준비 중</span></div>`).join('') + '</div>';
+};
 KBG_MedicalNote.AppUI.roomClinicalLanguage = function () {
-  const chips = ['일반 회화', '의학 문장', '단어장', '회화 프레임', 'IPA/발음', '녹음/재생'];
-  return `<div class="kbg-ph"><b>🗣️ Clinical Language — 준비 중인 방</b>
-    <p>어학 기능(회화·문장·단어장·발음·녹음)이 이식될 방입니다. 소스 확보 후 기존 코어(TTS·녹음·Cloudinary)를 재사용해 채웁니다.</p>
-    <div class="kbg-chips">${chips.map(c => `<span class="kbg-chip">${KBG_MedicalNote._esc(c)}</span>`).join('')}</div></div>`;
+  return `<p class="kbg-sub">임상 어학 — 회화·문장·단어·발음·녹음. 어학 소스 이식 후 채워질 방입니다(기존 TTS·녹음·Cloudinary 코어 재사용).</p>
+    ${this._soonList([
+    ['🗨️', '일반 회화', '일상·기본 회화 표현'],
+    ['🩺', '의학 문장', '임상 상황별 의학 문장'],
+    ['📖', '단어장', '의학·일반 어휘'],
+    ['🧩', '회화 프레임', '상황별 회화 틀'],
+    ['🔊', 'IPA / 발음', '발음기호 · 듣기(TTS)'],
+    ['🎙️', '녹음 / 재생', '내 발음 녹음 · 비교'],
+  ])}
+    <div class="kbg-note">ℹ️ 소스 확보 시 이 목록이 실제 기능으로 채워집니다. 시스템(저장·동기화·연구노트·TSA)은 Medical Note 코어를 그대로 씁니다.</div>`;
 };
 
 // ── CPX / OSCE(빈 방 · 어학 소스 이식 예정) ──
 KBG_MedicalNote.AppUI.roomCpxOsce = function () {
-  const chips = ['CPX 문진 문장', 'CPX 증례', 'OSCE 술기', '환자 설명 문장', '진료실 대화 시뮬레이션'];
-  return `<div class="kbg-ph"><b>🩺 CPX / OSCE — 준비 중인 방</b>
-    <p>임상 실습(CPX 문진·증례, OSCE 술기, 환자 설명)이 이식될 방입니다. 소스 확보 후 채웁니다.</p>
-    <div class="kbg-chips">${chips.map(c => `<span class="kbg-chip">${KBG_MedicalNote._esc(c)}</span>`).join('')}</div></div>`;
+  return `<p class="kbg-sub">CPX / OSCE — 임상 실기. 어학 소스 이식 후 채워질 방입니다.</p>
+    ${KBG_MedicalNote.AppUI._soonList([
+    ['❓', 'CPX 문진 문장', '병력청취 질문'],
+    ['📋', 'CPX 증례', '증례별 문진 · 설명'],
+    ['🩻', 'OSCE 술기', '술기 체크리스트'],
+    ['🗣️', '환자 설명 문장', '환자 눈높이 설명'],
+    ['💬', '진료실 대화 시뮬레이션', '상황 롤플레이'],
+  ])}
+    <div class="kbg-note">ℹ️ 개념도의 "CPX 증례 상세(환자 정보·문진 예시·환자 설명·연결 노트)"는 소스 이식 후 이 방에 구현됩니다.</div>`;
 };
 
 // ── 룸 HTML 헬퍼(오버레이·셸 공용) ──
