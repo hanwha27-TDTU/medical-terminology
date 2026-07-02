@@ -6510,6 +6510,8 @@ document.addEventListener('keydown', e => {
   body.kbg-shell-on .kbg-shell-topbar{display:flex}
   body.kbg-shell-on .kbg-shell-panel{top:52px}
   body.kbg-shell-on .kbg-plat-btn{display:none}
+  /* 셸에선 좌측 사이드바·상단바에 이미 ⚙️설정이 있어, 기존 헤더의 ⚙️설정 버튼은 중복 → 셸일 때만 숨김(모바일<600px는 그대로 유지) */
+  body.kbg-shell-on .settings-header-btn{display:none}
 }
 @media (max-width:599px){
   .kbg-shell-sidebar,.kbg-shell-panel,.kbg-shell-topbar{display:none !important}
@@ -18882,7 +18884,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.62',
+  version: '2.63',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18891,7 +18893,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.62 — 모바일 플랫폼 오버레이 내비를 가로 스크롤 → 줄바꿈 그리드로',
+    title: '최신 · v2.63 — 셸(사이드바 프레임)에서 중복된 헤더 ⚙️설정 버튼 숨김',
+    items: [
+      '좌측 사이드바 프레임(태블릿·데스크톱·폴더블 ≥600px)에선 사이드바 하단과 상단바에 이미 ⚙️설정이 있어, 기존 헤더 툴바의 ⚙️설정 버튼이 중복이었습니다. 셸이 켜졌을 때만 이 헤더 버튼을 숨겨 중복을 없앴습니다(세 버튼 모두 동일한 설정 창을 열던 것).',
+      '폰 세로(600px 미만, 셸 꺼짐)에서는 헤더의 ⚙️설정 버튼이 설정 접근의 주 경로이므로 그대로 유지합니다. 기능·저장 구조 변경 없음(표시만).',
+    ],
+  },
+  {
+    title: 'v2.62 — 모바일 플랫폼 오버레이 내비를 가로 스크롤 → 줄바꿈 그리드로',
     items: [
       '폰 세로에서 🏠 플랫폼 오버레이의 방 내비게이션이 가로로 스크롤해야 뒤쪽 방(데이터 관리·연구노트·설정)이 보이던 불편을 고쳤습니다. 이제 8개 방(+설정)이 줄바꿈 그리드로 한 화면에 모두 보입니다(가로 스크롤 제거).',
     ],
