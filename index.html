@@ -18809,7 +18809,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.37',
+  version: '2.38',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18818,7 +18818,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.37 — 노트↔질환 연결(linkedDiseases): 상호 데이터 연결 강화',
+    title: '최신 · v2.38 — 연결 시각화(마인드맵): 노트의 상호 연결을 한눈에',
+    items: [
+      '개념·오답 노트 상세 화면에 "🔗 연결 지도 보기" 버튼을 추가했습니다. 누르면 그 노트를 중심으로 연결된 용어·약물·미생물·공식·질환이 방사형 마인드맵(SVG)으로 그려지고, 노드를 클릭하면 해당 자료로 바로 이동합니다. 이 앱의 핵심인 데이터 간 상호 연결을 시각적으로 확인하는 첫 단계입니다.',
+      '완전히 읽기 전용입니다 — 기존에 저장된 연결(linkedTerms/Drugs/Microbes/Formulas/Diseases) 데이터를 그림으로 보여줄 뿐, 새로 저장하거나 기존 데이터·동기화·해시·백업·Supabase 스키마를 전혀 바꾸지 않습니다. 다크/라이트 테마 색을 그대로 따릅니다.',
+    ],
+  },
+  {
+    title: 'v2.37 — 노트↔질환 연결(linkedDiseases): 상호 데이터 연결 강화',
     items: [
       '개념·오답 노트가 이제 질환과도 연결됩니다. 기존엔 노트가 용어·약물·미생물·공식 4종만 연결(칩) 저장했는데, 질환(linkedDiseases)을 5번째 연결로 추가했습니다. 노트 본문에 질환명을 쓰면 자동으로 감지·연결되고(이미 있던 자동링크 인프라 활용), 편집 화면 "관련 질환"칸에 직접 넣거나, 노트 상세의 질환 칩을 눌러 해당 질환으로 바로 이동할 수 있습니다. 노트 필터에도 "질환" 연결 필터가 추가됐습니다.',
       '이 앱의 핵심인 데이터 간 상호 연결을 넓히는 변경입니다. 저장·검색·백업(CSV)·동기화까지 기존 4종 링크와 똑같이 처리되며, 동기화 시 양쪽 기기의 질환 링크를 합집합으로 보존해(union) 어느 편집도 사라지지 않습니다.',
@@ -24851,6 +24858,8 @@ initApp();
           ${noteLinkGroup('공식', 'formulas', n.linkedFormulas)}
           ${noteLinkGroup('질환', 'diseases', n.linkedDiseases)}
         </section>
+        ${((n.linkedTerms || []).length || (n.linkedDrugs || []).length || (n.linkedMicrobes || []).length || (n.linkedFormulas || []).length || (n.linkedDiseases || []).length)
+          ? `<button type="button" class="data-action-btn outline" style="margin-top:10px" onclick="showNoteConnectionMap(${Number(n.id)})">🔗 연결 지도 보기</button>` : ''}
       </div>`;
   }
   window.openIntegratedNoteView = function openIntegratedNoteView(id) {
@@ -27615,6 +27624,60 @@ KBG_MedicalNote.AppUI.roomCpxOsce = function () {
   return `<div class="kbg-ph"><b>🩺 CPX / OSCE — 준비 중인 방</b>
     <p>임상 실습(CPX 문진·증례, OSCE 술기, 환자 설명)이 이식될 방입니다. 소스 확보 후 채웁니다.</p>
     <div class="kbg-chips">${chips.map(c => `<span class="kbg-chip">${KBG_MedicalNote._esc(c)}</span>`).join('')}</div></div>`;
+};
+
+// ── 연결 시각화(마인드맵) — 읽기 전용 · 기존 링크 데이터 기반, 저장/동기화/해시/SQL 무변경 ──
+// 노트를 중심으로 연결된 용어/약물/미생물/공식/질환을 방사형 그래프로 렌더. 노드 클릭 → 기존 openNoteLinkedResource.
+KBG_MedicalNote.AppUI.noteConnectionMap = function (n) {
+  const esc = KBG_MedicalNote._esc;
+  const groups = [
+    { kind: 'terms', label: '용어', color: '#58a6ff', items: n.linkedTerms || [] },
+    { kind: 'drugs', label: '약물', color: '#3fb950', items: n.linkedDrugs || [] },
+    { kind: 'microbes', label: '미생물', color: '#d29922', items: n.linkedMicrobes || [] },
+    { kind: 'formulas', label: '공식', color: '#a78bfa', items: n.linkedFormulas || [] },
+    { kind: 'diseases', label: '질환', color: '#f778ba', items: n.linkedDiseases || [] },
+  ];
+  const nodes = [];
+  groups.forEach(g => g.items.forEach(it => { const t = String(it || '').trim(); if (t) nodes.push({ kind: g.kind, color: g.color, text: t }); }));
+  const W = 760, H = 560, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 96;
+  const total = nodes.length || 1;
+  let body = '';
+  nodes.forEach((nd, i) => {
+    const ang = (i / total) * 2 * Math.PI - Math.PI / 2;
+    const x = cx + R * Math.cos(ang), y = cy + R * Math.sin(ang);
+    const label = nd.text.length > 18 ? nd.text.slice(0, 17) + '…' : nd.text;
+    const anchor = Math.abs(Math.cos(ang)) < 0.3 ? 'middle' : (Math.cos(ang) > 0 ? 'start' : 'end');
+    body += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:var(--border)" stroke-width="1.5"/>`;
+    body += `<g style="cursor:pointer" onclick='openNoteLinkedResource(event,${JSON.stringify(nd.kind)},${JSON.stringify(nd.text)})'>`
+      + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${nd.color}"/>`
+      + `<text x="${(x + (anchor === 'start' ? 11 : anchor === 'end' ? -11 : 0)).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anchor}" font-size="12" style="fill:var(--text2)">${esc(label)}</text></g>`;
+  });
+  const center = `<circle cx="${cx}" cy="${cy}" r="48" style="fill:var(--accent)"/>`
+    + `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="13" style="fill:#fff">${esc((n.title || '노트').slice(0, 10))}</text>`;
+  const legend = groups.filter(g => g.items.length).map(g => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text3)"><span style="width:10px;height:10px;border-radius:50%;background:${g.color};display:inline-block"></span>${g.label} ${g.items.length}</span>`).join('');
+  const graph = nodes.length
+    ? `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:64vh">${body}${center}</svg>`
+    : `<div style="padding:36px;text-align:center;color:var(--text3);font-size:13px">이 노트에 연결된 자료가 없습니다.</div>`;
+  document.getElementById('kbgConnMapModal')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'kbgConnMapModal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1004;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:840px;width:96%;max-height:92vh;overflow:auto;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <b style="flex:1;color:var(--text);font-size:15px">🔗 연결 지도 — ${esc(n.title || '노트')}</b>
+        <button onclick="document.getElementById('kbgConnMapModal').remove()" style="width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">노드를 클릭하면 해당 자료로 이동합니다 · 읽기 전용(기존 연결 데이터 기반, 저장 안 함)</div>
+      ${graph}
+      <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:8px">${legend}</div>
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+};
+window.showNoteConnectionMap = function (id) {
+  const n = (window.NOTEBOOK || []).find(x => Number(x.id) === Number(id) && !x.deletedAt);
+  if (!n) { if (typeof showToast === 'function') showToast('노트를 찾을 수 없습니다.'); return; }
+  KBG_MedicalNote.AppUI.noteConnectionMap(n);
 };
 
 try { KBG_MedicalNote.init(); } catch (e) { console.warn('[KBG_MedicalNote] init failed', e); }
