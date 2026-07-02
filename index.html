@@ -18877,7 +18877,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.56',
+  version: '2.57',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18886,7 +18886,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.56 — 어학 데이터 통합 L4a: Supabase 동기화 + 통합 SQL(language_records + 오디오 버킷)',
+    title: '최신 · v2.57 — 어학 데이터 통합 L4b: 녹음 오디오 Supabase Storage 연동(업로드·일괄 이관)',
+    items: [
+      '어학 녹음 기능을 실제로 연동했습니다. 항목 상세에서 🎙 녹음 → "☁ 저장(업로드)"을 누르면 Supabase Storage(language-audio 버킷)에 저장되고 audioUrl이 갱신됩니다. 동기화하면 다른 기기에도 반영됩니다.',
+      '기존 녹음 55개 일괄 이관 도구를 추가했습니다(방 상단 "🎙 녹음 이관"). 폐기 어학앱 저장소를 가리키던 오디오 주소 대신, 녹음 원본 파일들을 다중 선택하면 파일명의 recordId(ID-…)로 자동 매칭해 새 Storage 버킷에 업로드하고 audioUrl을 갱신합니다. (ZIP은 풀어서 파일들을 선택 — 별도 압축 라이브러리 불필요.)',
+      '녹음 삭제 시 우리 버킷의 원본 파일도 함께 정리합니다(다른 항목이 같은 파일을 참조하면 연결만 해제). 저장소 역할: 오디오=Supabase Storage, 이미지·영상=Cloudinary.',
+      '⚠️ 업로드/이관에는 Supabase 설정(URL·Key) + 통합 SQL 실행(language-audio 버킷 생성)이 필요합니다. 미설정 시 캡처·재생까지는 그대로 동작하고 업로드만 대기합니다. 연구노트/해시체인/TSA는 변경 없음.',
+    ],
+  },
+  {
+    title: 'v2.56 — 어학 데이터 통합 L4a: Supabase 동기화 + 통합 SQL(language_records + 오디오 버킷)',
     items: [
       '어학 도메인을 Supabase에 동기화합니다. 개념·오답 노트와 동일한 jsonb-blob 방식(language_records 테이블, id는 문자열 그대로 text). 기존 3개 동기화 진입점(최종상태 저장·클라우드에서 교체·양방향 동기화)에 어학도 함께 태워, 다른 기기·클라우드로 어학 데이터가 백업/공유됩니다.',
       '통합 SQL을 "한 방"으로 확장했습니다(설정 → 설정 SQL 복사). language_records 테이블 + 인덱스 + 어학 녹음용 Storage 버킷(language-audio, 공개 읽기)과 정책까지 한 번에 만들도록 했습니다. SQL은 idempotent(여러 번 실행해도 안전).',
@@ -27532,6 +27541,72 @@ initApp();
     return ok;
   };
 
+  // ── L4b: 어학 녹음 오디오 Supabase Storage 업로드/삭제(language-audio 버킷) — 어학앱 uploadAudioToStorage 패턴 이식 ──
+  const LANG_AUDIO_BUCKET = 'language-audio';
+  function _langAudioContentType(blobType) {
+    const t = String(blobType || '').toLowerCase();
+    if (t.includes('mpeg') || t.includes('mp3')) return 'audio/mpeg';
+    if (t.includes('mp4') || t.includes('m4a') || t.includes('aac') || t.includes('x-m4a')) return 'audio/mp4';
+    if (t.includes('ogg')) return 'audio/ogg';
+    if (t.includes('wav')) return 'audio/wav';
+    return 'audio/webm';
+  }
+  // Storage 경로 호환: ASCII만 남긴다(비ASCII 제거)
+  function _langAudioSafeName(name) {
+    return String(name || 'recording.webm').normalize('NFD').replace(/[^\x00-\x7F]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._\-]/g, '_').replace(/_+/g, '_').replace(/^_|_(?=\.)/g, '') || 'recording.webm';
+  }
+  function langAudioExtFromType(t) {
+    const s = String(t || '').toLowerCase();
+    if (s.includes('mpeg') || s.includes('mp3')) return 'mp3';
+    if (s.includes('mp4') || s.includes('m4a')) return 'm4a';
+    if (s.includes('ogg')) return 'ogg';
+    if (s.includes('wav')) return 'wav';
+    return 'webm';
+  }
+  // 파일명에 recordId 포함(왕복 매칭 가능) — ID-{recordId}_{slug}.{ext}
+  function langAudioFileName(r, ext) {
+    const slug = String((r && (r.uzbek || r.english)) || 'recording').trim().split(/\s+/).slice(0, 6).map(w => w.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase()).filter(Boolean).join('_') || 'recording';
+    return `ID-${String((r && r.id) || 'x')}_${slug}.${ext || 'webm'}`;
+  }
+  async function sbUploadLangAudio(blob, filename) {
+    const cfg = getSupabaseConfig();
+    if (!cfg) { if (typeof showToast === 'function') showToast('⚠️ Supabase 설정이 필요합니다 · 설정에서 URL/Key를 저장하세요'); return null; }
+    const safe = _langAudioSafeName(filename);
+    try {
+      const res = await fetch(`${cfg.url}/storage/v1/object/${LANG_AUDIO_BUCKET}/${encodeURIComponent(safe)}`, {
+        method: 'POST',
+        headers: { 'apikey': cfg.key, 'Authorization': 'Bearer ' + cfg.key, 'Content-Type': _langAudioContentType(blob && blob.type), 'x-upsert': 'true' },
+        body: blob,
+      });
+      if (!res.ok) { console.warn('lang audio upload failed:', await res.text()); return null; }
+      return `${cfg.url}/storage/v1/object/public/${LANG_AUDIO_BUCKET}/${encodeURIComponent(safe)}`;
+    } catch (e) { console.warn('lang audio upload error', e); return null; }
+  }
+  function _langAudioPathFromUrl(url) {
+    const cfg = getSupabaseConfig(); if (!cfg || !url) return '';
+    const base = `${cfg.url}/storage/v1/object/public/${LANG_AUDIO_BUCKET}/`;
+    if (!String(url).startsWith(base)) return '';
+    return decodeURIComponent(String(url).slice(base.length).split('?')[0]);
+  }
+  async function sbDeleteLangAudio(url) {
+    const cfg = getSupabaseConfig(); const path = _langAudioPathFromUrl(url);
+    if (!cfg || !path) return false;   // 우리 버킷 URL이 아니면(옛 어학앱 주소 등) Storage 삭제 대상 아님
+    try {
+      const res = await fetch(`${cfg.url}/storage/v1/object/${LANG_AUDIO_BUCKET}/${encodeURIComponent(path)}`, { method: 'DELETE', headers: { 'apikey': cfg.key, 'Authorization': 'Bearer ' + cfg.key } });
+      return res.ok;
+    } catch (e) { console.warn('lang audio delete failed', e); return false; }
+  }
+  window.sbUploadLangAudio = sbUploadLangAudio;
+  window.sbDeleteLangAudio = sbDeleteLangAudio;
+  window.langAudioFileName = langAudioFileName;
+  window.langAudioExtFromType = langAudioExtFromType;
+  window.langIsOwnAudioUrl = function (url) { return !!_langAudioPathFromUrl(url); };
+  // 파일명에서 recordId 추출(ZIP: NNN_ID-{recordId}_{slug}.ext · 자체: ID-{recordId}_{slug}.ext)
+  window.langRecordIdFromFileName = function (name) {
+    const m = String(name || '').match(/ID-(.+?)_/);
+    return m ? m[1] : '';
+  };
+
   // ── 전체 JSON 백업(export)에 언어 도메인 편입(노트 IIFE 패치를 다시 감싼다 = 체이닝) ──
   const _origCreateCompleteBackupObject = createCompleteBackupObject;
   createCompleteBackupObject = function langPatchedCreateCompleteBackupObject() {
@@ -28517,6 +28592,7 @@ KBG_MedicalNote.AppUI._langRoom = function (scope, subtitle, soonItems) {
       <input id="kbgLangSearch" type="search" placeholder="검색(우즈벡·한국어·영어·메모)" oninput="KBG_MedicalNote.AppUI.langRenderList('${scope}')" style="flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
       <button class="kbg-card" style="padding:8px 12px;min-height:0${due ? ';border-color:var(--accent)' : ''}" onclick="KBG_MedicalNote.AppUI.langReviewOpen('${scope}')">📖 복습${due ? ' ' + due : ''}</button>
       <button class="kbg-card" style="padding:8px 12px;min-height:0" onclick="KBG_MedicalNote.AppUI.langRestorePrompt()">📥 복원</button>
+      <button class="kbg-card" style="padding:8px 12px;min-height:0" onclick="KBG_MedicalNote.AppUI.langAudioMigratePrompt()" title="녹음 파일들을 Supabase Storage로 일괄 이관(파일명 recordId 매칭)">🎙 녹음 이관</button>
     </div>
     <div style="margin-bottom:8px">${chips}</div>
     <div class="kbg-list" id="kbgLangList">${this.langListHtml(scope, '')}</div>`;
@@ -28564,8 +28640,7 @@ KBG_MedicalNote.AppUI._langMediaBar = function (r) {
       <button style="padding:6px 11px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;cursor:pointer" onclick='KBG_MedicalNote.AppUI.langRecordStart(${jid})'>🎙 사후 녹음</button>
     </div>
     <div id="kbgLangRecArea"></div>
-    ${r.audioUrl && /supabase\.co/.test(r.audioUrl) && !/\/public\//.test(r.audioUrl) ? '' : ''}
-    <div class="kbg-note">※ 녹음 캡처·재생은 지금 동작하지만, 저장(업로드)은 L4(Supabase Storage 통합)에서 연결됩니다. 기존 오디오 주소는 폐기 예정 어학앱 저장소라 재생이 안 될 수 있습니다.</div>
+    <div class="kbg-note">※ 🎙 녹음 후 "☁ 저장(업로드)"으로 Supabase Storage(language-audio)에 저장됩니다(설정+통합 SQL 필요). 기존 오디오 주소가 폐기 어학앱 저장소를 가리켜 재생이 안 되면, 방 상단 "🎙 녹음 이관"으로 원본 파일을 일괄 재업로드하세요.</div>
   </div>`;
 };
 KBG_MedicalNote.AppUI._langDetailInner = function (r) {
@@ -28639,7 +28714,17 @@ KBG_MedicalNote.AppUI.langDownloadAudio = async function (id) {
 };
 KBG_MedicalNote.AppUI.langDeleteAudio = async function (id) {
   const r = window.langFindRecord(id); if (!r || !r.audioUrl) return;
-  const doDelete = async () => { await window.langSetAudioUrl(id, ''); this._langDetailRerender(id); this.langRenderList(this._langCurrentScope()); if (typeof showToast === 'function') showToast('🗑 녹음 연결을 해제했습니다 (Storage 파일 정리는 L4)'); };
+  const doDelete = async () => {
+    const oldUrl = r.audioUrl || '';
+    await window.langSetAudioUrl(id, '');
+    // 우리 버킷 파일이고 다른 레코드가 참조하지 않으면 Storage 원본도 삭제
+    if (oldUrl && window.langIsOwnAudioUrl(oldUrl)) {
+      const stillUsed = this._langAll().some(x => x.audioUrl === oldUrl);
+      if (!stillUsed) { try { await window.sbDeleteLangAudio(oldUrl); } catch (e) {} }
+    }
+    this._langDetailRerender(id); this.langRenderList(this._langCurrentScope());
+    if (typeof showToast === 'function') showToast('🗑 녹음을 삭제했습니다');
+  };
   if (typeof showConfirm === 'function') showConfirm('이 문장의 녹음 연결을 삭제할까요?<br><span style="font-size:11px;color:var(--text3)">Storage 파일 자체 삭제는 L4(Supabase 통합)에서 처리합니다.</span>', doDelete);
   else if (window.confirm('녹음 연결을 삭제할까요?')) doDelete();
 };
@@ -28651,6 +28736,7 @@ KBG_MedicalNote.AppUI.langRecordStart = async function (id) {
   const R = this._langRec;
   if (R.mr && R.mr.state !== 'inactive') { if (typeof showToast === 'function') showToast('이미 녹음 중입니다'); return; }
   if (!navigator.mediaDevices || !window.MediaRecorder) { if (typeof showToast === 'function') showToast('⚠️ 이 브라우저는 녹음을 지원하지 않습니다'); return; }
+  R.recordId = String(id);
   try {
     R.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
     R.chunks = []; const mime = this._langBestMime();
@@ -28663,10 +28749,16 @@ KBG_MedicalNote.AppUI.langRecordStart = async function (id) {
       const blob = new Blob(R.chunks, { type: (rec.mimeType || 'audio/webm') });
       if (R.url) URL.revokeObjectURL(R.url);
       R.url = URL.createObjectURL(blob); R.blob = blob;
+      const jid = JSON.stringify(String(R.recordId || ''));
+      const hasCfg = typeof getSupabaseConfig === 'function' && getSupabaseConfig();
       area.innerHTML = `<div style="margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)">
         <div style="font-size:12px;color:var(--text2);margin-bottom:6px">녹음 완료 (미리듣기) · ${Math.round(blob.size / 1024)}KB</div>
         <audio controls src="${R.url}" style="width:100%"></audio>
-        <div class="kbg-note">이 녹음의 영구 저장(업로드)은 L4(Supabase Storage)에서 연결됩니다. 지금은 이 세션에서만 재생됩니다.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <button style="padding:6px 12px;border-radius:9px;border:1px solid #16794620;background:#1f7a4d;color:#fff;font-size:12px;cursor:pointer" onclick='KBG_MedicalNote.AppUI.langUploadCapturedAudio(${jid})'>☁ 저장(업로드)</button>
+          <button style="padding:6px 12px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;cursor:pointer" onclick='KBG_MedicalNote.AppUI.langRecordStart(${jid})'>🎙 다시 녹음</button>
+        </div>
+        ${hasCfg ? '' : '<div class="kbg-note">⚠️ 클라우드 저장에는 Supabase 설정(URL/Key)이 필요합니다. 설정 저장 + 통합 SQL 실행 후 업로드하세요.</div>'}
       </div>`;
     };
     R.mr.start(); R.sec = 0;
@@ -28681,6 +28773,51 @@ KBG_MedicalNote.AppUI.langRecordStart = async function (id) {
 KBG_MedicalNote.AppUI.langRecordStop = function () {
   const R = this._langRec;
   if (R.mr && R.mr.state !== 'inactive') { try { R.mr.requestData(); } catch (e) {} R.mr.stop(); }
+};
+// 캡처한 녹음 blob을 language-audio 버킷에 업로드 → audioUrl 갱신(영속화). 동기화 시 다른 기기로 전파.
+KBG_MedicalNote.AppUI.langUploadCapturedAudio = async function (id) {
+  const R = this._langRec;
+  if (!R || !R.blob) { if (typeof showToast === 'function') showToast('업로드할 녹음이 없습니다'); return; }
+  const rec = window.langFindRecord(id);
+  if (!rec) { if (typeof showToast === 'function') showToast('문장을 찾을 수 없습니다'); return; }
+  const ext = window.langAudioExtFromType(R.blob.type);
+  const fname = window.langAudioFileName(rec, ext);
+  if (typeof showToast === 'function') showToast('📤 녹음 업로드 중...');
+  const url = await window.sbUploadLangAudio(R.blob, fname);
+  if (!url) { if (typeof showToast === 'function') showToast('❌ 업로드 실패 · Supabase 설정/통합 SQL(language-audio 버킷)을 확인하세요'); return; }
+  const oldUrl = rec.audioUrl || '';
+  await window.langSetAudioUrl(id, url);
+  if (oldUrl && oldUrl !== url && window.langIsOwnAudioUrl(oldUrl)) { try { await window.sbDeleteLangAudio(oldUrl); } catch (e) {} }
+  if (R.url) { try { URL.revokeObjectURL(R.url); } catch (e) {} }
+  R.blob = null; R.url = null;
+  this._langDetailRerender(id);
+  this.langRenderList(this._langCurrentScope());
+  if (typeof showToast === 'function') showToast('✅ 녹음 저장 완료 · 동기화하면 다른 기기에도 반영됩니다');
+};
+// 녹음 일괄 이관: ZIP을 푼 오디오 파일들을 다중 선택 → 파일명 recordId로 매칭 → 업로드 → audioUrl 갱신
+KBG_MedicalNote.AppUI.langAudioMigratePrompt = function () {
+  if (typeof getSupabaseConfig === 'function' && !getSupabaseConfig()) { if (typeof showToast === 'function') showToast('⚠️ 먼저 Supabase 설정(URL/Key) 저장 + 통합 SQL 실행이 필요합니다'); return; }
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'audio/*,.webm,.mp3,.m4a,.ogg,.wav'; input.multiple = true; input.style.display = 'none';
+  input.onchange = async () => {
+    const files = Array.from(input.files || []); input.remove();
+    if (!files.length) return;
+    let matched = 0, uploaded = 0, unmatched = 0, noRec = 0;
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const rid = window.langRecordIdFromFileName(f.name);
+      if (!rid) { unmatched++; continue; }
+      const rec = window.langFindRecord(rid);
+      if (!rec) { noRec++; continue; }
+      matched++;
+      if (typeof showToast === 'function') showToast(`📤 이관 중 ${i + 1}/${files.length} · ${f.name.slice(0, 24)}`);
+      const url = await window.sbUploadLangAudio(f, window.langAudioFileName(rec, window.langAudioExtFromType(f.type) || (f.name.split('.').pop() || 'webm')));
+      if (url) { await window.langSetAudioUrl(rec.id, url); uploaded++; }
+    }
+    this.langRenderList(this._langCurrentScope());
+    if (typeof showToast === 'function') showToast(`✅ 녹음 이관 완료 · 업로드 ${uploaded}/${matched}건 (매칭 안 됨 ${unmatched + noRec}) · 동기화로 클라우드 반영`);
+  };
+  document.body.appendChild(input); input.click();
 };
 // ── 복습 모드(SRS 큐) — 어학앱 복습 흐름 이식 ──
 KBG_MedicalNote.AppUI._langReviewScope = 'clinical';
