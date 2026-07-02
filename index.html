@@ -18863,7 +18863,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.45',
+  version: '2.46',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18872,7 +18872,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.45 — 브랜드 표기 변경: "Dr. Bugeon의 Medical Learning Platform"',
+    title: '최신 · v2.46 — Dashboard 인사말 "Dr. 부건님"으로 변경',
+    items: [
+      'Dashboard 인사말을 "안녕하세요, 김부건!"에서 "안녕하세요, Dr. 부건님!"으로 바꿨습니다(표시 전용). 발명자 한국어 이름에서 성을 제외한 이름에 "Dr. …님" 존칭을 붙여 표기합니다.',
+    ],
+  },
+  {
+    title: 'v2.45 — 브랜드 표기 변경: "Dr. Bugeon의 Medical Learning Platform"',
     items: [
       '화면에 보이는 제목을 "Dr. Bugeon의 Medical Learning Platform"으로 바꿨습니다. 좌측 사이드바 브랜드(기존 "KBG Medical Note")와 상단 헤더 제목을 새 명칭으로 표기합니다(2줄: "Dr. Bugeon의" + "Medical Learning Platform"). 로고 이미지는 파일 확보 후 사이드바 브랜드 자리에 임베드 예정입니다.',
       '표시 명칭만 변경했습니다 — 내부 식별자(APP_INFO.name, 연구노트 격리 키 RN_PROJECT_NAME, 백업 앱 이름, Supabase 테이블·설정)는 그대로 유지했습니다. 이 값들을 바꾸면 과거 연구노트가 격리 필터에서 숨겨지거나 백업 호환이 깨지기 때문입니다(증거 무결성 보존).',
@@ -27638,7 +27644,9 @@ KBG_MedicalNote.AppUI.roomDashboard = function () {
   const recent = notes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 6);
   const due = KBG_MedicalNote._dueCount();
   const rlog = KBG_MedicalNote._researchRecent(4);
-  const inv = (typeof RN_DEFAULT_INVENTOR !== 'undefined' && RN_DEFAULT_INVENTOR.name) ? RN_DEFAULT_INVENTOR.name.split(' ')[0] : 'Dr. Bugeon';
+  // 인사말 표기: "Dr. {이름}님". 발명자 한국어 이름에서 성을 제외한 이름을 쓰되, 기본은 'Dr. 부건님'.
+  let inv = 'Dr. 부건님';
+  try { const ko = ((typeof RN_DEFAULT_INVENTOR !== 'undefined' && RN_DEFAULT_INVENTOR.name) || '').split('(')[0].trim(); if (ko && /[가-힣]/.test(ko)) inv = 'Dr. ' + (ko.length >= 3 ? ko.slice(1) : ko) + '님'; } catch (e) {}
   const dc = safe(() => ({
     terms: (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt).length,
     drugs: getActiveDrugs().length, microbes: getActiveMicrobes().length, formulas: getActiveFormulas().length, diseases: getActiveDiseases().length,
