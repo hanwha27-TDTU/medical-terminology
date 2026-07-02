@@ -18860,7 +18860,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.43',
+  version: '2.44',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18869,7 +18869,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.43 — 디자인 개편 2단계: 데스크톱 상단바(전체 검색 + 설정·테마·개발자)',
+    title: '최신 · v2.44 — 디자인 개편 3단계: Dashboard 기본 랜딩 + 카드 보강',
+    items: [
+      '데스크톱 플랫폼의 기본 화면이 Dashboard가 되었습니다(개념도의 홈). 인사말·오늘 날짜와 함께 오늘의 복습 예정·오답 노트·개념·오답 노트·의학 자료 수를 카드로 보여주고, Medical Core·Review Engine·Unified Search·Evidence로 바로 가는 빠른 이동 카드, 최근 추가 노트(클릭 시 열림)·연구노트 최근 로그를 배치했습니다. 하단에 라이브러리 현황(용어·약물·미생물·공식·질환 개수)도 표시합니다.',
+      '카드·수치는 모두 기존 데이터를 읽어 표시하는 읽기 전용이고, 저장/동기화/해시/백업/Supabase 변경이 없습니다. 룸 내부 이동을 데스크톱(상시 사이드바)·모바일(오버레이) 컨텍스트에 맞게 라우팅하도록 정리했습니다(기존에 데스크톱에서 카드 클릭이 반응하지 않던 부분도 수정). "학습 연속일·학습 목표·항목별 추천 복습"은 학습통계/어학 이식 후 확장 예정.',
+    ],
+  },
+  {
+    title: 'v2.43 — 디자인 개편 2단계: 데스크톱 상단바(전체 검색 + 설정·테마·개발자)',
     items: [
       '데스크톱(1101px 이상)에서 좌측 사이드바 오른쪽 상단에 상단바를 추가했습니다. 중앙에 "전체 검색"창이 있어 어느 화면에서든 입력하면 바로 Unified Search로 넘어가 용어·약물·미생물·공식·질환·노트를 한 번에 찾고, 오른쪽에 ⚙️설정·🌓테마전환·👤개발자 아이콘을 배치했습니다. 개념도의 상단바 구성을 반영한 것입니다.',
       '표현(레이아웃)만 변경했습니다 — 기존 헤더/버튼/함수/데이터를 그대로 두고, 데스크톱 셸에서만 기존 헤더를 상단바 아래로 흐르게(비고정) 정리했습니다. 모바일·태블릿(1100px 이하)은 기존 화면과 헤더가 그대로이고 상단바는 표시되지 않습니다. 저장/동기화/해시/백업/Supabase 변경 없음.',
@@ -27610,35 +27617,51 @@ KBG_MedicalNote.AppUI._dispatch = function (fnName, arg) {
 
 // ── Dashboard(기존 데이터로 실제 수치 표시) ──
 KBG_MedicalNote.AppUI.roomDashboard = function () {
-  const esc = KBG_MedicalNote._esc;
+  const esc = KBG_MedicalNote._esc, safe = KBG_MedicalNote._safe;
   const notes = KBG_MedicalNote._activeNotes();
   const wrong = notes.filter(n => n.noteType === 'wrong').length;
-  const recent = notes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  const recent = notes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 6);
   const due = KBG_MedicalNote._dueCount();
-  const rlog = KBG_MedicalNote._researchRecent(3);
+  const rlog = KBG_MedicalNote._researchRecent(4);
   const inv = (typeof RN_DEFAULT_INVENTOR !== 'undefined' && RN_DEFAULT_INVENTOR.name) ? RN_DEFAULT_INVENTOR.name.split(' ')[0] : 'Dr. Bugeon';
-  const stat = (label, num, unit, room) =>
-    `<div class="kbg-stat" onclick="KBG_MedicalNote.AppRouter.go('${room}')"><div class="kbg-stat-label">${esc(label)}</div><div><span class="kbg-stat-num">${num}</span><span class="kbg-stat-unit">${esc(unit)}</span></div></div>`;
+  const dc = safe(() => ({
+    terms: (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt).length,
+    drugs: getActiveDrugs().length, microbes: getActiveMicrobes().length, formulas: getActiveFormulas().length, diseases: getActiveDiseases().length,
+  }), { terms: 0, drugs: 0, microbes: 0, formulas: 0, diseases: 0 });
+  const medTotal = dc.terms + dc.drugs + dc.microbes + dc.formulas + dc.diseases;
+  let dateStr = '';
+  try { const d = new Date(); dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]})`; } catch (e) {}
+  const stat = (label, num, unit, room) => `<div class="kbg-stat" onclick="KBG_MedicalNote.navTo('${room}')"><div class="kbg-stat-label">${esc(label)}</div><div><span class="kbg-stat-num">${num}</span><span class="kbg-stat-unit">${esc(unit)}</span></div></div>`;
+  const qcard = (ic, title, sub, room) => `<button class="kbg-card" onclick="KBG_MedicalNote.navTo('${room}')"><div class="kbg-card-ic">${ic}</div><b>${esc(title)}</b><span>${esc(sub)}</span></button>`;
   const recentHtml = recent.length
-    ? recent.map(n => `<div class="kbg-li">📝 ${esc((n.title || '제목 없음')).slice(0, 40)}<span class="kbg-badge">${n.noteType === 'wrong' ? '오답' : '개념'}</span></div>`).join('')
+    ? recent.map(n => `<div class="kbg-li" style="cursor:pointer" onclick='openIntegratedNoteView(${JSON.stringify(n.id)})'>📝 ${esc((n.title || '제목 없음')).slice(0, 40)}<span class="kbg-badge">${n.noteType === 'wrong' ? '오답' : '개념'}</span></div>`).join('')
     : '<div class="kbg-empty">아직 노트가 없습니다.</div>';
   const rlogHtml = rlog.length
-    ? rlog.map(e => `<div class="kbg-li">🔬 ${esc((e.feature_name || e.event_type || '기록'))}<span class="kbg-when">${esc(String(e.created_at || '').slice(0, 10))}</span></div>`).join('')
+    ? rlog.map(e => `<div class="kbg-li" style="cursor:pointer" onclick="rnOpenNotebook()">🔬 ${esc((e.feature_name || e.event_type || '기록'))}<span class="kbg-when">${esc(String(e.created_at || '').slice(0, 10))}</span></div>`).join('')
     : '<div class="kbg-empty">최근 연구노트 로그가 없습니다.</div>';
   return `
-    <div class="kbg-greet">👋 안녕하세요, ${esc(inv)}!</div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="kbg-greet">👋 안녕하세요, ${esc(inv)}!</div>
+      <div style="color:var(--text3);font-size:13px">${esc(dateStr)}</div>
+    </div>
     <p class="kbg-sub">오늘도 좋은 하루의 학습을 시작해보세요.</p>
     <div class="kbg-stat-grid">
       ${stat('오늘의 복습 (예정)', due, '개', 'reviewEngine')}
       ${stat('오답 노트', wrong, '개', 'medicalCore')}
       ${stat('개념·오답 노트', notes.length, '개', 'medicalCore')}
-      ${stat('연구노트 로그(최근)', rlog.length, '건', 'evidence')}
+      ${stat('의학 자료', medTotal, '개', 'medicalCore')}
+    </div>
+    <div class="kbg-cards" style="margin-bottom:20px">
+      ${qcard('🧬', 'Medical Core', '용어·약물·미생물·공식·질환·노트', 'medicalCore')}
+      ${qcard('🔁', 'Review Engine', '플래시카드·퀴즈', 'reviewEngine')}
+      ${qcard('🔍', 'Unified Search', '전체·도메인 검색', 'unifiedSearch')}
+      ${qcard('📜', 'Evidence', '연구노트·특허 증거', 'evidence')}
     </div>
     <div class="kbg-panel-grid">
       <div class="kbg-panel"><h3>최근 추가 노트</h3><div class="kbg-list">${recentHtml}</div></div>
       <div class="kbg-panel"><h3>연구노트 최근 로그</h3><div class="kbg-list">${rlogHtml}</div></div>
     </div>
-    <div class="kbg-note">ℹ️ "오늘의 추천 복습 / 학습 목표 / 학습 연속일" 등은 어학(Clinical Language·CPX/OSCE) 기능 이식 후 확장 예정입니다.</div>`;
+    <div class="kbg-note">ℹ️ 라이브러리 현황 — 용어 ${dc.terms} · 약물 ${dc.drugs} · 미생물 ${dc.microbes} · 공식 ${dc.formulas} · 질환 ${dc.diseases}. "학습 연속일 / 학습 목표 / 추천 복습(항목별)"은 학습통계·어학 이식 후 확장 예정.</div>`;
 };
 
 // ── Medical Core(기존 자료 모드로 연결) ──
@@ -27781,7 +27804,7 @@ KBG_MedicalNote.Shell = {
       KBG_MedicalNote.AppConfig.rooms.map(r =>
         `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.Shell.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
       ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
-    this.go('medicalCore'); // 기본: 기존 라이브러리(패널 off) — Phase 1 안전 기본(Dashboard 랜딩은 Phase 3)
+    this.go('dashboard'); // 기본 랜딩 = Dashboard(개념도 Phase 3). Medical Core는 사이드바에서 1클릭.
   },
   go(key) {
     this.current = key;
@@ -27801,6 +27824,14 @@ KBG_MedicalNote.Shell = {
     const inp = document.getElementById('kbgUniInput'); if (inp) inp.value = v;
     try { KBG_MedicalNote.AppUI.uniSearch(); } catch (e) {}
   },
+};
+// 룸 내부에서 다른 룸으로 이동 — 현재 컨텍스트(오버레이 열림=모바일 / 상시 사이드바=데스크톱)에 맞게 라우팅.
+KBG_MedicalNote.navTo = function (room) {
+  const ov = document.getElementById('kbgPlatformOverlay');
+  if (ov && ov.classList.contains('open')) { this.AppRouter.go(room); return; }
+  const sb = document.getElementById('kbgShellSidebar');
+  if (sb && getComputedStyle(sb).display !== 'none') { this.Shell.go(room); return; }
+  this.open(room);
 };
 
 // ── 연결 시각화(마인드맵) — 읽기 전용 · 기존 링크 데이터 기반, 저장/동기화/해시/SQL 무변경 ──
