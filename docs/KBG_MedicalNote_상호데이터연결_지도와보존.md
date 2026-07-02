@@ -17,7 +17,7 @@
 | 질환 | 유사질환 | `body.ddx.similar_diseases` | `diseaseLinkifySimilar`→`openDiseaseDrawer` | ✅ |
 | 질환 | 상위/하위질환 | `parent_id` | 역조회 + 트리 모달 | ✅ |
 | entity | 다중 메뉴 노출 | `concept_category`·`system_tags` | `setConceptFilter`·`setFilter` | ✅ |
-| **노트** | **질환** | `linkedDiseases[]` | — | ❌ 미구현(§6) |
+| 노트 | 질환 | `linkedDiseases[]` | 자동링크 + 수동칩 | ✅ (v2.37 · 5번째 링크) |
 | entity | 임의 개념 | `linkedConcepts[]` | — | ❌ 미구현(§6) |
 | 전 도메인 | 연결 그래프 | — | (시각화) | ❌ 미구현(§6) |
 
@@ -39,7 +39,7 @@
 
 | # | 불변조건 | 근거 | 깨지면 |
 |---|---|---|---|
-| L1 | **노트 충돌 판정 = 해시 페이로드와 같은 필드셋: `linkedTerms/Drugs/Microbes/Formulas` 4종 전부** | 불변조건 10 | 링크 4종 중 일부만 편집한 게 동기화 중 조용히 소실 |
+| L1 | **노트 링크(5종)는 `noteContentDiffers`(충돌 판정)에서 제외 + 동기화 병합에서 union(합집합) 보존.** 해시 payload에는 포함(스냅샷 비교용). | 실제 코드(26728·26720) — 스펙 불변조건 10에서 진화 | ⚠️ 정정: 옛 스펙은 "충돌판정에 4종 비교"였으나, 링크는 자동파생이라 충돌 트리거로 쓰면 **스퓨리어스 충돌 사본 양산**(실제 발생) → 제외하고 union으로 보존이 현재 진실. 병합 union이 어느 편집도 잃지 않음 |
 | L2 | **snapshot 해시 페이로드에 링크 4종 전부 포함**(편집 가능 필드 전부) | 불변조건 11 | 링크만 바꾼 변경이 다른 기기로 전파 안 됨 |
 | L3 | **이름 매칭은 정확히 1건일 때만 링크**(모호하면 링크 안 함) | 불변조건 20c | 엉뚱한 대상에 오연결 |
 | L4 | **자동링크 경계 판정 유지**(ASCII 부분단어 오매칭 금지, 한국어는 경계 없이) | §6.4 | "Urea"→"Ureaplasma" 같은 오매칭 |
@@ -76,7 +76,7 @@
 
 > "상호 연결이 핵심"이라는 기준에서 **강화 여지**. 전부 additive·SQL 변경 없음(노트 JSONB). 구조 고정 단계라 지금은 후보로만 기록.
 
-1. **노트 → 질환 영구 링크(`linkedDiseases`)** — 현재 질환은 자동탐지·통합검색엔 포함되나 **저장 칩 미구현**. 추가 시: 노트 객체 `linkedDiseases[]` + `normalizeIntegratedNote` 화이트리스트 + **L1(noteContentDiffers)·L2(해시 payload) 동시 등록** + 자동링크 + UI. (누락하면 링크 편집 소실 — 불변조건 10/11 그대로 적용)
+1. ~~노트 → 질환 영구 링크(`linkedDiseases`)~~ **✅ 완료(v2.37).** 노트 객체 `linkedDiseases[]` + `normalizeIntegratedNote` 화이트리스트 + 해시 payload(L2) + 동기화 union 병합 + 자동링크 + 편집폼/뷰/필터/검색/CSV. (링크는 L1대로 충돌판정 제외 + union 보존)
 2. **일반 `linkedConcepts[]`** — canonical 예시엔 있으나 미구현. 도메인 무관 개념 연결(SA node↔심방 등)용.
 3. **연결 시각화(마인드맵 그래프)** — 개념도의 Unified Search "연결 시각화" 미구현. 기존 링크 데이터를 읽어 **읽기 전용 그래프**로 렌더(신규 저장 없음). Review/Unified Search 확장 영역.
 

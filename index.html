@@ -18809,7 +18809,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.36',
+  version: '2.37',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18818,7 +18818,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.36 — 구조 인덱스 배너 + canonical 태그사전(연결 인식) · additive',
+    title: '최신 · v2.37 — 노트↔질환 연결(linkedDiseases): 상호 데이터 연결 강화',
+    items: [
+      '개념·오답 노트가 이제 질환과도 연결됩니다. 기존엔 노트가 용어·약물·미생물·공식 4종만 연결(칩) 저장했는데, 질환(linkedDiseases)을 5번째 연결로 추가했습니다. 노트 본문에 질환명을 쓰면 자동으로 감지·연결되고(이미 있던 자동링크 인프라 활용), 편집 화면 "관련 질환"칸에 직접 넣거나, 노트 상세의 질환 칩을 눌러 해당 질환으로 바로 이동할 수 있습니다. 노트 필터에도 "질환" 연결 필터가 추가됐습니다.',
+      '이 앱의 핵심인 데이터 간 상호 연결을 넓히는 변경입니다. 저장·검색·백업(CSV)·동기화까지 기존 4종 링크와 똑같이 처리되며, 동기화 시 양쪽 기기의 질환 링크를 합집합으로 보존해(union) 어느 편집도 사라지지 않습니다.',
+      '안전: 노트는 data(jsonb) 통째 저장이라 Supabase 스키마 변경이 없습니다. 기존 노트·데이터·백업 포맷은 그대로이고(신규 필드는 없으면 빈 배열), 링크는 기존 설계대로 "충돌 사본" 트리거로 쓰지 않고 병합에서 보존합니다. 노트 저장본 스냅샷 해시는 링크 5종 반영으로 다음 "최종상태 저장" 때 1회 재베이스라인됩니다(정상).',
+    ],
+  },
+  {
+    title: 'v2.36 — 구조 인덱스 배너 + canonical 태그사전(연결 인식) · additive',
     items: [
       '단일 HTML 상단에 "구조 인덱스"(15구획 맵) 주석을 추가했습니다 — 어떤 코드가 어디에 있는지(0.Metadata~15.App Init) 한눈에 보는 지도입니다. 코드는 하나도 옮기지 않았고(제자리 유지), 신규 코드만 KBG_MedicalNote namespace를 씁니다.',
       'KBG_MedicalNote.AppSchema에 canonical 태그사전을 추가했습니다: primaryCategory 허용값·표준 tags 어휘·개념필드↔기존컬럼 매핑(concept_category/category/system_tags)·연결 무결성 원칙·기준 예시(심방/폐렴/아목시실린). "하나의 개념=하나의 entity, 여러 메뉴 노출은 태그로"를 코드 상수로 명문화해, 앞으로 데이터 간 상호 연결이 파편화되지 않게 하는 기준입니다.',
@@ -24433,6 +24441,7 @@ initApp();
       linkedDrugs: noteListFromText(raw.linkedDrugs || raw.linked_drugs),
       linkedMicrobes: noteListFromText(raw.linkedMicrobes || raw.linked_microbes),
       linkedFormulas: noteListFromText(raw.linkedFormulas || raw.linked_formulas),
+      linkedDiseases: noteListFromText(raw.linkedDiseases || raw.linked_diseases),
       wrongStem: String(raw.wrongStem || raw.wrong_stem || '').trim(),
       myAnswer: String(raw.myAnswer || raw.my_answer || '').trim(),
       correctAnswer: String(raw.correctAnswer || raw.correct_answer || raw.correct || '').trim(),
@@ -24529,7 +24538,7 @@ initApp();
       n.wrongStem, n.myAnswer, n.correctAnswer, n.wrongReason, n.trap, n.nextCue,
       mcq.quickText, mcq.stemFull, ...mcq.options,
       n.usmleSource, n.kmleSource,
-      ...n.linkedTerms, ...n.linkedDrugs, ...n.linkedMicrobes, ...n.linkedFormulas, ...n.tags
+      ...n.linkedTerms, ...n.linkedDrugs, ...n.linkedMicrobes, ...n.linkedFormulas, ...(n.linkedDiseases || []), ...n.tags
     ].filter(Boolean).join(' ').toLowerCase();
   }
   function getNoteSourceSearchQuery() {
@@ -24585,8 +24594,8 @@ initApp();
   }
   // 노트 구성(개념/오답) · 연결 자료(용어/약물/미생물/공식) 필터 상태
   let _noteTypeFilter = 'all';   // 'all' | 'concept' | 'wrong'
-  let _noteLinkFilter = 'all';   // 'all' | 'terms' | 'drugs' | 'microbes' | 'formulas'
-  const NOTE_LINK_FIELD = { terms: 'linkedTerms', drugs: 'linkedDrugs', microbes: 'linkedMicrobes', formulas: 'linkedFormulas' };
+  let _noteLinkFilter = 'all';   // 'all' | 'terms' | 'drugs' | 'microbes' | 'formulas' | 'diseases'
+  const NOTE_LINK_FIELD = { terms: 'linkedTerms', drugs: 'linkedDrugs', microbes: 'linkedMicrobes', formulas: 'linkedFormulas', diseases: 'linkedDiseases' };
   function applyNoteChipFilters(rows) {
     return (Array.isArray(rows) ? rows : []).filter(n => {
       if (_noteTypeFilter === 'concept' && n.noteType === 'wrong') return false;
@@ -24615,7 +24624,7 @@ initApp();
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <span style="font-size:11px;color:var(--text3);font-weight:700;margin-right:2px">🔗 연결</span>
-          ${lBtn('all', '전체')}${lBtn('terms', `용어 ${linkCount('linkedTerms')}`)}${lBtn('drugs', `약물 ${linkCount('linkedDrugs')}`)}${lBtn('microbes', `미생물 ${linkCount('linkedMicrobes')}`)}${lBtn('formulas', `공식 ${linkCount('linkedFormulas')}`)}
+          ${lBtn('all', '전체')}${lBtn('terms', `용어 ${linkCount('linkedTerms')}`)}${lBtn('drugs', `약물 ${linkCount('linkedDrugs')}`)}${lBtn('microbes', `미생물 ${linkCount('linkedMicrobes')}`)}${lBtn('formulas', `공식 ${linkCount('linkedFormulas')}`)}${lBtn('diseases', `질환 ${linkCount('linkedDiseases')}`)}
         </div>
       </div>`;
   }
@@ -24840,6 +24849,7 @@ initApp();
           ${noteLinkGroup('약물', 'drugs', n.linkedDrugs)}
           ${noteLinkGroup('미생물', 'microbes', n.linkedMicrobes)}
           ${noteLinkGroup('공식', 'formulas', n.linkedFormulas)}
+          ${noteLinkGroup('질환', 'diseases', n.linkedDiseases)}
         </section>
       </div>`;
   }
@@ -25756,6 +25766,7 @@ initApp();
               ${modalField('noteLinkedDrugs', '관련 약물', noteCsv(n.linkedDrugs), 1, 'Dupilumab, Omalizumab')}
               ${modalField('noteLinkedMicrobes', '관련 미생물', noteCsv(n.linkedMicrobes), 1, 'Streptococcus pneumoniae')}
               ${modalField('noteLinkedFormulas', '관련 공식', noteCsv(n.linkedFormulas), 1, 'A-a gradient')}
+              ${modalField('noteLinkedDiseases', '관련 질환', noteCsv(n.linkedDiseases), 1, 'Pneumonia, Asthma')}
             </div>
           </div>
           <div class="note-modal-foot">
@@ -25852,6 +25863,7 @@ initApp();
       linkedDrugs: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedDrugs'), oldAutoLinks.drugs, autoLinks.drugs), autoLinks.drugs),
       linkedMicrobes: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedMicrobes'), oldAutoLinks.microbes, autoLinks.microbes), autoLinks.microbes),
       linkedFormulas: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedFormulas'), oldAutoLinks.formulas, autoLinks.formulas), autoLinks.formulas),
+      linkedDiseases: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedDiseases'), oldAutoLinks.diseases, autoLinks.diseases), autoLinks.diseases),
       originalMcq: readNoteOriginalMcqFromModal(),
       wrongStem: old?.wrongStem || '',
       myAnswer: old?.myAnswer || '',
@@ -26060,7 +26072,8 @@ initApp();
       (n.linkedTerms || []).length ||
       (n.linkedDrugs || []).length ||
       (n.linkedMicrobes || []).length ||
-      (n.linkedFormulas || []).length
+      (n.linkedFormulas || []).length ||
+      (n.linkedDiseases || []).length
     ).length;
     const bodyReady = rows.filter(n => n.bodyHtml || n.summary || n.keyPoint || n.wrongReason).length;
     const completion = rows.length ? Math.round((bodyReady / rows.length) * 100) : 0;
@@ -26149,6 +26162,7 @@ initApp();
         Linked_microbes: noteCsv(n.linkedMicrobes || []),
         Linked_drugs: noteCsv(n.linkedDrugs || []),
         Linked_formulas: noteCsv(n.linkedFormulas || []),
+        Linked_diseases: noteCsv(n.linkedDiseases || []),
         Favorite: n.favorite ? 'Y' : '',
         Image_urls: (Array.isArray(n.images) ? n.images : []).map(im => im?.url || '').filter(Boolean).join(' | '),
         Image_public_ids: noteImagePublicIds(n.images || []).join(' | '),
@@ -26622,6 +26636,8 @@ initApp();
         linkedDrugs: Array.isArray(n.linkedDrugs) ? n.linkedDrugs : [],
         linkedMicrobes: Array.isArray(n.linkedMicrobes) ? n.linkedMicrobes : [],
         linkedFormulas: Array.isArray(n.linkedFormulas) ? n.linkedFormulas : [],
+        // linkedDiseases(v2.37): 링크 4종과 동일하게 스냅샷 해시 payload에 포함(parity). 추가 시 노트 스냅샷 해시 1회 재베이스라인은 정상(불변조건 11).
+        linkedDiseases: Array.isArray(n.linkedDiseases) ? n.linkedDiseases : [],
         originalMcq: n.originalMcq || {},
         // favorite는 noteToRow가 data(jsonb)로 통째 동기화하는 사용자 편집 필드 → 해시에 포함해야
         // canonical 검증·기기비교가 즐겨찾기 변경을 "일치"로 오판하지 않는다(parent_id와 동일 원칙).
@@ -26721,6 +26737,7 @@ initApp();
         t.linkedDrugs = mergeNoteLists(...srcs.map(s => s.linkedDrugs || []));
         t.linkedMicrobes = mergeNoteLists(...srcs.map(s => s.linkedMicrobes || []));
         t.linkedFormulas = mergeNoteLists(...srcs.map(s => s.linkedFormulas || []));
+        t.linkedDiseases = mergeNoteLists(...srcs.map(s => s.linkedDiseases || []));
       }
       return t;
     });
@@ -26729,7 +26746,7 @@ initApp();
     const keys = ['title', 'system', 'noteType', 'summary', 'keyPoint', 'comparison', 'bodyHtml', 'wrongStem', 'myAnswer', 'correctAnswer', 'wrongReason', 'trap', 'nextCue', 'usmleSource', 'kmleSource'];
     if (keys.some(k => String(a[k] || '') !== String(b[k] || ''))) return true;
     if (JSON.stringify(a.tags || []) !== JSON.stringify(b.tags || [])) return true;
-    // 링크 4종(linkedTerms/Drugs/Microbes/Formulas)은 '사용자 작성 내용'이 아니라 본문에서
+    // 링크 5종(linkedTerms/Drugs/Microbes/Formulas/Diseases)은 '사용자 작성 내용'이 아니라 본문에서
     // 자동 파생되는(+선택적 수동) 배열이라, 용어 수정·앱 버전·멀티탭 때문에 텍스트가 같아도
     // 달라질 수 있다. 이를 충돌 트리거로 쓰면 불필요한 "충돌 사본"이 양산됐다(실제 발생).
     // → 충돌 판단에서는 제외하고, 대신 동기화 병합 때 양쪽 링크를 합집합으로 보존한다
