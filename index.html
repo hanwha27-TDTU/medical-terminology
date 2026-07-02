@@ -6481,9 +6481,10 @@ document.addEventListener('keydown', e => {
 .kbg-uni-more{font-size:11.5px;color:var(--text3);padding:4px 8px}
 @media (max-width:820px){
  .kbg-overlay.open{flex-direction:column}
- .kbg-sidebar{width:100%;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--border)}
+ /* 모바일 오버레이 내비: 가로 스크롤 띠 대신 줄바꿈 그리드 — 8개 방(+설정)이 한 화면에 다 보이게(가로 스크롤 제거) */
+ .kbg-sidebar{width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px;padding:10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:hidden}
  .kbg-brand{display:none}
- .kbg-navbtn{width:auto;white-space:nowrap;padding:8px 11px}
+ .kbg-navbtn{width:auto;white-space:nowrap;padding:9px 10px;justify-content:flex-start}
  .kbg-stat-grid{grid-template-columns:1fr 1fr}
  .kbg-panel-grid{grid-template-columns:1fr}
 }
@@ -18881,7 +18882,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.61',
+  version: '2.62',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18890,7 +18891,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.61 — 폴더블 펼침도 좌측 사이드바 프레임(셸 분기점 768→600px)',
+    title: '최신 · v2.62 — 모바일 플랫폼 오버레이 내비를 가로 스크롤 → 줄바꿈 그리드로',
+    items: [
+      '폰 세로에서 🏠 플랫폼 오버레이의 방 내비게이션이 가로로 스크롤해야 뒤쪽 방(데이터 관리·연구노트·설정)이 보이던 불편을 고쳤습니다. 이제 8개 방(+설정)이 줄바꿈 그리드로 한 화면에 모두 보입니다(가로 스크롤 제거).',
+    ],
+  },
+  {
+    title: 'v2.61 — 폴더블 펼침도 좌측 사이드바 프레임(셸 분기점 768→600px)',
     items: [
       '폴더블(폴드)을 펼쳤을 때도 태블릿·윈도우처럼 좌측 사이드바+상단바 프레임으로 열리게 했습니다. 셸이 적용되는 최소 화면폭을 768px에서 600px로 낮췄습니다(폴더블 펼침은 보통 670~900px라 이전엔 좁은 오버레이가 떴습니다).',
       '폰 세로(600px 미만)는 기존 화면 + 🏠 플랫폼 오버레이를 그대로 유지합니다. 폭이 넓은 가로 화면도 프레임을 받습니다. 가로 스크롤 방지(화면 밖 드로어 클립)도 새 분기점에 맞춰 적용했습니다.',
