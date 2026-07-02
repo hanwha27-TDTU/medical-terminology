@@ -300,24 +300,39 @@ const KBG_MedicalNote = {
 
 ## 7. Language-main 이식 후보 / 제외 후보
 
-### 7.1 가져올(흡수) 후보 → Clinical Language / CPX·OSCE 모듈
-일반 회화 · 의학 문장 · 단어장 · 회화 프레임 · IPA/발음 · 녹음/재생 · CPX 문진 문장 · CPX 증례 · OSCE 술기 · 환자 설명 문장 · 진료실 대화 시뮬레이션.
+> **범위 정정(사용자 지시):** 이번 목적은 Language Master **전체 시스템 병합이 아니다.** Language-main `index.html` 내부에 **실제 사용자 기능으로 구현된 학습 기능만** 식별해 이식 후보로 분류한다. 시스템 계층(아래 §7.2)은 **1차 분석 대상에서 완전히 제외**한다 — Medical Note의 시스템 코어를 기준으로 유지하고, Language-main은 **기능 참고 자료로만** 쓴다.
+>
+> ⚠️ **소스 접근 상태(2026-07-02):** Language-main `index.html` 원본이 이 세션에 없다(워크스페이스에 없고, 저장소 접근 범위는 `hanwha27-tdtu/medical-note` 단일). 따라서 아래 이식 후보는 **기능명 수준의 분류 틀**이며, 실제 함수/DOM id/데이터 구조 대조는 소스 확보 후 `docs/KBG_MedicalNote_Language이식후보_분석틀.md`의 빈칸을 채워 확정한다. 소스 없이 목록을 지어내지 않는다.
 
-### 7.2 가져오지 않거나 Medical Note로 흡수(통합)할 후보
-| Language-main 요소 | 조치 | 이유 |
+### 7.1 이식 후보 (사용자 기능만) → Clinical Language / CPX·OSCE 모듈
+| 기능 | 새 모듈 위치 | Medical Note 재사용 코어(예상) |
 |---|---|---|
-| 별도 Supabase 설정 | Medical Note `kma_supabase_config`로 단일화 | 이중 클라우드 금지 |
-| 별도 백업/복원 | Medical Note `applyPendingDataImport`로 편입 | 포맷 일원화 |
-| 별도 연구노트 | `research_notes_med` + `RN_PROJECT_NAME` 격리로 흡수 | 증거체계 단일화 |
-| 별도 TSA/RFC3161 | Medical Note Edge Function 릴레이로 통합 | 🔴 이중 해시체인 금지 |
-| 별도 테마 시스템 | `kma_medical_terms_v2_theme` 단일화 | |
-| 별도 AI 설정 | `kma_medical_terms_v2_ai_config` 단일화 | |
-| 별도 device_id | `kma_medical_terms_v2_device_id` 단일화 | 기기 동기화 일관성 |
+| 일반 회화 | Clinical Language | 노트/카드 렌더 패턴, `speakText`/`ttsSpeed`(TTS) |
+| 의학 문장 | Clinical Language | 자동링크(`detectNoteResourceLinksFromText`) |
+| 단어장 | Clinical Language | `medical_terms` 태그 뷰 or 신규 모듈 데이터 |
+| 회화 프레임 | Clinical Language | 카드/드로어 골격 |
+| IPA/발음 | Clinical Language | `speakText`/`.speak-btn`/`ttsSpeed` |
+| 녹음/재생 | Clinical Language | `MediaRecorder`(`start(200)`+`requestData()`), Cloudinary 업로드 |
+| CPX 문진 문장 | CPX/OSCE | 문장 카드 + TTS |
+| CPX 증례 | CPX/OSCE | 드로어 골격 |
+| OSCE 술기 | CPX/OSCE | 체크리스트형 카드 |
+| 환자 설명 문장 | CPX/OSCE | 문장 카드 + TTS |
+| (진료실 대화 시뮬레이션) | CPX/OSCE | 소스 확인 후 후보 여부 판단 |
+
+### 7.2 1차 분석 제외 대상 (Medical Note 코어 기준 유지 · Language-main 참고자료로만)
+아래는 **식별·이식·흡수 어느 것도 하지 않는다.** Medical Note에 이미 있는 시스템 코어를 그대로 쓴다.
+- Language-main의 별도 **Supabase 설정**
+- Language-main의 별도 **백업/복원 구조**
+- Language-main의 별도 **연구노트 구조**
+- Language-main의 별도 **TSA/RFC3161 구조**
+- Language-main의 별도 **`.claude/skills`**
+- Language-main의 **`AGENTS.md`**
+- Language-main의 별도 **테마 / AI 설정 / device_id 체계**
 
 ### 7.3 절대 원칙
 - Language-main `index.html`을 **그대로 복사 붙여넣기 금지**.
-- 기능은 모듈로 흡수, **시스템 코어는 Medical Note 기준 유지**.
-- 이번 1차엔 **실제 이식 금지** — 후보 분류·shell 설계까지만.
+- 이식 후보 기능은 Medical Note 모듈로 재구현하되 **시스템 코어(저장·동기화·해시·TSA·백업·테마·AI·device_id)는 Medical Note 것만** 사용.
+- 이번 1차엔 **실제 이식 금지** — 후보 식별·shell 설계까지만.
 
 ---
 
