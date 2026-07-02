@@ -6404,16 +6404,161 @@ document.addEventListener('keydown', e => {
   }
 
 </style>
+<style id="kbgPlatformStyles">
+/* ===== KBG_MedicalNote Platform Shell (additive · v2.34) — 신규 내비게이션 계층 전용 ===== */
+.kbg-overlay{position:fixed;inset:0;z-index:1800;display:none;background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif}
+.kbg-overlay.open{display:flex}
+.kbg-sidebar{width:250px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 10px;gap:2px;overflow-y:auto}
+.kbg-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
+.kbg-brand .kbg-logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px}
+.kbg-brand b{font-size:13.5px;color:var(--text)}
+.kbg-brand-text{display:flex;flex-direction:column;line-height:1.22;min-width:0}
+.kbg-brand-text b{font-size:13.5px;color:var(--text)}
+.kbg-brand-sub{font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.2px}
+.kbg-brand-logo-wrap{padding:6px 6px 12px !important;display:block}
+.kbg-brand-logo{width:100%;max-width:214px;display:block;border-radius:8px;background:#fff}
+.kbg-navbtn{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:0;border-radius:9px;padding:10px 12px;color:var(--text2);font-size:13.5px;cursor:pointer;font-family:inherit}
+.kbg-navbtn:hover{background:var(--surface2)}
+.kbg-navbtn.active{background:var(--accent);color:#fff}
+.kbg-navbtn .kbg-ic{width:18px;text-align:center;flex-shrink:0}
+.kbg-main{flex:1;min-width:0;overflow-y:auto;display:flex;flex-direction:column}
+.kbg-topbar{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:2}
+.kbg-topbar h2{font-size:16px;margin:0;flex:1;color:var(--text)}
+.kbg-close{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text2);cursor:pointer;font-size:13px;font-family:inherit}
+.kbg-close:hover{border-color:var(--accent);color:var(--text)}
+.kbg-body{padding:22px;flex:1}
+.kbg-greet{font-size:20px;font-weight:700;margin:0 0 4px;color:var(--text)}
+.kbg-sub{color:var(--text3);font-size:13px;margin:0 0 18px}
+.kbg-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kbg-stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:border-color .15s}
+.kbg-stat:hover{border-color:var(--accent)}
+.kbg-stat-label{font-size:12px;color:var(--text3);margin-bottom:9px}
+.kbg-stat-num{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.kbg-stat-unit{font-size:13px;color:var(--text3);font-weight:600;margin-left:3px}
+.kbg-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.kbg-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+.kbg-panel h3{font-size:13px;margin:0 0 12px;color:var(--text)}
+.kbg-list{display:flex;flex-direction:column;gap:10px}
+.kbg-li{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text2)}
+.kbg-li .kbg-when{margin-left:auto;font-size:11px;color:var(--text3);white-space:nowrap}
+.kbg-badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+.kbg-empty{color:var(--text3);font-size:12.5px;padding:8px 0}
+.kbg-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.kbg-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;cursor:pointer;transition:border-color .15s,transform .1s;text-align:left}
+.kbg-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.kbg-card .kbg-card-ic{font-size:22px;margin-bottom:8px}
+.kbg-card b{display:block;font-size:14px;color:var(--text);margin-bottom:4px}
+.kbg-card span{font-size:12px;color:var(--text3)}
+.kbg-ph{background:var(--surface);border:1px dashed var(--border);border-radius:14px;padding:28px 22px;text-align:center;color:var(--text3);margin-top:6px}
+.kbg-ph b{display:block;color:var(--text2);font-size:15px;margin-bottom:8px}
+.kbg-ph p{font-size:13px;margin:0 auto;max-width:460px;line-height:1.6}
+.kbg-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.kbg-soon-list{display:flex;flex-direction:column;gap:10px}
+.kbg-soon{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kbg-soon-ic{font-size:20px;width:26px;text-align:center;flex-shrink:0}
+.kbg-soon-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.kbg-soon-t b{font-size:14px;color:var(--text)}
+.kbg-soon-t span{font-size:12px;color:var(--text3)}
+.kbg-soon-badge{font-size:11px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 10px;flex-shrink:0}
+.kbg-chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;font-size:12px;color:var(--text3)}
+.kbg-note{font-size:12px;color:var(--text3);margin:16px 0 0;padding:10px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
+.kbg-uni-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 16px;color:var(--text);font-size:14px;font-family:inherit;margin:6px 0 12px;outline:none}
+.kbg-uni-input:focus{border-color:var(--accent)}
+.kbg-uni-scopes{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.kbg-uni-chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12.5px;color:var(--text2);cursor:pointer;font-family:inherit}
+.kbg-uni-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.kbg-uni-results{display:flex;flex-direction:column;gap:14px}
+.kbg-uni-group{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.kbg-uni-gh{font-size:13px;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.kbg-uni-gh b{color:var(--accent)}
+.kbg-uni-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit}
+.kbg-uni-item:hover{background:var(--surface2)}
+.kbg-uni-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.kbg-uni-t{font-weight:600;white-space:nowrap;flex-shrink:0}
+.kbg-uni-s{color:var(--text3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.kbg-uni-map{margin-left:auto;flex-shrink:0;padding:2px 7px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--text3)}
+.kbg-uni-map:hover{background:var(--surface2);color:var(--text)}
+.kbg-uni-more{font-size:11.5px;color:var(--text3);padding:4px 8px}
+@media (max-width:820px){
+ .kbg-overlay.open{flex-direction:column}
+ .kbg-sidebar{width:100%;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--border)}
+ .kbg-brand{display:none}
+ .kbg-navbtn{width:auto;white-space:nowrap;padding:8px 11px}
+ .kbg-stat-grid{grid-template-columns:1fr 1fr}
+ .kbg-panel-grid{grid-template-columns:1fr}
+}
+/* ===== KBG Shell — 데스크톱 상시 좌측 사이드바(개념도 전면 개편 Phase 1 · v2.39) ===== */
+/* 마크업 이동 없음: 기존 앱을 오른쪽으로 밀고(padding-left) 좌측에 고정 사이드바. 비-라이브러리 룸은 패널로 메인 영역만 덮음. 모바일(≤1100px)은 기존 레이아웃 유지(사이드바 숨김 · 🏠 버튼 오버레이). */
+.kbg-shell-sidebar{position:fixed;left:0;top:0;bottom:0;width:248px;z-index:150;background:var(--surface);border-right:1px solid var(--border);display:none;flex-direction:column;padding:14px 10px;gap:2px;overflow-y:auto}
+.kbg-shell-panel{position:fixed;left:248px;right:0;top:0;bottom:0;z-index:120;background:var(--bg);overflow-y:auto;display:none}
+.kbg-shell-panel.on{display:block}
+/* 상단바(개념도 Phase 2): 중앙 전체검색 + 설정·테마·개발자. 데스크톱 셸에서만. */
+.kbg-shell-topbar{position:fixed;top:0;left:248px;right:0;height:52px;z-index:160;background:var(--header-bg);border-bottom:1px solid var(--border);display:none;align-items:center;gap:10px;padding:0 18px;backdrop-filter:blur(12px)}
+.kbg-topsearch{flex:1;max-width:600px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.kbg-topsearch:focus{border-color:var(--accent)}
+.kbg-topicon{background:transparent;border:1px solid var(--border);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.kbg-topicon:hover{border-color:var(--accent);color:var(--text)}
+/* 셸 프레임(좌측 사이드바+상단바)은 태블릿·데스크톱(≥768px)에 적용. 폰 세로(<768px)는 기존 모바일+🏠 오버레이. */
+@media (min-width:768px){
+  html{overflow-x:hidden} /* 셸 padding으로 화면 밖 fixed 드로어가 문서 가로스크롤 유발 → 클립(헤더는 static이라 sticky 영향 없음) */
+  body.kbg-shell-on{padding-left:248px;padding-top:52px}
+  body.kbg-shell-on header{position:static}
+  body.kbg-shell-on .bottom-nav{left:248px}
+  body.kbg-shell-on .kbg-shell-sidebar{display:flex}
+  body.kbg-shell-on .kbg-shell-topbar{display:flex}
+  body.kbg-shell-on .kbg-shell-panel{top:52px}
+  body.kbg-shell-on .kbg-plat-btn{display:none}
+}
+@media (max-width:767px){
+  .kbg-shell-sidebar,.kbg-shell-panel,.kbg-shell-topbar{display:none !important}
+  body.kbg-shell-on{padding-left:0 !important;padding-top:0 !important}
+}
+</style>
 </head>
 <body>
+
+<!-- =====================================================================
+  KBG Medical Note — 단일 HTML 구조 인덱스 (구획 맵 · v2.36)
+  ※ 코드 이동 없음 — 기존 코드는 제자리. 아래는 "어디에 무엇이 있는가" 맵이다.
+  ※ 신규 코드만 KBG_MedicalNote namespace. 기존 함수 이동/rename 금지(CI 정확명 보호).
+  ---------------------------------------------------------------------
+   0. KBG Metadata      → const APP_INFO / UPDATE_HISTORY
+   1. CSS Design System → <head> <style> 블록 + #kbgPlatformStyles
+   2. HTML App Shell    → <header> ~ .bottom-nav + #kbgPlatformOverlay
+   3. HTML Templates    → 모달/드로어/폼 markup (도메인별 분산)
+   4. AppConfig         → 상수 + KBG_MedicalNote.AppConfig.rooms
+   5. AppSchema         → DISEASE_SECTIONS 등 + KBG_MedicalNote.AppSchema (canonical 태그사전)
+   6. AppStore          → const TERMS/DRUGS/FORMULAS/MICROBES/DISEASES + IDB 래퍼 + window.NOTEBOOK
+   7. AppServices       → sb*(동기화) · rn*(연구노트) · Cloudinary · 해시            [🔴 보호]
+   8. AppUI             → render*Frame · setFilter + KBG_MedicalNote.AppUI.room*
+   9. AppModules        → (빈) Clinical Language / CPX·OSCE                          [placeholder]
+  10. AppRouter         → switchTab · setLibraryMode + KBG_MedicalNote.AppRouter
+  11. AppMigration      → (신규) 단계 가드
+  12. AppEvidence       → rn* + rnAnalyzeNotebook / rnQualityCheck
+  13. AppResearchLog    → rnRenderList · _rnMd
+  14. Backup/Sync/Cloudinary Protection → 백업·복원·동기화·이미지·해시·TSA           [🔴 변경 금지]
+  15. App Init          → 부트스트랩 + KBG_MedicalNote.init()
+  상세: docs/KBG_MedicalNote_2차_구조고정.md · 연결 보존: docs/KBG_MedicalNote_상호데이터연결_지도와보존.md
+===================================================================== -->
+
+<!-- KBG Shell (데스크톱 상시 사이드바 · v2.39) — 모바일은 CSS로 숨김, 기존 🏠 오버레이 유지 -->
+<aside class="kbg-shell-sidebar" id="kbgShellSidebar"></aside>
+<div class="kbg-shell-topbar" id="kbgShellTopbar">
+  <input class="kbg-topsearch" id="kbgTopSearch" type="text" placeholder="🔍 전체 검색 — 용어·약물·미생물·공식·질환·노트 (한국어·영어·우즈베크어)" oninput="KBG_MedicalNote.Shell.topSearch(this.value)" autocomplete="off" aria-label="전체 검색">
+  <button class="kbg-topicon" onclick="showAISettings()" title="설정 (API·Supabase·Cloudinary)">⚙️</button>
+  <button class="kbg-topicon" onclick="toggleThemeMode()" title="라이트/다크 전환">🌓</button>
+  <button class="kbg-topicon" onclick="showDeveloperInfo()" title="개발자 정보·업데이트 내역">👤</button>
+</div>
+<div class="kbg-shell-panel" id="kbgShellPanel"></div>
 
 <header>
   <div class="header-top">
     <div class="logo-badge">🩺</div>
     <div class="header-titles">
-      <h1 onclick="goSearchHome()" style="cursor:pointer" title="홈으로 · 검색 초기화">Dr. Bugeon의 Medical Note</h1>
+      <h1 onclick="goSearchHome()" style="cursor:pointer" title="홈으로 · 검색 초기화">Dr. Bugeon의 Medical Learning Platform</h1>
       <p>Integrated Medical Study Note</p>
     </div>
+    <button class="theme-toggle-btn kbg-plat-btn" onclick="KBG_MedicalNote.open()" title="KBG Medical Note Platform 홈 열기">🏠 <span class="wide-label">플랫폼</span><span class="mobile-label" style="display:none">홈</span></button>
     <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleThemeMode()" title="라이트모드로 전환">☀️ <span class="wide-label">라이트모드</span><span class="mobile-label" style="display:none">라이트</span></button>
     <button class="kma-header-btn" onclick="openKmaTermSearch(event)" title="대한의사협회 의학용어 검색을 화면 크기에 맞는 새 창으로 열기">🔎 <span class="wide-label">대한의사협회 용어검색</span><span class="mobile-label" style="display:none">KMA 검색</span></button>
     <button class="settings-header-btn" onclick="showAISettings()" title="AI와 Supabase 설정">⚙️ 설정</button>
@@ -6559,6 +6704,18 @@ document.addEventListener('keydown', e => {
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ===== KBG_MedicalNote Platform Shell (additive · v2.34) ===== -->
+<div id="kbgPlatformOverlay" class="kbg-overlay" role="dialog" aria-modal="true" aria-label="KBG Medical Note Platform">
+  <aside class="kbg-sidebar" id="kbgSidebar"></aside>
+  <div class="kbg-main">
+    <div class="kbg-topbar">
+      <h2 id="kbgRoomTitle">Dashboard</h2>
+      <button class="kbg-close" onclick="KBG_MedicalNote.close()" aria-label="플랫폼 닫기">✕ 닫기</button>
+    </div>
+    <div class="kbg-body" id="kbgRoomBody"></div>
+  </div>
+</div>
 
 <script>
 // ─── Data ───
@@ -18717,16 +18874,145 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.33',
+  version: '2.51',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
-  updatedAt: '2026년 7월 1일',
+  updatedAt: '2026년 7월 2일',
 };
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.33 — 연구노트: 기여 주체 배지(👤사람/🤖AI) 추가 — 발명자 입증을 한눈에',
+    title: '최신 · v2.51 — 룸 이름 한글화 + 태블릿에도 좌측 사이드바 프레임 적용',
+    items: [
+      '플랫폼 방 이름을 한글로 바꿨습니다: 대시보드 · 의학 코어 · 임상 어학 · CPX / OSCE(약어 유지) · 복습 엔진 · 통합검색 · 데이터 관리 · 연구노트. 사이드바·룸 제목·대시보드 빠른 이동 카드에 반영(라우팅 키·기능 무변경).',
+      '좌측 사이드바+상단바 프레임을 데스크톱뿐 아니라 태블릿(가로/세로)에도 적용하도록 분기점을 1101px→768px로 낮췄습니다. 이제 태블릿도 윈도우와 유사한 프레임(좌측 바)으로 열립니다. 폰 세로(768px 미만)는 기존 화면 + 🏠 오버레이를 그대로 유지합니다.',
+    ],
+  },
+  {
+    title: 'v2.50 — 좁은 데스크톱(1101~1200px)에서 가로 스크롤 발생 수정',
+    items: [
+      '넓지 않은 데스크톱 창(약 1101~1200px)에서 화면이 좌우로 살짝 스크롤되던 문제를 고쳤습니다. 원인은 사이드바 여백(padding) 때문에 화면 밖에 대기하던 상세 드로어가 문서를 가로로 늘렸던 것으로, 데스크톱(사이드바가 켜지는 폭)에서 가로 넘침을 잘라내도록 했습니다. 상세 드로어 열기·닫기 동작은 그대로입니다.',
+      '검토 범위: 폰(390)·폰가로(600)·태블릿(768/1024)·경계(1101)·노트북(1120)·데스크톱(1280/1440) × 다크·라이트 전 조합에서 가로 스크롤 없음을 확인했습니다.',
+    ],
+  },
+  {
+    title: 'v2.49 — "Unified Search" 룸 이름을 "통합검색"으로 변경',
+    items: [
+      '사이드바·룸 제목·Dashboard 빠른 이동 카드의 "Unified Search" 표기를 "통합검색"으로 바꿨습니다(표시 라벨만 변경, 기능·라우팅 키(unifiedSearch)는 그대로).',
+    ],
+  },
+  {
+    title: 'v2.48 — 디자인 개편 4단계(일부): Clinical Language·CPX/OSCE 빈 방 구조화',
+    items: [
+      'Clinical Language와 CPX/OSCE 방을 단순 칩 나열에서 구조화된 목록(아이콘·이름·설명·"준비 중" 배지)으로 다듬었습니다. 어학 소스가 이식될 자리(일반회화·의학문장·단어장·회화프레임·IPA/발음·녹음/재생 · CPX문진·CPX증례·OSCE술기·환자설명·진료실대화)를 한눈에 볼 수 있는 셸입니다.',
+      '표시(레이아웃)만 변경했습니다. 시스템 코어(저장·동기화·연구노트·TSA·백업)는 그대로이며, 소스 확보 후 이 목록이 실제 기능으로 채워집니다.',
+    ],
+  },
+  {
+    title: 'v2.47 — 사이드바에 로고 이미지 임베드(Dr. Bugeon의 Medical Learning Platform)',
+    items: [
+      '좌측 사이드바(및 모바일 오버레이) 상단 브랜드를 이모지+텍스트에서 실제 로고 이미지로 교체했습니다(청진기+인체 엠블럼 + "Dr. Bugeon의 Medical Learning Platform" 일체형). 로고는 단일 HTML 원칙에 맞게 이미지 자체를 파일에 내장(base64)했으며, 오프라인에서도 표시됩니다. 크기 최적화(사이드바용 460px JPEG ≈ 15KB)로 파일 비대화를 최소화했습니다.',
+      '표시(브랜드)만 변경했습니다 — 내부 식별자(APP_INFO.name·RN_PROJECT_NAME)와 저장/동기화/해시/백업은 그대로입니다. 로고 원본은 저장소 assets/Dr_Bugeon_Logo.png에 보관됩니다.',
+    ],
+  },
+  {
+    title: 'v2.46 — Dashboard 인사말 "Dr. 부건님"으로 변경',
+    items: [
+      'Dashboard 인사말을 "안녕하세요, 김부건!"에서 "안녕하세요, Dr. 부건님!"으로 바꿨습니다(표시 전용). 발명자 한국어 이름에서 성을 제외한 이름에 "Dr. …님" 존칭을 붙여 표기합니다.',
+    ],
+  },
+  {
+    title: 'v2.45 — 브랜드 표기 변경: "Dr. Bugeon의 Medical Learning Platform"',
+    items: [
+      '화면에 보이는 제목을 "Dr. Bugeon의 Medical Learning Platform"으로 바꿨습니다. 좌측 사이드바 브랜드(기존 "KBG Medical Note")와 상단 헤더 제목을 새 명칭으로 표기합니다(2줄: "Dr. Bugeon의" + "Medical Learning Platform"). 로고 이미지는 파일 확보 후 사이드바 브랜드 자리에 임베드 예정입니다.',
+      '표시 명칭만 변경했습니다 — 내부 식별자(APP_INFO.name, 연구노트 격리 키 RN_PROJECT_NAME, 백업 앱 이름, Supabase 테이블·설정)는 그대로 유지했습니다. 이 값들을 바꾸면 과거 연구노트가 격리 필터에서 숨겨지거나 백업 호환이 깨지기 때문입니다(증거 무결성 보존).',
+    ],
+  },
+  {
+    title: 'v2.44 — 디자인 개편 3단계: Dashboard 기본 랜딩 + 카드 보강',
+    items: [
+      '데스크톱 플랫폼의 기본 화면이 Dashboard가 되었습니다(개념도의 홈). 인사말·오늘 날짜와 함께 오늘의 복습 예정·오답 노트·개념·오답 노트·의학 자료 수를 카드로 보여주고, Medical Core·Review Engine·Unified Search·Evidence로 바로 가는 빠른 이동 카드, 최근 추가 노트(클릭 시 열림)·연구노트 최근 로그를 배치했습니다. 하단에 라이브러리 현황(용어·약물·미생물·공식·질환 개수)도 표시합니다.',
+      '카드·수치는 모두 기존 데이터를 읽어 표시하는 읽기 전용이고, 저장/동기화/해시/백업/Supabase 변경이 없습니다. 룸 내부 이동을 데스크톱(상시 사이드바)·모바일(오버레이) 컨텍스트에 맞게 라우팅하도록 정리했습니다(기존에 데스크톱에서 카드 클릭이 반응하지 않던 부분도 수정). "학습 연속일·학습 목표·항목별 추천 복습"은 학습통계/어학 이식 후 확장 예정.',
+    ],
+  },
+  {
+    title: 'v2.43 — 디자인 개편 2단계: 데스크톱 상단바(전체 검색 + 설정·테마·개발자)',
+    items: [
+      '데스크톱(1101px 이상)에서 좌측 사이드바 오른쪽 상단에 상단바를 추가했습니다. 중앙에 "전체 검색"창이 있어 어느 화면에서든 입력하면 바로 Unified Search로 넘어가 용어·약물·미생물·공식·질환·노트를 한 번에 찾고, 오른쪽에 ⚙️설정·🌓테마전환·👤개발자 아이콘을 배치했습니다. 개념도의 상단바 구성을 반영한 것입니다.',
+      '표현(레이아웃)만 변경했습니다 — 기존 헤더/버튼/함수/데이터를 그대로 두고, 데스크톱 셸에서만 기존 헤더를 상단바 아래로 흐르게(비고정) 정리했습니다. 모바일·태블릿(1100px 이하)은 기존 화면과 헤더가 그대로이고 상단바는 표시되지 않습니다. 저장/동기화/해시/백업/Supabase 변경 없음.',
+    ],
+  },
+  {
+    title: 'v2.42 — Unified Search 결과에 연결 지도(마인드맵) 추가',
+    items: [
+      '통합 검색 결과의 각 항목 오른쪽에 🔗 버튼을 추가했습니다. 누르면 그 개념(용어·약물·미생물·공식·질환·노트)을 중심으로 연결된 자료가 방사형 마인드맵으로 열립니다. 연결은 ① 그 개념을 링크한 노트 ② 그 노트들이 함께 링크한 다른 도메인 개념(공동 링크) ③ 질환이면 유사질환·상위/하위질환으로 구성되고, 노드를 누르면 해당 상세로 바로 이동합니다.',
+      '완전 읽기 전용입니다 — 기존 링크·질환 데이터만 그림으로 보여주고 저장/동기화/해시/백업/Supabase 스키마를 바꾸지 않습니다. 마인드맵 렌더러를 노트 연결 지도와 공용화(중복 제거)했고, 데스크톱/모바일 모두에서 위에 뜨도록 정리했습니다.',
+    ],
+  },
+  {
+    title: 'v2.41 — Unified Search: 한 필드로 전체 + 도메인별 탭 크로스 검색(읽기 전용)',
+    items: [
+      'Unified Search 룸을 실제 통합 검색으로 만들었습니다. 검색창 하나에 입력하면 용어·약물·미생물·공식·질환·노트를 한 번에 찾아 도메인별로 묶어 개수와 함께 보여주고, 상단 탭(전체/용어/약물/미생물/공식/질환/노트)으로 특정 도메인만 좁혀 볼 수 있습니다. 결과를 누르면 기존 상세 드로어(용어·약물·미생물·공식·질환·노트)가 그대로 열립니다.',
+      '완전히 읽기 전용입니다 — 기존 데이터를 검색만 하고, 저장/동기화/해시/백업/Supabase 스키마를 전혀 바꾸지 않습니다. 한국어·영어·우즈베크어로 검색됩니다. ("언어 검색 / CPX·OSCE 검색 / 연결 시각화"는 어학 기능 이식 후 확장 예정.)',
+    ],
+  },
+  {
+    title: 'v2.40 — 사이드바 하단 "⚙️ Settings" 추가(API·Supabase·Cloudinary 키 관리 연결)',
+    items: [
+      '좌측 사이드바(및 모바일 🏠 오버레이) 하단에 "⚙️ Settings" 버튼을 추가했습니다. 누르면 기존 설정 화면이 열려 AI(API 키)·Supabase(URL/키)·Cloudinary(cloud name/preset/folder) 키를 한 곳에서 관리합니다.',
+      '새 설정 화면을 만들지 않고 기존 설정(showAISettings, 이미 3개 섹션 보유)으로 연결만 했습니다 — 중복 없음, 저장 구조·키 저장 위치(localStorage) 변경 없음. 헤더의 ⚙️ 설정 버튼도 그대로 동작합니다.',
+    ],
+  },
+  {
+    title: 'v2.39 — 디자인 전면 개편 1단계: 데스크톱 좌측 상시 사이드바(8룸 셸)',
+    items: [
+      '개념도대로 디자인 틀을 개편하는 첫 단계입니다. 넓은 화면(데스크톱, 1101px 이상)에서 좌측에 8룸 사이드바(Dashboard·Medical Core·Clinical Language·CPX/OSCE·Review Engine·Unified Search·Data Management·Evidence)가 상시 표시되고, 기존 앱은 오른쪽 메인 영역으로 배치됩니다. 사이드바에서 룸을 고르면 해당 화면이 메인 영역에 뜨고, "Medical Core"는 기존 라이브러리(용어·약물·미생물·공식·질환·노트)를 그대로 보여줍니다.',
+      '표현(레이아웃)만 바꿨습니다 — 기존 코드/함수/DOM id/데이터/localStorage/IndexedDB/Supabase/해시체인/TSA/백업은 전혀 건드리지 않았고, 마크업도 옮기지 않고 CSS로 감쌌습니다. 모바일·태블릿(1100px 이하)은 기존 화면 그대로 유지되고 헤더 🏠 플랫폼 버튼으로 같은 8룸에 접근합니다(데스크톱은 사이드바 상시라 버튼 숨김).',
+      '다음 단계 예정: 상단바(로고·검색·설정) 정리 → Dashboard를 기본 랜딩으로 + 카드 채우기 → 각 룸을 개념도 샘플에 맞춰 다듬기.',
+    ],
+  },
+  {
+    title: 'v2.38 — 연결 시각화(마인드맵): 노트의 상호 연결을 한눈에',
+    items: [
+      '개념·오답 노트 상세 화면에 "🔗 연결 지도 보기" 버튼을 추가했습니다. 누르면 그 노트를 중심으로 연결된 용어·약물·미생물·공식·질환이 방사형 마인드맵(SVG)으로 그려지고, 노드를 클릭하면 해당 자료로 바로 이동합니다. 이 앱의 핵심인 데이터 간 상호 연결을 시각적으로 확인하는 첫 단계입니다.',
+      '완전히 읽기 전용입니다 — 기존에 저장된 연결(linkedTerms/Drugs/Microbes/Formulas/Diseases) 데이터를 그림으로 보여줄 뿐, 새로 저장하거나 기존 데이터·동기화·해시·백업·Supabase 스키마를 전혀 바꾸지 않습니다. 다크/라이트 테마 색을 그대로 따릅니다.',
+    ],
+  },
+  {
+    title: 'v2.37 — 노트↔질환 연결(linkedDiseases): 상호 데이터 연결 강화',
+    items: [
+      '개념·오답 노트가 이제 질환과도 연결됩니다. 기존엔 노트가 용어·약물·미생물·공식 4종만 연결(칩) 저장했는데, 질환(linkedDiseases)을 5번째 연결로 추가했습니다. 노트 본문에 질환명을 쓰면 자동으로 감지·연결되고(이미 있던 자동링크 인프라 활용), 편집 화면 "관련 질환"칸에 직접 넣거나, 노트 상세의 질환 칩을 눌러 해당 질환으로 바로 이동할 수 있습니다. 노트 필터에도 "질환" 연결 필터가 추가됐습니다.',
+      '이 앱의 핵심인 데이터 간 상호 연결을 넓히는 변경입니다. 저장·검색·백업(CSV)·동기화까지 기존 4종 링크와 똑같이 처리되며, 동기화 시 양쪽 기기의 질환 링크를 합집합으로 보존해(union) 어느 편집도 사라지지 않습니다.',
+      '안전: 노트는 data(jsonb) 통째 저장이라 Supabase 스키마 변경이 없습니다. 기존 노트·데이터·백업 포맷은 그대로이고(신규 필드는 없으면 빈 배열), 링크는 기존 설계대로 "충돌 사본" 트리거로 쓰지 않고 병합에서 보존합니다. 노트 저장본 스냅샷 해시는 링크 5종 반영으로 다음 "최종상태 저장" 때 1회 재베이스라인됩니다(정상).',
+    ],
+  },
+  {
+    title: 'v2.36 — 구조 인덱스 배너 + canonical 태그사전(연결 인식) · additive',
+    items: [
+      '단일 HTML 상단에 "구조 인덱스"(15구획 맵) 주석을 추가했습니다 — 어떤 코드가 어디에 있는지(0.Metadata~15.App Init) 한눈에 보는 지도입니다. 코드는 하나도 옮기지 않았고(제자리 유지), 신규 코드만 KBG_MedicalNote namespace를 씁니다.',
+      'KBG_MedicalNote.AppSchema에 canonical 태그사전을 추가했습니다: primaryCategory 허용값·표준 tags 어휘·개념필드↔기존컬럼 매핑(concept_category/category/system_tags)·연결 무결성 원칙·기준 예시(심방/폐렴/아목시실린). "하나의 개념=하나의 entity, 여러 메뉴 노출은 태그로"를 코드 상수로 명문화해, 앞으로 데이터 간 상호 연결이 파편화되지 않게 하는 기준입니다.',
+      '전부 additive·읽기 전용입니다 — 기존 데이터 정규화(normalize*ForStorage)에 넣지 않아 기존 데이터는 그대로이고, localStorage/IndexedDB/Supabase 스키마·동기화·해시체인·TSA·백업/복원은 변경 없습니다.',
+    ],
+  },
+  {
+    title: 'v2.35 — 특허연구노트 v2.0 보강(additive): 구조·알고리즘·청구항·발명자점수 + 자동 품질검사',
+    items: [
+      '연구노트를 특허 출원에 더 적합하도록 보강했습니다. 기존 기록은 하나도 수정·삭제·덮어쓰지 않았고(append-only 유지), 입력 폼에 특허 명세서에 필요한 항목을 추가했습니다: ⚖️기술적 의사결정(검토·선택·이유·장단점), 🏗️시스템·데이터 구조(Architecture, Mermaid/텍스트 다이어그램), 🔢알고리즘·로직(Algorithm, 플로우차트), 🎯특허 포인트 우선순위, 📜청구항 후보 1~5개, ★발명자 기여 점수(차원별 사람/AI).',
+      '"🔬 특허 분석·품질검사" 버튼을 추가했습니다 — 기존 기록을 읽기 전용으로 분석해 PART별 특허 요소 커버리지와 10항 품질검사 평균, 보완이 필요한 기록을 리포트로 보여줍니다(MD 저장 가능). 기존 기록은 절대 건드리지 않고, 부족분은 새 기록/소급 분석으로 보완하도록 안내합니다.',
+      '무결성 안전: 해시 코어(_rnComputeHash·stableForHash·해시 제외 목록)는 전혀 바꾸지 않았습니다. 새 필드는 chain_annotation과 같은 "조건부 저장" 방식이라, 그 필드를 쓰지 않은 기록의 해시 페이로드는 이전과 바이트 단위로 동일합니다 → 과거 기록·서명·RFC3161 TSA 증거력에 영향 0. 소급 기록에는 규정 문구("본 기록은 기존 개발자료를 기반으로 작성한 기술적 분석 기록이며 당시 작성된 원본 연구노트가 아니다")가 자동 표시됩니다.',
+    ],
+  },
+  {
+    title: 'v2.34 — KBG Medical Note Platform 뼈대: 8개 방(구조트리) 내비게이션 계층 추가',
+    items: [
+      '헤더에 "🏠 플랫폼" 버튼을 추가했습니다. 누르면 좌측 사이드바에 8개 방(Dashboard · Medical Core · Clinical Language · CPX/OSCE · Review Engine · Unified Search · Data Management · Evidence/Research Note)이 있는 플랫폼 홈이 전체화면으로 열립니다. 향후 어학(회화·CPX·OSCE) 기능을 이식할 "방"을 먼저 만든 구조 뼈대입니다.',
+      '이 버전은 additive(덧대기)입니다 — 기존 화면·버튼·DOM id·함수·localStorage·IndexedDB·Supabase 동기화·해시체인·TSA는 한 줄도 바뀌지 않았습니다. 6개 방은 기존 기능으로 연결만 하고(Medical Core→자료 모드, Review Engine→퀴즈/플래시카드, Unified Search→검색, Data Management→데이터 관리, Evidence→연구노트), Dashboard는 기존 데이터로 복습·오답·노트·연구노트 로그 수치를 읽어 표시하며, Clinical Language·CPX/OSCE는 어학 소스 이식 전까지 빈 방(placeholder)입니다.',
+      '신규 코드는 전역 충돌을 막기 위해 모두 단일 namespace "KBG_MedicalNote"(AppConfig/AppRouter/AppUI 등) 아래에 두었고, 기존 함수는 이동·리네임 없이 "호출만" 합니다(golden/check-index 자동검사 보호).',
+    ],
+  },
+  {
+    title: 'v2.33 — 연구노트: 기여 주체 배지(👤사람/🤖AI) 추가 — 발명자 입증을 한눈에',
     items: [
       '연구노트 카드마다 누가 기여했는지 배지로 표시합니다 — 사람(발명자)의 착상·수정·최종결정이 기록된 기록엔 "👤 사람", AI 프롬프트·출력·모델명이 기록된 기록엔 "🤖 AI(모델명)"가 붙습니다(둘 다면 둘 다, 아무것도 없으면 "기여 미기재"). 이 연구노트의 존재 이유인 "발명자=사람, AI=도구" 입증을 심사자가 카드만 봐도 알 수 있게 합니다.',
       '중요: 기존 기록은 하나도 수정하지 않았습니다. 배지는 각 기록에 이미 해시로 봉인돼 있는 필드(human_idea·final_decision·ai_* 등)에서 화면에 그릴 때 파생할 뿐이라, 해시·서명·타임스탬프·체인 증거력에 어떤 영향도 없습니다.',
@@ -20900,6 +21186,10 @@ async function _rnVerifySig(entry) {
     return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, _rnB64ToBytes(entry.entry_hash_signature), new TextEncoder().encode(entry.entry_hash));
   } catch (e) { return false; }
 }
+// 객체에 비지 않은 값(문자열/배열)이 하나라도 있는가 — v2.0 보강 필드의 조건부 저장 판정용.
+function _rnObjHasContent(o) { return !!o && typeof o === 'object' && Object.values(o).some(v => Array.isArray(v) ? v.length > 0 : String(v == null ? '' : v).trim() !== ''); }
+// PART 14 소급 분석(Retrospective Reconstruction) 필수 면책 문구 — 지시서 규정 그대로. 소급 기록에 표시한다.
+const RN_RETRO_DISCLAIMER = '본 기록은 기존 개발자료를 기반으로 작성한 기술적 분석 기록이며 당시 작성된 원본 연구노트가 아니다.';
 function _rnBlank(data) {
   data = data || {};
   return {
@@ -20922,6 +21212,14 @@ function _rnBlank(data) {
     prior_art: Array.isArray(data.prior_art) ? data.prior_art : [],
     // 체인 무결성 주석(공유테이블 오염으로 생긴 끊김 경위) — 있을 때만 실어 일반 기록의 해시 페이로드는 그대로 둔다.
     ...(data.chain_annotation ? { chain_annotation: data.chain_annotation } : {}),
+    // ── 특허연구노트 v2.0 보강(additive) — 값이 있을 때만 실어, 안 쓴 기록의 해시 페이로드는 이전과 바이트 동일 ──
+    // (chain_annotation과 동일 패턴. 새 필드는 내용 필드라 해시에 포함되나, 비면 키 자체가 없어 과거 포맷 불변.)
+    ...(_rnObjHasContent(data.technical_decision) ? { technical_decision: Object.assign({ reviewed: '', chosen: '', rejected: '', reason: '', pros: '', cons: '' }, data.technical_decision) } : {}),   // PART 2
+    ...(_rnObjHasContent(data.architecture) ? { architecture: Object.assign({ system: '', data_structure: '', api: '', component: '', ui: '', db: '', diagram: '' }, data.architecture) } : {}),           // PART 3
+    ...(_rnObjHasContent(data.algorithm) ? { algorithm: Object.assign({ processing_order: '', data_flow: '', core_logic: '', complexity: '', flowchart: '' }, data.algorithm) } : {}),                     // PART 4
+    ...(Array.isArray(data.patent_points) && data.patent_points.length ? { patent_points: data.patent_points } : {}),      // PART 10 (우선순위 있는 특허 포인트 배열)
+    ...(Array.isArray(data.claim_candidates) && data.claim_candidates.length ? { claim_candidates: data.claim_candidates } : {}),  // PART 11 (청구항 후보 1~5)
+    ...(_rnObjHasContent(data.inventor_score) ? { inventor_score: data.inventor_score } : {}),   // PART 13 (차원별 사람/AI 점수)
   };
 }
 async function rnAddEntry(eventType, data, opts) {
@@ -21291,7 +21589,8 @@ function _rnMd(entry, notes) {
     `Evidence Chain ID: ${entry.evidence_chain_id || '(없음)'}`, `Entry ID: ${entry.id}`, `Created At: ${entry.created_at} (${entry.timezone})`, `Project: ${entry.project_name}`,
     `Version: ${entry.app_version}`, `Feature: ${entry.feature_name}`, `Event Type: ${entry.event_type}${entry.corrects_id ? ` (corrects ${entry.corrects_id} · ${entry.correction_type || ''})` : ''}`,
     `Inventor (human): ${entry.inventor_name || '(미설정)'}${entry.inventor_birthdate ? ' · ' + entry.inventor_birthdate : ''}${entry.inventor_affiliation ? ' · ' + entry.inventor_affiliation : ''}`,
-    `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`, '',
+    `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`,
+    ...(entry.retrospective ? [`> ⚠️ 소급 분석(Retrospective): ${RN_RETRO_DISCLAIMER}`] : []), '',
     `## 1. Problem`, entry.problem_statement || '', '', `## 2. Prior Limitation`, entry.prior_limitation || '', '',
     `## 3. Human Idea (발명자 착상)`, entry.human_idea || '', '', `## 4. AI Assistance (도구 보조)`, `- Prompt(요약): ${entry.ai_prompt_summary || ''}`, `- Output(요약): ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, `- Conversation ID: ${ai.conversation_id || ''}`,
     ...(entry.ai_prompt_full ? [`- Prompt 전문 (sha256:${ai.prompt_hash_sha256 || ''}):`, '```', entry.ai_prompt_full, '```'] : []),
@@ -21304,6 +21603,12 @@ function _rnMd(entry, notes) {
     `## 13. Prior Art (선행기술 조사)`, priorArt, '',
     `## 14. Git Evidence`, `- Repo: ${cm.repo_url || ''}`, `- Branch: ${cm.branch_name || ''}`, `- Commit: ${cm.git_commit_hash || ''}`, `- PR #${cm.pr_number || ''} · Issue #${cm.issue_number || ''}`, `- Diff: ${cm.diff_summary || ''}`, '',
     `## 15. Witness (증인·입회)`, `- 이름: ${w.name || '(없음)'}`, `- 이메일: ${w.email || ''}`, `- 서명: ${w.signature || ''}`, `- 서명일: ${w.signed_at || ''}`, `- (참고: 자체 기록이라 제3자 확인은 아님 — 입회 사실의 구조화 기록)`, '',
+    ...(entry.technical_decision ? [`## Technical Decision (기술적 의사결정)`, `- 검토: ${entry.technical_decision.reviewed || ''}`, `- 선택: ${entry.technical_decision.chosen || ''}`, `- 미선택: ${entry.technical_decision.rejected || ''}`, `- 이유: ${entry.technical_decision.reason || ''}`, `- 장점: ${entry.technical_decision.pros || ''}`, `- 단점: ${entry.technical_decision.cons || ''}`, ''] : []),
+    ...(entry.architecture ? [`## Architecture (시스템·데이터 구조)`, `- 시스템: ${entry.architecture.system || ''}`, `- 데이터: ${entry.architecture.data_structure || ''}`, `- DB: ${entry.architecture.db || ''}`, `- API: ${entry.architecture.api || ''}`, `- 컴포넌트: ${entry.architecture.component || ''}`, `- UI: ${entry.architecture.ui || ''}`, ...(entry.architecture.diagram ? ['- 다이어그램:', '```', entry.architecture.diagram, '```'] : []), ''] : []),
+    ...(entry.algorithm ? [`## Algorithm (알고리즘·로직)`, `- 처리순서: ${entry.algorithm.processing_order || ''}`, `- 데이터흐름: ${entry.algorithm.data_flow || ''}`, `- 핵심로직: ${entry.algorithm.core_logic || ''}`, `- 복잡도: ${entry.algorithm.complexity || ''}`, ...(entry.algorithm.flowchart ? ['- 플로우차트:', '```', entry.algorithm.flowchart, '```'] : []), ''] : []),
+    ...(entry.patent_points && entry.patent_points.length ? [`## Patent Points (우선순위)`, ...entry.patent_points.map(pp => `- [${pp.priority || '-'}] ${pp.point || ''}${pp.basis ? ' — 근거: ' + pp.basis : ''}`), ''] : []),
+    ...(entry.claim_candidates && entry.claim_candidates.length ? [`## Claim Candidates (청구항 후보)`, ...entry.claim_candidates.map((c, i) => `${i + 1}. ${c}`), ''] : []),
+    ...(entry.inventor_score && Object.keys(entry.inventor_score).length ? [`## Inventor Score (발명자 기여 점수 · 사람/AI)`, ...Object.entries(entry.inventor_score).map(([k, v]) => `- ${k}: 사람 ${(v && v.human) || '-'} / AI ${(v && v.ai) || '-'}`), ''] : []),
     `## 16. Attachments`, files, '', `## 17. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
     `- signature: ${entry.signature_status}${entry.signature_algo ? ' (' + entry.signature_algo + ')' : ''}${entry.signed_by ? (' by ' + entry.signed_by) : ''}`,
     `- created_at: ${entry.created_at} (기기 시각 · 조작 가능)`, `- server_time: ${entry.server_time || '(미동기화)'} (Supabase 서버 시각 · 제3자 타임스탬프)`,
@@ -21332,7 +21637,13 @@ const RN_FORM_FIELDS = [
   { group: '효과·검증', fields: [['technical_effect', '기술적 효과', 'ta'], ['test_method', '테스트 방법', 'input'], ['test_result', '테스트 결과', 'ta'], ['failure_reason', '실패 원인 (있으면)', 'input'], ['next_action', '다음 행동', 'input']] },
   { group: '발명 기여 단계 📶 (착상→실시→검증→테스트→청구항)', fields: [['stage_conception', '① 착상 (Conception)', 'input'], ['stage_rtp', '② 실시 (Reduction to Practice)', 'input'], ['stage_verification', '③ 검증 (Verification)', 'input'], ['stage_testing', '④ 테스트 (Testing)', 'input'], ['stage_claim', '⑤ 청구항 작성 (Claim Drafting)', 'input']] },
   { group: '발명 일자 📅', fields: [['date_idea', '아이디어 착안일', 'input'], ['date_prototype', '프로토타입일', 'input'], ['date_rtp', '실시(RTP)일', 'input'], ['date_public', '공개일 (있으면)', 'input'], ['date_filing', '출원(예정)일', 'input']] },
+  { group: '기술적 의사결정 ⚖️ (검토→선택→이유)', fields: [['td_reviewed', '검토한 기술(들)', 'ta'], ['td_chosen', '선택한 기술', 'input'], ['td_rejected', '선택하지 않은 기술', 'ta'], ['td_reason', '선택/미선택 이유', 'ta'], ['td_pros', '장점', 'ta'], ['td_cons', '단점', 'ta']] },
+  { group: '시스템·데이터 구조 🏗️ (Architecture)', fields: [['arch_system', '시스템 구조', 'ta'], ['arch_data', '데이터 구조', 'ta'], ['arch_db', 'DB 구조', 'ta'], ['arch_api', 'API 구조', 'ta'], ['arch_component', '컴포넌트 구조', 'ta'], ['arch_ui', 'UI 구조', 'ta'], ['arch_diagram', '다이어그램(Mermaid/텍스트 · ERD·Flowchart)', 'ta']] },
+  { group: '알고리즘·로직 🔢 (Algorithm)', fields: [['algo_order', '처리 순서', 'ta'], ['algo_flow', '데이터 흐름', 'ta'], ['algo_logic', '핵심 로직(추천·검색·연결 등)', 'ta'], ['algo_complexity', '복잡도/성능', 'input'], ['algo_flowchart', '플로우차트(Mermaid/텍스트)', 'ta']] },
   { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta'], ['patent_claim_links', '연결 청구항 (예: Claim 1, 2)', 'input']] },
+  { group: '특허 포인트 우선순위 🎯 (한 줄에 하나 · "우선순위 | 포인트 | 근거")', fields: [['patent_points_note', '예: 1 | 도메인 무관 canonical 해시 체인 | 기존 방식은 기기시각 의존', 'ta']] },
+  { group: '청구항 후보 📜 (1~5개 · 한 줄에 하나)', fields: [['claim_candidates_note', '예: ...하는 방법 / ...하는 시스템 / ...를 포함하는 장치', 'ta']] },
+  { group: '발명자 점수 ★ (한 줄에 하나 · "차원 | 사람(0-5) | AI(0-5)")', fields: [['inventor_score_note', '예: 착상 | 5 | 0\\n구조설계 | 5 | 1\\n구현 | 2 | 5', 'ta']] },
   { group: '선행기술 조사 🔍', fields: [['prior_art_note', '선행기술 (한 줄에 하나 · "특허번호 | 출처 | 조사일 | 키워드 | 차별점")', 'ta']] },
   { group: '증인(입회) 🖊️', fields: [['witness_name', '증인 이름', 'input'], ['witness_email', '증인 이메일', 'input'], ['witness_signature', '증인 서명(문구)', 'input'], ['witness_signed_at', '증인 서명일', 'input']] },
   { group: '코드·git 증거', fields: [['code_git', 'git commit hash', 'input'], ['code_branch', '브랜치', 'input'], ['code_repo', '저장소 URL', 'input'], ['code_pr', 'PR 번호', 'input'], ['code_issue', 'Issue 번호', 'input'], ['code_diff', 'diff 요약', 'input']] },
@@ -21375,6 +21686,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 새 기록</button>
           <button class="ui-btn sm safe" onclick="rnRunVerify()">🔒 해시 검증</button>
           <button class="ui-btn sm" onclick="rnAnnotateChainBreaks()" title="체인 링크 불연속(공유테이블 오염 흔적) 구간을, 기존 기록 수정 없이 새 정정 기록으로 경위 설명·각인">🧷 끊김 경위 주석</button>
+          <button class="ui-btn sm" onclick="rnAnalyzeNotebook()" title="기존 기록을 읽기 전용으로 분석 — 특허 요소(구조·알고리즘·청구항·발명자 점수 등) 커버리지와 10항 품질검사 리포트. 기존 기록은 수정하지 않습니다.">🔬 특허 분석·품질검사</button>
           <button class="ui-btn sm" onclick="rnExport('json')">JSON</button>
           <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
@@ -21567,8 +21879,20 @@ async function rnSubmitForm(opts) {
     const p = l.split('|').map(x => x.trim());
     return { patent_number: p[0] || '', source: p[1] || '', search_date: p[2] || '', keywords: p[3] || '', differentiation: p[4] || '' };
   }) : [];
+  // v2.0 보강 파싱 — 특허 포인트(우선순위)·청구항 후보(1~5)·발명자 점수(차원별 사람/AI)
+  const ppNote = _rnV('patent_points_note');
+  const patentPoints = ppNote ? ppNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(x => x.trim()); return { priority: p[0] || '', point: p[1] || '', basis: p[2] || '' }; }) : [];
+  const ccNote = _rnV('claim_candidates_note');
+  const claimCandidates = ccNote ? ccNote.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5) : [];
+  const scNote = _rnV('inventor_score_note');
+  const inventorScore = {};
+  if (scNote) scNote.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => { const p = l.split('|').map(x => x.trim()); if (p[0]) inventorScore[p[0]] = { human: p[1] || '', ai: p[2] || '' }; });
   const data = {
     feature_name: _rnV('feature_name'), problem_statement: _rnV('problem_statement'), prior_limitation: _rnV('prior_limitation'),
+    technical_decision: { reviewed: _rnV('td_reviewed'), chosen: _rnV('td_chosen'), rejected: _rnV('td_rejected'), reason: _rnV('td_reason'), pros: _rnV('td_pros'), cons: _rnV('td_cons') },
+    architecture: { system: _rnV('arch_system'), data_structure: _rnV('arch_data'), db: _rnV('arch_db'), api: _rnV('arch_api'), component: _rnV('arch_component'), ui: _rnV('arch_ui'), diagram: _rnV('arch_diagram') },
+    algorithm: { processing_order: _rnV('algo_order'), data_flow: _rnV('algo_flow'), core_logic: _rnV('algo_logic'), complexity: _rnV('algo_complexity'), flowchart: _rnV('algo_flowchart') },
+    patent_points: patentPoints, claim_candidates: claimCandidates, inventor_score: inventorScore,
     human_idea: _rnV('human_idea'), human_modification: _rnV('human_modification'), final_decision: _rnV('final_decision'),
     ai_prompt_summary: _rnV('ai_prompt_summary'), ai_output_summary: _rnV('ai_output_summary'),
     ai_prompt_full: _rnV('ai_prompt_full'), ai_output_full: _rnV('ai_output_full'),
@@ -24279,6 +24603,7 @@ initApp();
       linkedDrugs: noteListFromText(raw.linkedDrugs || raw.linked_drugs),
       linkedMicrobes: noteListFromText(raw.linkedMicrobes || raw.linked_microbes),
       linkedFormulas: noteListFromText(raw.linkedFormulas || raw.linked_formulas),
+      linkedDiseases: noteListFromText(raw.linkedDiseases || raw.linked_diseases),
       wrongStem: String(raw.wrongStem || raw.wrong_stem || '').trim(),
       myAnswer: String(raw.myAnswer || raw.my_answer || '').trim(),
       correctAnswer: String(raw.correctAnswer || raw.correct_answer || raw.correct || '').trim(),
@@ -24375,7 +24700,7 @@ initApp();
       n.wrongStem, n.myAnswer, n.correctAnswer, n.wrongReason, n.trap, n.nextCue,
       mcq.quickText, mcq.stemFull, ...mcq.options,
       n.usmleSource, n.kmleSource,
-      ...n.linkedTerms, ...n.linkedDrugs, ...n.linkedMicrobes, ...n.linkedFormulas, ...n.tags
+      ...n.linkedTerms, ...n.linkedDrugs, ...n.linkedMicrobes, ...n.linkedFormulas, ...(n.linkedDiseases || []), ...n.tags
     ].filter(Boolean).join(' ').toLowerCase();
   }
   function getNoteSourceSearchQuery() {
@@ -24431,8 +24756,8 @@ initApp();
   }
   // 노트 구성(개념/오답) · 연결 자료(용어/약물/미생물/공식) 필터 상태
   let _noteTypeFilter = 'all';   // 'all' | 'concept' | 'wrong'
-  let _noteLinkFilter = 'all';   // 'all' | 'terms' | 'drugs' | 'microbes' | 'formulas'
-  const NOTE_LINK_FIELD = { terms: 'linkedTerms', drugs: 'linkedDrugs', microbes: 'linkedMicrobes', formulas: 'linkedFormulas' };
+  let _noteLinkFilter = 'all';   // 'all' | 'terms' | 'drugs' | 'microbes' | 'formulas' | 'diseases'
+  const NOTE_LINK_FIELD = { terms: 'linkedTerms', drugs: 'linkedDrugs', microbes: 'linkedMicrobes', formulas: 'linkedFormulas', diseases: 'linkedDiseases' };
   function applyNoteChipFilters(rows) {
     return (Array.isArray(rows) ? rows : []).filter(n => {
       if (_noteTypeFilter === 'concept' && n.noteType === 'wrong') return false;
@@ -24461,7 +24786,7 @@ initApp();
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <span style="font-size:11px;color:var(--text3);font-weight:700;margin-right:2px">🔗 연결</span>
-          ${lBtn('all', '전체')}${lBtn('terms', `용어 ${linkCount('linkedTerms')}`)}${lBtn('drugs', `약물 ${linkCount('linkedDrugs')}`)}${lBtn('microbes', `미생물 ${linkCount('linkedMicrobes')}`)}${lBtn('formulas', `공식 ${linkCount('linkedFormulas')}`)}
+          ${lBtn('all', '전체')}${lBtn('terms', `용어 ${linkCount('linkedTerms')}`)}${lBtn('drugs', `약물 ${linkCount('linkedDrugs')}`)}${lBtn('microbes', `미생물 ${linkCount('linkedMicrobes')}`)}${lBtn('formulas', `공식 ${linkCount('linkedFormulas')}`)}${lBtn('diseases', `질환 ${linkCount('linkedDiseases')}`)}
         </div>
       </div>`;
   }
@@ -24686,7 +25011,10 @@ initApp();
           ${noteLinkGroup('약물', 'drugs', n.linkedDrugs)}
           ${noteLinkGroup('미생물', 'microbes', n.linkedMicrobes)}
           ${noteLinkGroup('공식', 'formulas', n.linkedFormulas)}
+          ${noteLinkGroup('질환', 'diseases', n.linkedDiseases)}
         </section>
+        ${((n.linkedTerms || []).length || (n.linkedDrugs || []).length || (n.linkedMicrobes || []).length || (n.linkedFormulas || []).length || (n.linkedDiseases || []).length)
+          ? `<button type="button" class="data-action-btn outline" style="margin-top:10px" onclick="showNoteConnectionMap(${Number(n.id)})">🔗 연결 지도 보기</button>` : ''}
       </div>`;
   }
   window.openIntegratedNoteView = function openIntegratedNoteView(id) {
@@ -25602,6 +25930,7 @@ initApp();
               ${modalField('noteLinkedDrugs', '관련 약물', noteCsv(n.linkedDrugs), 1, 'Dupilumab, Omalizumab')}
               ${modalField('noteLinkedMicrobes', '관련 미생물', noteCsv(n.linkedMicrobes), 1, 'Streptococcus pneumoniae')}
               ${modalField('noteLinkedFormulas', '관련 공식', noteCsv(n.linkedFormulas), 1, 'A-a gradient')}
+              ${modalField('noteLinkedDiseases', '관련 질환', noteCsv(n.linkedDiseases), 1, 'Pneumonia, Asthma')}
             </div>
           </div>
           <div class="note-modal-foot">
@@ -25698,6 +26027,7 @@ initApp();
       linkedDrugs: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedDrugs'), oldAutoLinks.drugs, autoLinks.drugs), autoLinks.drugs),
       linkedMicrobes: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedMicrobes'), oldAutoLinks.microbes, autoLinks.microbes), autoLinks.microbes),
       linkedFormulas: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedFormulas'), oldAutoLinks.formulas, autoLinks.formulas), autoLinks.formulas),
+      linkedDiseases: mergeNoteLists(pruneStaleAutoNoteLinks(value('noteLinkedDiseases'), oldAutoLinks.diseases, autoLinks.diseases), autoLinks.diseases),
       originalMcq: readNoteOriginalMcqFromModal(),
       wrongStem: old?.wrongStem || '',
       myAnswer: old?.myAnswer || '',
@@ -25906,7 +26236,8 @@ initApp();
       (n.linkedTerms || []).length ||
       (n.linkedDrugs || []).length ||
       (n.linkedMicrobes || []).length ||
-      (n.linkedFormulas || []).length
+      (n.linkedFormulas || []).length ||
+      (n.linkedDiseases || []).length
     ).length;
     const bodyReady = rows.filter(n => n.bodyHtml || n.summary || n.keyPoint || n.wrongReason).length;
     const completion = rows.length ? Math.round((bodyReady / rows.length) * 100) : 0;
@@ -25995,6 +26326,7 @@ initApp();
         Linked_microbes: noteCsv(n.linkedMicrobes || []),
         Linked_drugs: noteCsv(n.linkedDrugs || []),
         Linked_formulas: noteCsv(n.linkedFormulas || []),
+        Linked_diseases: noteCsv(n.linkedDiseases || []),
         Favorite: n.favorite ? 'Y' : '',
         Image_urls: (Array.isArray(n.images) ? n.images : []).map(im => im?.url || '').filter(Boolean).join(' | '),
         Image_public_ids: noteImagePublicIds(n.images || []).join(' | '),
@@ -26468,6 +26800,8 @@ initApp();
         linkedDrugs: Array.isArray(n.linkedDrugs) ? n.linkedDrugs : [],
         linkedMicrobes: Array.isArray(n.linkedMicrobes) ? n.linkedMicrobes : [],
         linkedFormulas: Array.isArray(n.linkedFormulas) ? n.linkedFormulas : [],
+        // linkedDiseases(v2.37): 링크 4종과 동일하게 스냅샷 해시 payload에 포함(parity). 추가 시 노트 스냅샷 해시 1회 재베이스라인은 정상(불변조건 11).
+        linkedDiseases: Array.isArray(n.linkedDiseases) ? n.linkedDiseases : [],
         originalMcq: n.originalMcq || {},
         // favorite는 noteToRow가 data(jsonb)로 통째 동기화하는 사용자 편집 필드 → 해시에 포함해야
         // canonical 검증·기기비교가 즐겨찾기 변경을 "일치"로 오판하지 않는다(parent_id와 동일 원칙).
@@ -26567,6 +26901,7 @@ initApp();
         t.linkedDrugs = mergeNoteLists(...srcs.map(s => s.linkedDrugs || []));
         t.linkedMicrobes = mergeNoteLists(...srcs.map(s => s.linkedMicrobes || []));
         t.linkedFormulas = mergeNoteLists(...srcs.map(s => s.linkedFormulas || []));
+        t.linkedDiseases = mergeNoteLists(...srcs.map(s => s.linkedDiseases || []));
       }
       return t;
     });
@@ -26575,7 +26910,7 @@ initApp();
     const keys = ['title', 'system', 'noteType', 'summary', 'keyPoint', 'comparison', 'bodyHtml', 'wrongStem', 'myAnswer', 'correctAnswer', 'wrongReason', 'trap', 'nextCue', 'usmleSource', 'kmleSource'];
     if (keys.some(k => String(a[k] || '') !== String(b[k] || ''))) return true;
     if (JSON.stringify(a.tags || []) !== JSON.stringify(b.tags || [])) return true;
-    // 링크 4종(linkedTerms/Drugs/Microbes/Formulas)은 '사용자 작성 내용'이 아니라 본문에서
+    // 링크 5종(linkedTerms/Drugs/Microbes/Formulas/Diseases)은 '사용자 작성 내용'이 아니라 본문에서
     // 자동 파생되는(+선택적 수동) 배열이라, 용어 수정·앱 버전·멀티탭 때문에 텍스트가 같아도
     // 달라질 수 있다. 이를 충돌 트리거로 쓰면 불필요한 "충돌 사본"이 양산됐다(실제 발생).
     // → 충돌 판단에서는 제외하고, 대신 동기화 병합 때 양쪽 링크를 합집합으로 보존한다
@@ -27099,6 +27434,600 @@ D) Date`;
     try { initAssystTxtConverterWindow(window); } catch (e) { console.warn('TXT converter init failed', e); if (typeof showToast === 'function') showToast('⚠️ TXT 변환도구 초기화 실패'); }
   };
 })();
+</script>
+
+<script>
+/* ===================================================================
+   연구노트 v2.0 — 읽기 전용 특허 분석 · 자동 품질검사 (additive)
+   기존 기록을 수정/삭제/덮어쓰기하지 않는다. 부족분은 리포트로만 제시하고,
+   보완은 사용자가 새 Upgrade/Retrospective 기록으로 추가한다(append-only).
+   =================================================================== */
+// 엔트리 1건의 10항 품질검사 → {score, max, items:[{label, ok}]}
+function rnQualityCheck(entry) {
+  const has = v => !!(v && String(v).trim());
+  const objHas = o => (typeof _rnObjHasContent === 'function') ? _rnObjHasContent(o) : false;
+  const p = entry.patent_metadata || {}, cm = entry.code_metadata || {}, cs = entry.contribution_stages || {};
+  const items = [
+    { label: '창작 과정(문제·착상) 기록', ok: has(entry.problem_statement) || has(entry.human_idea) },
+    { label: '기술적 의사결정 기록', ok: has(entry.final_decision) || objHas(entry.technical_decision) },
+    { label: '시스템·데이터 구조(Architecture)', ok: !!entry.architecture },
+    { label: '알고리즘·로직(Algorithm)', ok: !!entry.algorithm },
+    { label: '발명자(사람) 기여 명시', ok: has(entry.inventor_name) && (has(entry.human_idea) || has(entry.final_decision) || objHas(cs) || objHas(entry.inventor_score)) },
+    { label: 'AI를 발명자로 기록하지 않음', ok: String(entry.authorship || '').includes('human_conceived') },
+    { label: '특허 포인트 작성', ok: has(p.novelty_point) || has(p.inventive_step_point) || (Array.isArray(entry.patent_points) && entry.patent_points.length > 0) },
+    { label: '청구항 후보 작성', ok: has(p.possible_claim) || (Array.isArray(entry.claim_candidates) && entry.claim_candidates.length > 0) },
+    { label: '증거자료 연결(파일·git·해시)', ok: (Array.isArray(entry.files) && entry.files.length > 0) || has(cm.git_commit_hash) || has(entry.entry_hash) },
+    { label: '무결성(해시 체인) 유지', ok: has(entry.entry_hash) },
+  ];
+  return { score: items.filter(i => i.ok).length, max: items.length, items };
+}
+// 노트북 전체 읽기 전용 분석 → 리포트 모달(기존 기록 무수정). 특허 요소 커버리지 + 10항 품질 + 부족분 권고.
+function rnAnalyzeNotebook() {
+  const all = _rnLoad();
+  const notes = all.filter(e => e && e.event_type !== 'export'); // export 마커는 내용 분석 대상 제외
+  const n = notes.length;
+  const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+  // 특허 요소별 커버리지(엔트리 단위 존재 비율)
+  const cov = [
+    ['PART 1 착상/문제', e => (e.problem_statement || e.human_idea)],
+    ['PART 2 기술적 의사결정', e => (e.final_decision || _rnObjHasContent(e.technical_decision))],
+    ['PART 3 Architecture', e => !!e.architecture],
+    ['PART 4 Algorithm', e => !!e.algorithm],
+    ['PART 5 구현(git 증거)', e => (e.code_metadata || {}).git_commit_hash],
+    ['PART 6 검증(테스트)', e => (e.test_method || e.test_result)],
+    ['PART 7 AI 협업', e => (e.ai_output_summary || e.ai_prompt_summary || (e.ai_metadata || {}).model_name)],
+    ['PART 8 발명자 기여', e => (e.contribution_stages && _rnObjHasContent(e.contribution_stages)) || e.human_idea],
+    ['PART 9 기술적 차별성', e => (e.technical_effect || (e.patent_metadata || {}).novelty_point || (e.prior_art || []).length)],
+    ['PART 10 특허 포인트', e => ((e.patent_metadata || {}).novelty_point || (e.patent_points || []).length)],
+    ['PART 11 청구항 후보', e => ((e.patent_metadata || {}).possible_claim || (e.claim_candidates || []).length)],
+    ['PART 12 증거 연결', e => ((e.files || []).length || (e.code_metadata || {}).git_commit_hash || e.entry_hash)],
+    ['PART 13 발명자 점수', e => (e.inventor_score && Object.keys(e.inventor_score).length)],
+    ['PART 14 소급 표시', e => (!e.retrospective || true)], // 소급 기록은 자동으로 필수문구 표시(_rnMd)
+  ].map(([label, fn]) => ({ label, count: notes.filter(e => { try { return !!fn(e); } catch (_) { return false; } }).length }));
+  // 10항 품질 평균 + 취약 기록
+  const perQ = notes.map(e => ({ e, q: rnQualityCheck(e) }));
+  const avg = n ? (perQ.reduce((s, x) => s + x.q.score, 0) / n) : 0;
+  const weak = perQ.filter(x => x.q.score < 7).sort((a, b) => a.q.score - b.q.score).slice(0, 8);
+  const gaps = cov.filter(c => c.count === 0).map(c => c.label);
+  const covHtml = cov.map(c => { const pct = n ? Math.round(c.count / n * 100) : 0; const col = c.count === 0 ? 'var(--red,#e5484d)' : (pct >= 50 ? 'var(--accent)' : 'var(--text2)'); return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--text2)">${esc(c.label)}</span><span style="color:${col};font-weight:700">${c.count}/${n} (${pct}%)</span></div>`; }).join('');
+  const weakHtml = weak.length ? weak.map(x => `<div style="font-size:11.5px;color:var(--text2);padding:4px 0;border-top:1px solid var(--border)"><b>${esc((x.e.feature_name || x.e.event_type || x.e.id || '').toString().slice(0, 48))}</b> — ${x.q.score}/${x.q.max} · 부족: ${esc(x.q.items.filter(i => !i.ok).map(i => i.label).join(', ') || '없음')}</div>`).join('') : '<div class="kbg-empty" style="color:var(--text3);font-size:12px">취약(7점 미만) 기록 없음 — 양호</div>';
+  const gapHtml = gaps.length ? `<div style="background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.4);border-radius:8px;padding:10px 12px;font-size:12px;color:#b45309;margin-top:6px"><b>⚠️ 노트북 전체에서 0건인 특허 요소</b><br>${gaps.map(esc).join(' · ')}<br><span style="font-size:11px">→ 기존 기록 수정 없이, <b>새 기록(➕)</b> 또는 <b>소급 분석(Retrospective)</b>으로 보완하세요.</span></div>` : '<div style="background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);border-radius:8px;padding:10px 12px;font-size:12px;color:#2ea043;margin-top:6px">✅ 14개 특허 요소가 모두 최소 1건 이상 기록되어 있습니다.</div>';
+  const md = rnBuildAnalysisMd(notes, cov, avg, weak, gaps);
+  document.getElementById('rnAnalysisModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rnAnalysisModal'; overlay.className = 'developer-modal-overlay'; overlay.style.zIndex = '1003';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div><div style="font-size:16px;font-weight:900;color:var(--text)">🔬 특허 분석 · 자동 품질검사</div><div style="font-size:11px;color:var(--text3);margin-top:2px">읽기 전용 · 기존 기록을 수정하지 않습니다 · 분석 대상 ${n}건</div></div>
+        <button onclick="document.getElementById('rnAnalysisModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:14px 18px 20px">
+        <div style="font-size:13px;color:var(--text);font-weight:700;margin-bottom:6px">10항 품질검사 평균: <span style="color:var(--accent)">${avg.toFixed(1)} / 10</span></div>
+        ${gapHtml}
+        <div style="font-size:12px;font-weight:800;color:var(--accent);margin:14px 0 4px">특허 요소 커버리지 (PART별)</div>
+        ${covHtml}
+        <div style="font-size:12px;font-weight:800;color:var(--accent);margin:14px 0 4px">보완 우선 기록 (품질 7점 미만)</div>
+        ${weakHtml}
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 부족분 보완 기록 추가</button>
+          <button class="ui-btn sm" onclick='rnDownload("research_analysis.md", ${JSON.stringify(md)}, "text/markdown")'>📄 분석 리포트 저장(MD)</button>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:10px">품질검사 항목: 기존 기록은 append-only로 <b>유지</b>되며(수정·삭제 없음), 프로젝트 격리(<code>${esc(RN_PROJECT_NAME)}</code>)로 중복·오염을 막고, 해시 체인으로 무결성을 유지합니다.</div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+function rnBuildAnalysisMd(notes, cov, avg, weak, gaps) {
+  const n = notes.length;
+  const lines = ['# 연구노트 특허 분석 리포트 (읽기 전용)', '',
+    `- 프로젝트: ${RN_PROJECT_NAME}`, `- 분석 대상: ${n}건 (export 마커 제외)`, `- 10항 품질 평균: ${avg.toFixed(1)} / 10`,
+    '- 주의: 본 리포트는 기존 기록을 수정하지 않는다. 부족분은 새 Upgrade/Retrospective 기록으로 보완한다.', '',
+    '## 특허 요소 커버리지 (PART별)'];
+  cov.forEach(c => lines.push(`- ${c.label}: ${c.count}/${n} (${n ? Math.round(c.count / n * 100) : 0}%)`));
+  lines.push('', '## 노트북 전체에서 0건인 요소');
+  lines.push(gaps.length ? gaps.map(g => `- ${g}`).join('\n') : '- (없음)');
+  lines.push('', '## 보완 우선 기록 (품질 7점 미만)');
+  lines.push(weak.length ? weak.map(x => `- ${(x.e.feature_name || x.e.event_type || x.e.id)}: ${x.q.score}/${x.q.max} · 부족: ${x.q.items.filter(i => !i.ok).map(i => i.label).join(', ')}`).join('\n') : '- (없음 — 양호)');
+  lines.push('', `> ${RN_RETRO_DISCLAIMER}`);
+  return lines.join('\n');
+}
+</script>
+
+<script>
+/* ===================================================================
+   KBG_MedicalNote — Platform Shell (v2.34, additive)
+   목적: "Dr. Bugeon Medical Note Platform" 확장을 위한 8개 방(구조트리)
+         내비게이션 계층. 기존 앱 로직/DOM/저장/동기화/해시/TSA 무변경.
+   원칙: 신규 코드 전용 단일 namespace. 기존 함수는 "호출만"(이동/rename 금지).
+   =================================================================== */
+const KBG_MedicalNote = {
+  AppConfig: {
+    rooms: [
+      { key: 'dashboard',        icon: '📊', label: '대시보드' },
+      { key: 'medicalCore',      icon: '🧬', label: '의학 코어' },
+      { key: 'clinicalLanguage', icon: '🗣️', label: '임상 어학' },
+      { key: 'cpxOsce',          icon: '🩺', label: 'CPX / OSCE' },
+      { key: 'reviewEngine',     icon: '🔁', label: '복습 엔진' },
+      { key: 'unifiedSearch',    icon: '🔍', label: '통합검색' },
+      { key: 'dataManagement',   icon: '💾', label: '데이터 관리' },
+      { key: 'evidence',         icon: '📜', label: '연구노트' },
+    ],
+  },
+  AppSchema: {},
+  AppStore: { current: 'dashboard' },
+  AppServices: {},
+  AppUI: {},
+  AppModules: {},
+  AppRouter: {},
+  AppMigration: {},
+  AppEvidence: {},
+  AppResearchLog: {},
+
+  // ── 기존 코어를 "읽기만" 하는 안전 헬퍼(실패해도 앱 무해) ──
+  _safe(fn, fb) { try { const v = fn(); return (v == null ? fb : v); } catch (e) { return fb; } },
+  _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+  _activeNotes() { return this._safe(() => (window.NOTEBOOK || []).filter(n => n && !n.deletedAt && !n.hiddenAt), []); },
+  _dueCount() {
+    return this._safe(() => {
+      const map = (typeof getLearningStateMap === 'function') ? (getLearningStateMap() || {}) : {};
+      const now = Date.now(); let c = 0;
+      for (const k in map) { const d = map[k] && map[k].due_at; if (d && new Date(d).getTime() <= now) c++; }
+      return c;
+    }, 0);
+  },
+  _researchRecent(n) {
+    return this._safe(() => {
+      let list = (typeof _rnLoad === 'function') ? (_rnLoad() || []) : [];
+      if (typeof _rnIsOwnProject === 'function') list = list.filter(e => { try { return _rnIsOwnProject(e); } catch (_) { return true; } });
+      list = list.filter(e => e && !e.deleted_at);
+      list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      return list.slice(0, n || 3);
+    }, []);
+  },
+
+  open(room) {
+    const ov = document.getElementById('kbgPlatformOverlay'); if (!ov) return;
+    ov.classList.add('open');
+    this.AppRouter.go(room || this.AppStore.current || 'dashboard');
+  },
+  close() { const ov = document.getElementById('kbgPlatformOverlay'); if (ov) ov.classList.remove('open'); },
+
+  init() {
+    try { this.AppUI.renderSidebar(); } catch (e) { console.warn('[KBG] sidebar', e); }
+    try { this.Shell.init(); } catch (e) { console.warn('[KBG] shell', e); }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { const ov = document.getElementById('kbgPlatformOverlay'); if (ov && ov.classList.contains('open')) this.close(); }
+    });
+    console.info('[KBG_MedicalNote] init v' + ((typeof APP_INFO !== 'undefined' && APP_INFO.version) || ''));
+  },
+};
+
+// ── AppSchema: canonical entity 태그사전 (연결 인식 · 신규 상수 · 읽기 전용) ──
+// 원칙: 하나의 개념 = 하나의 canonical entity(중복 저장 금지). 여러 메뉴 노출·연결은 아래 축으로만.
+// ⚠️ 기존 데이터 정규화(normalize*ForStorage)에 넣지 않는다(v1.50 교훈: 넣으면 기존 데이터 일괄 변경).
+KBG_MedicalNote.AppSchema = {
+  // primaryCategory: 가장 본질적 분류 — 기존 medical_terms.concept_category에 대응
+  PRIMARY_CATEGORY: ['anatomy_physiology', 'disease', 'drug', 'microbe', 'formula', 'lab_test', 'general_medical_term', 'other'],
+  // tags: 다중 노출·검색·연결용 권장 어휘 — 기존 system_tags에 대응(자유 확장 가능)
+  STANDARD_TAGS: {
+    system: ['cardiovascular', 'respiratory', 'renal', 'gi_hepatobiliary', 'endocrine', 'neurology', 'heme_onc', 'infectious', 'msk', 'dermatology', 'ophthalmology', 'ent', 'reproductive', 'psychiatry', 'pediatrics', 'immunology'],
+    role: ['general_medical_term', 'anatomy', 'physiology', 'symptom_sign', 'diagnostics', 'procedure', 'pharmacology', 'pathology', 'microbiology', 'biochem_genetics', 'public_health'],
+    exam: ['usmle', 'kmle'],
+    clinical: ['cpx_common_case', 'osce_skill', 'patient_explanation'],
+  },
+  // 개념 필드 → 기존 컬럼 매핑(신규 필드 병렬 생성 금지 — 단일 entity 유지)
+  FIELD_MAP: { primaryCategory: 'concept_category', subCategory: 'category', tags: 'system_tags', linkedConcepts: '(note linked* / system_tags 관례)' },
+  // 연결 무결성 원칙(문서 L1~L7 요약): 링크는 대상 entity 1건(id/이름)만 가리킨다. 중복 저장 시 파편화.
+  CONNECTIVITY: { singleEntity: true, exposeVia: ['primaryCategory', 'subCategory', 'tags', 'linkedConcepts'], ambiguousMatch: 'no_link', idCompare: 'string_normalized' },
+  // 기준 예시(3종)
+  EXAMPLES: [
+    { id: 'anat_heart_atrium', ko: '심방', en: 'atrium', primaryCategory: 'anatomy_physiology', subCategory: 'anatomy_structure', tags: ['general_medical_term', 'anatomy', 'cardiovascular', 'heart', 'chamber'], linkedConcepts: ['SA node', 'AV node', 'atrial fibrillation', 'P wave'] },
+    { id: 'dz_pneumonia', ko: '폐렴', en: 'pneumonia', primaryCategory: 'disease', tags: ['respiratory', 'infection', 'cpx_common_case'] },
+    { id: 'drug_amoxicillin', ko: '아목시실린', en: 'amoxicillin', primaryCategory: 'drug', tags: ['antibiotic', 'beta_lactam'] },
+  ],
+  // 읽기 전용 헬퍼: entity에서 노출 축(primaryCategory/subCategory/tags) 추출 — 정규화·저장 안 함
+  exposureOf(entity) {
+    if (!entity || typeof entity !== 'object') return { primaryCategory: '', subCategory: '', tags: [] };
+    const tags = Array.isArray(entity.system_tags) ? entity.system_tags : (Array.isArray(entity.tags) ? entity.tags : []);
+    return { primaryCategory: entity.concept_category || entity.primaryCategory || '', subCategory: entity.category || entity.subCategory || '', tags };
+  },
+};
+
+// ── 사이드바 브랜드(공용) — 표시 전용. 내부 APP_INFO.name/RN_PROJECT_NAME은 불변(연구노트 격리·백업 식별). ──
+// 로고 이미지 교체 지점: <span class="kbg-logo">🩺</span>를 <img src="..."> 로 바꾸면 됨(파일 확보 후 base64 임베드).
+const KBG_MEDNOTE_LOGO = 'data:image/jpeg;base64,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P2v/AB/Nc9u3smaemgljs+pL3QeI8uEU5ZPC35bAGk/e7KwKb2YtS0VP7rS9TJoacf2bKAtb+HirZMOe79mW5cadf/Vm3xUUcte2mYIYw6SV3wAYHJceOOPNVDUvWvpvo6At/S8V1mAa5tNasS5Dj33Ahg9SC7OPLkKn2/2SIZKuWe+62uFayUfG2lpxC9x+bnOfn8Ff9J9AOn2kTHLDZWXGrjGPebkfHcSDkO2n4A4EDlrQU/LnN2347xNOWvqepntEhtNR0o0no15DnSuDv27eARngzc7iAA1nHJyAV2XTXSPR+ltPx2SjtEMkTHeI6eYbp3y7dvib+C12CcFuMZ4wrl27Ioy6lvieIrHDXm+arNF030vQ1Daj9HyVcjHCSM3CrmqxG8HIc0TPcGuHqMFWbCKFFtvK9JXyWNLw8tBc0EB2OQD3/IL6RYCIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAtdfNP2zUlF7ldaRlTDuDwCS1zXDsWuBBafmCtii2WzzCzfLRWzRVltVwZcYoaiarja5kc1XUyTuiae4bvcdvpkc4J9VvURLbeWSScIypRFjRERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQERQglERAREQEREBERAREQEREBERAREQEREBERARFCApREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAUKUQEREBERAREQEREBERAREQEREBERAUKUQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERARQpQEREBERAREQEREBEUIJREQEREBERAREQEREBERAREQEREBERAREQEREBERARCiAihSEBFHmpQEREBERAREQERCgIoUhARCiAiIgIhRARFCCUREBETyQEREBERARE8kBERARQpQEREBEQoCInmgIiICIiAiIgIiICIiAiIEH/2Q==';
+KBG_MedicalNote.AppUI.brandHtml = function () {
+  return '<div class="kbg-brand kbg-brand-logo-wrap"><img class="kbg-brand-logo" src="' + KBG_MEDNOTE_LOGO + '" alt="Dr. Bugeon의 Medical Learning Platform" title="Dr. Bugeon의 Medical Learning Platform"></div>';
+};
+// ── 사이드바 푸터(공용): Settings → 기존 설정 화면(API·Supabase·Cloudinary 키 관리) 연결 ──
+KBG_MedicalNote.AppUI.sidebarFooterHtml = function () {
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
+    + '<button class="kbg-navbtn" onclick="showAISettings()" title="API · Supabase · Cloudinary 키 관리"><span class="kbg-ic">⚙️</span>설정</button>'
+    + '</div>';
+};
+
+// ── 사이드바 ──
+KBG_MedicalNote.AppUI.renderSidebar = function () {
+  const el = document.getElementById('kbgSidebar'); if (!el) return;
+  el.innerHTML =
+    KBG_MedicalNote.AppUI.brandHtml() +
+    KBG_MedicalNote.AppConfig.rooms.map(r =>
+      `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.AppRouter.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
+    ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
+};
+
+// ── 라우터: 방 전환(모두 오버레이 안에서 렌더) ──
+KBG_MedicalNote.AppRouter.go = function (key) {
+  const rooms = KBG_MedicalNote.AppConfig.rooms;
+  const room = rooms.find(r => r.key === key) || rooms[0];
+  KBG_MedicalNote.AppStore.current = room.key;
+  document.querySelectorAll('#kbgSidebar .kbg-navbtn').forEach(b => b.classList.toggle('active', b.getAttribute('data-room') === room.key));
+  const title = document.getElementById('kbgRoomTitle'); if (title) title.textContent = room.label;
+  const body = document.getElementById('kbgRoomBody'); if (!body) return;
+  const R = KBG_MedicalNote.AppUI;
+  const map = {
+    dashboard: R.roomDashboard, medicalCore: R.roomMedicalCore, clinicalLanguage: R.roomClinicalLanguage,
+    cpxOsce: R.roomCpxOsce, reviewEngine: R.roomReviewEngine, unifiedSearch: R.roomUnifiedSearch,
+    dataManagement: R.roomDataManagement, evidence: R.roomEvidence,
+  };
+  body.innerHTML = map[room.key] ? map[room.key].call(R) : '';
+};
+
+// 연결 카드: 오버레이 닫고 기존 함수 실행(기존 로직 재사용, 이동/변경 없음)
+KBG_MedicalNote.AppUI._dispatch = function (fnName, arg) {
+  KBG_MedicalNote.close();
+  try { const fn = window[fnName]; if (typeof fn === 'function') { arg === undefined ? fn() : fn(arg); } }
+  catch (e) { console.warn('[KBG] dispatch', fnName, e); }
+};
+
+// ── Dashboard(기존 데이터로 실제 수치 표시) ──
+KBG_MedicalNote.AppUI.roomDashboard = function () {
+  const esc = KBG_MedicalNote._esc, safe = KBG_MedicalNote._safe;
+  const notes = KBG_MedicalNote._activeNotes();
+  const wrong = notes.filter(n => n.noteType === 'wrong').length;
+  const recent = notes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 6);
+  const due = KBG_MedicalNote._dueCount();
+  const rlog = KBG_MedicalNote._researchRecent(4);
+  // 인사말 표기: "Dr. {이름}님". 발명자 한국어 이름에서 성을 제외한 이름을 쓰되, 기본은 'Dr. 부건님'.
+  let inv = 'Dr. 부건님';
+  try { const ko = ((typeof RN_DEFAULT_INVENTOR !== 'undefined' && RN_DEFAULT_INVENTOR.name) || '').split('(')[0].trim(); if (ko && /[가-힣]/.test(ko)) inv = 'Dr. ' + (ko.length >= 3 ? ko.slice(1) : ko) + '님'; } catch (e) {}
+  const dc = safe(() => ({
+    terms: (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt).length,
+    drugs: getActiveDrugs().length, microbes: getActiveMicrobes().length, formulas: getActiveFormulas().length, diseases: getActiveDiseases().length,
+  }), { terms: 0, drugs: 0, microbes: 0, formulas: 0, diseases: 0 });
+  const medTotal = dc.terms + dc.drugs + dc.microbes + dc.formulas + dc.diseases;
+  let dateStr = '';
+  try { const d = new Date(); dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]})`; } catch (e) {}
+  const stat = (label, num, unit, room) => `<div class="kbg-stat" onclick="KBG_MedicalNote.navTo('${room}')"><div class="kbg-stat-label">${esc(label)}</div><div><span class="kbg-stat-num">${num}</span><span class="kbg-stat-unit">${esc(unit)}</span></div></div>`;
+  const qcard = (ic, title, sub, room) => `<button class="kbg-card" onclick="KBG_MedicalNote.navTo('${room}')"><div class="kbg-card-ic">${ic}</div><b>${esc(title)}</b><span>${esc(sub)}</span></button>`;
+  const recentHtml = recent.length
+    ? recent.map(n => `<div class="kbg-li" style="cursor:pointer" onclick='openIntegratedNoteView(${JSON.stringify(n.id)})'>📝 ${esc((n.title || '제목 없음')).slice(0, 40)}<span class="kbg-badge">${n.noteType === 'wrong' ? '오답' : '개념'}</span></div>`).join('')
+    : '<div class="kbg-empty">아직 노트가 없습니다.</div>';
+  const rlogHtml = rlog.length
+    ? rlog.map(e => `<div class="kbg-li" style="cursor:pointer" onclick="rnOpenNotebook()">🔬 ${esc((e.feature_name || e.event_type || '기록'))}<span class="kbg-when">${esc(String(e.created_at || '').slice(0, 10))}</span></div>`).join('')
+    : '<div class="kbg-empty">최근 연구노트 로그가 없습니다.</div>';
+  return `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="kbg-greet">👋 안녕하세요, ${esc(inv)}!</div>
+      <div style="color:var(--text3);font-size:13px">${esc(dateStr)}</div>
+    </div>
+    <p class="kbg-sub">오늘도 좋은 하루의 학습을 시작해보세요.</p>
+    <div class="kbg-stat-grid">
+      ${stat('오늘의 복습 (예정)', due, '개', 'reviewEngine')}
+      ${stat('오답 노트', wrong, '개', 'medicalCore')}
+      ${stat('개념·오답 노트', notes.length, '개', 'medicalCore')}
+      ${stat('의학 자료', medTotal, '개', 'medicalCore')}
+    </div>
+    <div class="kbg-cards" style="margin-bottom:20px">
+      ${qcard('🧬', '의학 코어', '용어·약물·미생물·공식·질환·노트', 'medicalCore')}
+      ${qcard('🔁', '복습 엔진', '플래시카드·퀴즈', 'reviewEngine')}
+      ${qcard('🔍', '통합검색', '전체·도메인 검색', 'unifiedSearch')}
+      ${qcard('📜', '연구노트', '연구노트·특허 증거', 'evidence')}
+    </div>
+    <div class="kbg-panel-grid">
+      <div class="kbg-panel"><h3>최근 추가 노트</h3><div class="kbg-list">${recentHtml}</div></div>
+      <div class="kbg-panel"><h3>연구노트 최근 로그</h3><div class="kbg-list">${rlogHtml}</div></div>
+    </div>
+    <div class="kbg-note">ℹ️ 라이브러리 현황 — 용어 ${dc.terms} · 약물 ${dc.drugs} · 미생물 ${dc.microbes} · 공식 ${dc.formulas} · 질환 ${dc.diseases}. "학습 연속일 / 학습 목표 / 추천 복습(항목별)"은 학습통계·어학 이식 후 확장 예정.</div>`;
+};
+
+// ── Medical Core(기존 자료 모드로 연결) ──
+KBG_MedicalNote.AppUI.roomMedicalCore = function () {
+  const card = (ic, title, sub, mode) =>
+    `<button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('setLibraryMode','${mode}')"><div class="kbg-card-ic">${ic}</div><b>${title}</b><span>${sub}</span></button>`;
+  return `
+    <p class="kbg-sub">의학 코어 자료를 기존 라이브러리로 엽니다. (하나의 개념은 하나의 entity로 저장 — 태그로 여러 메뉴 노출)</p>
+    <div class="kbg-cards">
+      ${card('📘', '의학 용어', '일반용어 라이브러리', 'terms')}
+      ${card('🧫', '미생물', '미생물 라이브러리', 'microbes')}
+      ${card('💊', '약물', '약물명 및 정보', 'drugs')}
+      ${card('∑', '공식/계산', '주요 의학계산공식', 'formulas')}
+      ${card('🩺', '질환', '주요 질환', 'diseases')}
+      ${card('🧠', '개념·오답노트', '단권화 노트', 'notes')}
+    </div>
+    <div class="kbg-note">ℹ️ "해부·생리 / 검사·수치"는 새 테이블이 아니라 기존 <b>medical_terms</b>의 태그(concept_category·system_tags) 필터 뷰로 추가할 예정입니다.</div>`;
+};
+
+// ── Review Engine(퀴즈·플래시카드로 연결) ──
+KBG_MedicalNote.AppUI.roomReviewEngine = function () {
+  return `
+    <p class="kbg-sub">복습 엔진 — 기존 능동 회상 도구로 연결합니다.</p>
+    <div class="kbg-cards">
+      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('showFlashcards')"><div class="kbg-card-ic">🎴</div><b>전체 랜덤 복습</b><span>전 도메인 플래시카드</span></button>
+      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('showQuizSetup')"><div class="kbg-card-ic">📝</div><b>퀴즈</b><span>퀴즈 설정 열기</span></button>
+    </div>
+    <div class="kbg-note">ℹ️ "언어 카드 / CPX·OSCE 카드 / Anki·TSV 내보내기"는 어학 기능 이식 후 추가 예정입니다.</div>`;
+};
+
+// ── Unified Search — 크로스 도메인 검색(읽기 전용). 한 필드로 전체, 탭으로 도메인별. 결과 클릭 → 기존 드로어 ──
+KBG_MedicalNote.AppUI.roomUnifiedSearch = function () {
+  const scopes = [['all', '전체'], ['terms', '용어'], ['drugs', '약물'], ['microbes', '미생물'], ['formulas', '공식'], ['diseases', '질환'], ['notes', '노트']];
+  KBG_MedicalNote.AppStore.uniScope = KBG_MedicalNote.AppStore.uniScope || 'all';
+  const cur = KBG_MedicalNote.AppStore.uniScope;
+  const chips = scopes.map(([k, l]) => `<button class="kbg-uni-chip${k === cur ? ' active' : ''}" data-scope="${k}" onclick="KBG_MedicalNote.AppUI.uniSetScope('${k}')">${l}</button>`).join('');
+  return `
+    <p class="kbg-sub">통합 검색 — 한 필드로 전체를, 또는 도메인 탭으로 좁혀서. (읽기 전용 · 결과 클릭 시 해당 자료 열림)</p>
+    <input id="kbgUniInput" class="kbg-uni-input" type="text" placeholder="용어·약물·미생물·공식·질환·노트 검색 (한국어·영어·우즈베크어)…" oninput="KBG_MedicalNote.AppUI.uniSearch()" autocomplete="off">
+    <div class="kbg-uni-scopes">${chips}</div>
+    <div id="kbgUniResults" class="kbg-uni-results"><div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div></div>
+    <div class="kbg-note">ℹ️ "언어 검색 / CPX·OSCE 검색 / 연결 시각화"는 어학 기능 이식 후 추가 예정입니다.</div>`;
+};
+KBG_MedicalNote.AppUI.uniSetScope = function (k) {
+  KBG_MedicalNote.AppStore.uniScope = k;
+  document.querySelectorAll('.kbg-uni-chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-scope') === k));
+  KBG_MedicalNote.AppUI.uniSearch();
+};
+KBG_MedicalNote.AppUI.uniSearch = function () {
+  const box = document.getElementById('kbgUniResults'); if (!box) return;
+  const q = (document.getElementById('kbgUniInput')?.value || '').trim().toLowerCase();
+  const scope = KBG_MedicalNote.AppStore.uniScope || 'all';
+  const esc = KBG_MedicalNote._esc, safe = KBG_MedicalNote._safe;
+  if (q.length < 2) { box.innerHTML = '<div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div>'; return; }
+  const norm = s => String(s == null ? '' : s).toLowerCase();
+  const DOMAINS = [
+    { key: 'terms', label: '용어', color: '#58a6ff', get: () => (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt), fields: t => [t.ko, t.en, t.uz], title: t => t.ko || t.en || t.uz || '(무제)', sub: t => [t.en, t.uz].filter(Boolean).join(' · '), open: t => `openDrawer(${JSON.stringify(t.id)})` },
+    { key: 'drugs', label: '약물', color: '#3fb950', get: () => getActiveDrugs(), fields: d => [d.generic_name, d.ko_name, d.brand_name], title: d => d.ko_name || d.generic_name || '(무제)', sub: d => [d.generic_name, d.brand_name].filter(Boolean).join(' · '), open: d => `openDrugDrawer(${JSON.stringify(d.id)})` },
+    { key: 'microbes', label: '미생물', color: '#d29922', get: () => getActiveMicrobes(), fields: m => [m.organism, m.ko_name, m.latin_name], title: m => m.ko_name || m.organism || m.latin_name || '(무제)', sub: m => [m.organism, m.latin_name].filter(Boolean).join(' · '), open: m => `openMicrobeDrawer(event,${JSON.stringify(m.id)})` },
+    { key: 'formulas', label: '공식', color: '#a78bfa', get: () => getActiveFormulas(), fields: f => [f.name, f.short_name, f.formula], title: f => f.name || f.short_name || '(무제)', sub: f => f.short_name || '', open: f => `openFormulaEditModal(event,${JSON.stringify(f.id)})` },
+    { key: 'diseases', label: '질환', color: '#f778ba', get: () => getActiveDiseases(), fields: d => [d.ko_name, d.en_name, d.uz_name], title: d => d.ko_name || d.en_name || '(무제)', sub: d => [d.en_name].filter(Boolean).join(' · '), open: d => `openDiseaseDrawer(event,${JSON.stringify(d.id)})` },
+    { key: 'notes', label: '노트', color: '#7ee787', get: () => (window.NOTEBOOK || []).filter(n => n && !n.deletedAt && !n.hiddenAt), fields: n => [n.title, n.summary, n.keyPoint, (n.tags || []).join(' ')], title: n => n.title || '(무제 노트)', sub: n => n.summary || n.keyPoint || '', open: n => `openIntegratedNoteView(${JSON.stringify(n.id)})` },
+  ];
+  const cap = scope === 'all' ? 6 : 100;
+  let total = 0, html = '';
+  DOMAINS.forEach(d => {
+    if (scope !== 'all' && scope !== d.key) return;
+    const rows = safe(() => d.get(), []).filter(x => d.fields(x).some(f => norm(f).includes(q)));
+    if (!rows.length) return;
+    total += rows.length;
+    const items = rows.slice(0, cap).map(x => `<button class="kbg-uni-item" onclick='${d.open(x)}'><span class="kbg-uni-dot" style="background:${d.color}"></span><span class="kbg-uni-t">${esc(d.title(x))}</span><span class="kbg-uni-s">${esc((d.sub(x) || '').slice(0, 70))}</span><span class="kbg-uni-map" onclick='event.stopPropagation();showEntityConnectionMap(${JSON.stringify(d.key)},${JSON.stringify(x.id)})' title="연결 지도 보기">🔗</span></button>`).join('');
+    const more = rows.length > cap ? `<div class="kbg-uni-more">…외 ${rows.length - cap}개 · "${esc(d.label)}" 탭에서 전체 보기</div>` : '';
+    html += `<div class="kbg-uni-group"><div class="kbg-uni-gh"><span class="kbg-uni-dot" style="background:${d.color}"></span>${esc(d.label)} <b>${rows.length}</b></div>${items}${more}</div>`;
+  });
+  box.innerHTML = total ? html : `<div class="kbg-empty">"${esc(q)}" 결과 없음</div>`;
+};
+
+// ── Data Management(기존 데이터 관리·버전 확인으로 연결) ──
+KBG_MedicalNote.AppUI.roomDataManagement = function () {
+  return `
+    <p class="kbg-sub">데이터 관리 — 기존 가져오기/내보내기/백업/동기화 화면으로 연결합니다.</p>
+    <div class="kbg-cards">
+      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('showExportMenu')"><div class="kbg-card-ic">💾</div><b>가져오기 / 내보내기 / 백업</b><span>데이터 관리 열기</span></button>
+      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('showSavedVersionInfo')"><div class="kbg-card-ic">🔎</div><b>저장본 버전 확인</b><span>클라우드/기기 동기화 상태</span></button>
+    </div>
+    <div class="kbg-note">ℹ️ Supabase 동기화·Cloudinary 미디어는 기존 코어를 그대로 사용합니다(변경 없음).</div>`;
+};
+
+// ── Evidence / Research Note(연구노트로 연결) ──
+KBG_MedicalNote.AppUI.roomEvidence = function () {
+  const esc = KBG_MedicalNote._esc;
+  const rlog = KBG_MedicalNote._researchRecent(5);
+  const rlogHtml = rlog.length
+    ? rlog.map(e => `<div class="kbg-li">🔬 ${esc((e.feature_name || e.event_type || '기록'))}<span class="kbg-when">${esc(String(e.created_at || '').slice(0, 10))}</span></div>`).join('')
+    : '<div class="kbg-empty">최근 연구노트 로그가 없습니다.</div>';
+  return `
+    <p class="kbg-sub">증거 / 연구노트 — 착상·코드 기여·검증 로그(해시체인·서명·TSA)를 기존 연구노트로 엽니다.</p>
+    <div class="kbg-cards">
+      <button class="kbg-card" onclick="KBG_MedicalNote.AppUI._dispatch('rnOpenNotebook')"><div class="kbg-card-ic">📜</div><b>연구노트 열기</b><span>append-only 특허 증거 로그</span></button>
+    </div>
+    <div class="kbg-panel" style="margin-top:14px"><h3>최근 로그</h3><div class="kbg-list">${rlogHtml}</div></div>`;
+};
+
+// ── Clinical Language(빈 방 · 어학 소스 이식 예정) ──
+KBG_MedicalNote.AppUI._soonList = function (items) {
+  const esc = KBG_MedicalNote._esc;
+  return '<div class="kbg-soon-list">' + items.map(([ic, name, desc]) =>
+    `<div class="kbg-soon"><span class="kbg-soon-ic">${ic}</span><div class="kbg-soon-t"><b>${esc(name)}</b><span>${esc(desc)}</span></div><span class="kbg-soon-badge">준비 중</span></div>`).join('') + '</div>';
+};
+KBG_MedicalNote.AppUI.roomClinicalLanguage = function () {
+  return `<p class="kbg-sub">임상 어학 — 회화·문장·단어·발음·녹음. 어학 소스 이식 후 채워질 방입니다(기존 TTS·녹음·Cloudinary 코어 재사용).</p>
+    ${this._soonList([
+    ['🗨️', '일반 회화', '일상·기본 회화 표현'],
+    ['🩺', '의학 문장', '임상 상황별 의학 문장'],
+    ['📖', '단어장', '의학·일반 어휘'],
+    ['🧩', '회화 프레임', '상황별 회화 틀'],
+    ['🔊', 'IPA / 발음', '발음기호 · 듣기(TTS)'],
+    ['🎙️', '녹음 / 재생', '내 발음 녹음 · 비교'],
+  ])}
+    <div class="kbg-note">ℹ️ 소스 확보 시 이 목록이 실제 기능으로 채워집니다. 시스템(저장·동기화·연구노트·TSA)은 Medical Note 코어를 그대로 씁니다.</div>`;
+};
+
+// ── CPX / OSCE(빈 방 · 어학 소스 이식 예정) ──
+KBG_MedicalNote.AppUI.roomCpxOsce = function () {
+  return `<p class="kbg-sub">CPX / OSCE — 임상 실기. 어학 소스 이식 후 채워질 방입니다.</p>
+    ${KBG_MedicalNote.AppUI._soonList([
+    ['❓', 'CPX 문진 문장', '병력청취 질문'],
+    ['📋', 'CPX 증례', '증례별 문진 · 설명'],
+    ['🩻', 'OSCE 술기', '술기 체크리스트'],
+    ['🗣️', '환자 설명 문장', '환자 눈높이 설명'],
+    ['💬', '진료실 대화 시뮬레이션', '상황 롤플레이'],
+  ])}
+    <div class="kbg-note">ℹ️ 개념도의 "CPX 증례 상세(환자 정보·문진 예시·환자 설명·연결 노트)"는 소스 이식 후 이 방에 구현됩니다.</div>`;
+};
+
+// ── 룸 HTML 헬퍼(오버레이·셸 공용) ──
+KBG_MedicalNote.AppUI.roomHtml = function (key) {
+  const R = this;
+  const map = {
+    dashboard: R.roomDashboard, medicalCore: R.roomMedicalCore, clinicalLanguage: R.roomClinicalLanguage,
+    cpxOsce: R.roomCpxOsce, reviewEngine: R.roomReviewEngine, unifiedSearch: R.roomUnifiedSearch,
+    dataManagement: R.roomDataManagement, evidence: R.roomEvidence,
+  };
+  return map[key] ? map[key].call(R) : '';
+};
+
+// ── Shell — 데스크톱(≥1101px) 상시 좌측 사이드바(개념도 Phase 1). 마크업 이동 없이 기존 앱을 오른쪽으로 밀고,
+//    비-라이브러리 룸은 패널로 메인 영역만 덮는다. Medical Core 룸 = 기존 앱(패널 off). 모바일은 CSS로 숨김(기존 유지). ──
+KBG_MedicalNote.Shell = {
+  current: 'medicalCore',
+  init() {
+    const sb = document.getElementById('kbgShellSidebar'); if (!sb) return;
+    document.body.classList.add('kbg-shell-on');
+    sb.innerHTML =
+      KBG_MedicalNote.AppUI.brandHtml() +
+      KBG_MedicalNote.AppConfig.rooms.map(r =>
+        `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.Shell.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
+      ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
+    this.go('dashboard'); // 기본 랜딩 = Dashboard(개념도 Phase 3). Medical Core는 사이드바에서 1클릭.
+  },
+  go(key) {
+    this.current = key;
+    document.querySelectorAll('#kbgShellSidebar .kbg-navbtn').forEach(b => b.classList.toggle('active', b.getAttribute('data-room') === key));
+    const panel = document.getElementById('kbgShellPanel'); if (!panel) return;
+    if (key === 'medicalCore') {
+      panel.classList.remove('on'); panel.innerHTML = ''; // 기존 앱(라이브러리)이 그대로 노출
+      return;
+    }
+    const room = (KBG_MedicalNote.AppConfig.rooms.find(r => r.key === key) || {});
+    panel.innerHTML = `<div class="kbg-topbar"><h2>${KBG_MedicalNote._esc(room.label || '')}</h2></div><div class="kbg-body">${KBG_MedicalNote.AppUI.roomHtml(key)}</div>`;
+    panel.classList.add('on'); panel.scrollTop = 0;
+  },
+  // 상단바 전체 검색 → Unified Search 룸으로 전달(어디서든 전역 검색)
+  topSearch(v) {
+    if (this.current !== 'unifiedSearch') this.go('unifiedSearch');
+    const inp = document.getElementById('kbgUniInput'); if (inp) inp.value = v;
+    try { KBG_MedicalNote.AppUI.uniSearch(); } catch (e) {}
+  },
+};
+// 룸 내부에서 다른 룸으로 이동 — 현재 컨텍스트(오버레이 열림=모바일 / 상시 사이드바=데스크톱)에 맞게 라우팅.
+KBG_MedicalNote.navTo = function (room) {
+  const ov = document.getElementById('kbgPlatformOverlay');
+  if (ov && ov.classList.contains('open')) { this.AppRouter.go(room); return; }
+  const sb = document.getElementById('kbgShellSidebar');
+  if (sb && getComputedStyle(sb).display !== 'none') { this.Shell.go(room); return; }
+  this.open(room);
+};
+
+// ── 연결 시각화(마인드맵) — 읽기 전용 · 기존 링크 데이터 기반, 저장/동기화/해시/SQL 무변경 ──
+// 노트를 중심으로 연결된 용어/약물/미생물/공식/질환을 방사형 그래프로 렌더. 노드 클릭 → 기존 openNoteLinkedResource.
+// 도메인별 색 + id 기반 opener(엔티티 연결 지도용). 노트 링크는 이름 기반(openNoteLinkedResource)이라 별도.
+KBG_MedicalNote.AppUI._connColors = { terms: '#58a6ff', drugs: '#3fb950', microbes: '#d29922', formulas: '#a78bfa', diseases: '#f778ba', notes: '#7ee787' };
+KBG_MedicalNote.AppUI._connOpen = {
+  terms: id => `openDrawer(${JSON.stringify(id)})`,
+  drugs: id => `openDrugDrawer(${JSON.stringify(id)})`,
+  microbes: id => `openMicrobeDrawer(event,${JSON.stringify(id)})`,
+  formulas: id => `openFormulaEditModal(event,${JSON.stringify(id)})`,
+  diseases: id => `openDiseaseDrawer(event,${JSON.stringify(id)})`,
+  notes: id => `openIntegratedNoteView(${JSON.stringify(id)})`,
+};
+// 공용 방사형 마인드맵 렌더러 — nodes:[{color,text,open?}]. 읽기 전용 모달. 저장/데이터 무변경.
+KBG_MedicalNote.AppUI._renderConnMap = function (centerLabel, nodes, subtitle, legendHtml) {
+  const esc = KBG_MedicalNote._esc;
+  const W = 760, H = 560, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 96;
+  const total = nodes.length || 1;
+  let body = '';
+  nodes.forEach((nd, i) => {
+    const ang = (i / total) * 2 * Math.PI - Math.PI / 2;
+    const x = cx + R * Math.cos(ang), y = cy + R * Math.sin(ang);
+    const label = nd.text.length > 18 ? nd.text.slice(0, 17) + '…' : nd.text;
+    const anchor = Math.abs(Math.cos(ang)) < 0.3 ? 'middle' : (Math.cos(ang) > 0 ? 'start' : 'end');
+    body += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:var(--border)" stroke-width="1.5"/>`;
+    const click = nd.open ? ` style="cursor:pointer" onclick='document.getElementById("kbgConnMapModal")?.remove();${nd.open}'` : '';
+    body += `<g${click}><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${nd.color}"/>`
+      + `<text x="${(x + (anchor === 'start' ? 11 : anchor === 'end' ? -11 : 0)).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anchor}" font-size="12" style="fill:var(--text2)">${esc(label)}</text></g>`;
+  });
+  const center = `<circle cx="${cx}" cy="${cy}" r="48" style="fill:var(--accent)"/>`
+    + `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="13" style="fill:#fff">${esc((centerLabel || '').slice(0, 10))}</text>`;
+  const graph = nodes.length
+    ? `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:64vh">${body}${center}</svg>`
+    : `<div style="padding:36px;text-align:center;color:var(--text3);font-size:13px">연결된 자료가 없습니다.</div>`;
+  document.getElementById('kbgConnMapModal')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'kbgConnMapModal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:840px;width:96%;max-height:92vh;overflow:auto;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <b style="flex:1;color:var(--text);font-size:15px">🔗 연결 지도 — ${esc(centerLabel || '')}</b>
+        <button onclick="document.getElementById('kbgConnMapModal').remove()" style="width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${esc(subtitle || '노드를 클릭하면 해당 자료로 이동합니다 · 읽기 전용')}</div>
+      ${graph}
+      ${legendHtml ? `<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:8px">${legendHtml}</div>` : ''}
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+};
+// 노트 중심 연결 지도(링크 5종, 이름 기반 열기) — 공용 렌더러 사용
+KBG_MedicalNote.AppUI.noteConnectionMap = function (n) {
+  const groups = [
+    { kind: 'terms', label: '용어', color: '#58a6ff', items: n.linkedTerms || [] },
+    { kind: 'drugs', label: '약물', color: '#3fb950', items: n.linkedDrugs || [] },
+    { kind: 'microbes', label: '미생물', color: '#d29922', items: n.linkedMicrobes || [] },
+    { kind: 'formulas', label: '공식', color: '#a78bfa', items: n.linkedFormulas || [] },
+    { kind: 'diseases', label: '질환', color: '#f778ba', items: n.linkedDiseases || [] },
+  ];
+  const nodes = [];
+  groups.forEach(g => g.items.forEach(it => { const t = String(it || '').trim(); if (t) nodes.push({ color: g.color, text: t, open: `openNoteLinkedResource(event,${JSON.stringify(g.kind)},${JSON.stringify(t)})` }); }));
+  const legend = groups.filter(g => g.items.length).map(g => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text3)"><span style="width:10px;height:10px;border-radius:50%;background:${g.color};display:inline-block"></span>${g.label} ${g.items.length}</span>`).join('');
+  this._renderConnMap(n.title || '노트', nodes, '노드를 클릭하면 해당 자료로 이동합니다 · 읽기 전용(기존 연결 데이터 기반, 저장 안 함)', legend);
+};
+// 엔티티(용어/약물/미생물/공식/질환) 중심 연결 지도 — 노트 역링크 + 공동 링크 + 질환 유사/계층. 읽기 전용.
+KBG_MedicalNote.AppUI.entityConnectionMap = function (type, id) {
+  if (type === 'notes') { const n = (window.NOTEBOOK || []).find(x => String(x.id) === String(id) && !x.deletedAt); if (n) this.noteConnectionMap(n); return; }
+  const safe = KBG_MedicalNote._safe, norm = s => String(s == null ? '' : s).trim().toLowerCase();
+  const DOMS = {
+    terms: { get: () => (typeof dedupeTermsById === 'function' ? dedupeTermsById(TERMS) : (TERMS || [])).filter(t => !t.deletedAt), names: t => [t.ko, t.en, t.uz], label: t => t.ko || t.en || t.uz || '', link: 'linkedTerms' },
+    drugs: { get: () => getActiveDrugs(), names: d => [d.generic_name, d.ko_name, d.brand_name], label: d => d.ko_name || d.generic_name || '', link: 'linkedDrugs' },
+    microbes: { get: () => getActiveMicrobes(), names: m => [m.organism, m.ko_name, m.latin_name], label: m => m.ko_name || m.organism || '', link: 'linkedMicrobes' },
+    formulas: { get: () => getActiveFormulas(), names: f => [f.name, f.short_name], label: f => f.name || f.short_name || '', link: 'linkedFormulas' },
+    diseases: { get: () => getActiveDiseases(), names: d => [d.ko_name, d.en_name, d.uz_name], label: d => d.ko_name || d.en_name || '', link: 'linkedDiseases' },
+  };
+  const cfg = DOMS[type]; if (!cfg) return;
+  const center = safe(() => cfg.get(), []).find(x => String(x.id) === String(id)); if (!center) return;
+  const centerNames = cfg.names(center).map(norm).filter(Boolean);
+  const centerLabel = cfg.label(center);
+  const colors = this._connColors, open = this._connOpen;
+  const index = new Map();
+  Object.keys(DOMS).forEach(k => safe(() => DOMS[k].get(), []).forEach(x => DOMS[k].names(x).map(norm).filter(Boolean).forEach(nm => { if (!index.has(nm)) index.set(nm, { kind: k, id: x.id, label: DOMS[k].label(x) }); })));
+  const notes = safe(() => (window.NOTEBOOK || []).filter(n => n && !n.deletedAt && !n.hiddenAt), []);
+  const linkedNotes = notes.filter(n => (n[cfg.link] || []).some(name => centerNames.includes(norm(name))));
+  const nodes = [], seen = new Set([type + ':' + String(id)]);
+  linkedNotes.forEach(n => {
+    const nk = 'notes:' + String(n.id);
+    if (!seen.has(nk)) { seen.add(nk); nodes.push({ color: colors.notes, text: n.title || '(무제 노트)', open: open.notes(n.id) }); }
+    ['linkedTerms', 'linkedDrugs', 'linkedMicrobes', 'linkedFormulas', 'linkedDiseases'].forEach(lf => (n[lf] || []).forEach(name => {
+      const hit = index.get(norm(name)); if (!hit) return; const key = hit.kind + ':' + String(hit.id);
+      if (!seen.has(key)) { seen.add(key); nodes.push({ color: colors[hit.kind], text: hit.label || name, open: open[hit.kind](hit.id) }); }
+    }));
+  });
+  if (type === 'diseases') {
+    const sim = safe(() => (center.body && center.body.ddx && center.body.ddx.similar_diseases) || '', '');
+    String(sim).split(',').map(s => s.trim()).filter(Boolean).forEach(name => { const hit = index.get(norm(name)); if (hit && hit.kind === 'diseases') { const key = 'diseases:' + String(hit.id); if (!seen.has(key)) { seen.add(key); nodes.push({ color: colors.diseases, text: hit.label || name, open: open.diseases(hit.id) }); } } });
+    safe(() => { if (center.parent_id != null) { const par = DOMS.diseases.get().find(d => String(d.id) === String(center.parent_id)); if (par) { const key = 'diseases:' + String(par.id); if (!seen.has(key)) { seen.add(key); nodes.push({ color: colors.diseases, text: '↑ ' + DOMS.diseases.label(par), open: open.diseases(par.id) }); } } } });
+    safe(() => DOMS.diseases.get().filter(d => center.id != null && String(d.parent_id) === String(id)).forEach(sub => { const key = 'diseases:' + String(sub.id); if (!seen.has(key)) { seen.add(key); nodes.push({ color: colors.diseases, text: '↳ ' + DOMS.diseases.label(sub), open: open.diseases(sub.id) }); } }));
+  }
+  const cap = 24, shown = nodes.slice(0, cap);
+  this._renderConnMap(centerLabel, shown, `"${centerLabel}" 연결 — 노트·공동 링크${type === 'diseases' ? '·유사/계층질환' : ''} 기반 · 읽기 전용${nodes.length > cap ? ' · 외 ' + (nodes.length - cap) + '개' : ''}`);
+};
+window.showEntityConnectionMap = function (type, id) { try { KBG_MedicalNote.AppUI.entityConnectionMap(type, id); } catch (e) { console.warn('[KBG] entity connmap', e); } };
+window.showNoteConnectionMap = function (id) {
+  const n = (window.NOTEBOOK || []).find(x => Number(x.id) === Number(id) && !x.deletedAt);
+  if (!n) { if (typeof showToast === 'function') showToast('노트를 찾을 수 없습니다.'); return; }
+  KBG_MedicalNote.AppUI.noteConnectionMap(n);
+};
+
+try { KBG_MedicalNote.init(); } catch (e) { console.warn('[KBG_MedicalNote] init failed', e); }
 </script>
 
 </body>
