@@ -18785,7 +18785,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.34',
+  version: '2.35',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18794,7 +18794,15 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.34 — KBG Medical Note Platform 뼈대: 8개 방(구조트리) 내비게이션 계층 추가',
+    title: '최신 · v2.35 — 특허연구노트 v2.0 보강(additive): 구조·알고리즘·청구항·발명자점수 + 자동 품질검사',
+    items: [
+      '연구노트를 특허 출원에 더 적합하도록 보강했습니다. 기존 기록은 하나도 수정·삭제·덮어쓰지 않았고(append-only 유지), 입력 폼에 특허 명세서에 필요한 항목을 추가했습니다: ⚖️기술적 의사결정(검토·선택·이유·장단점), 🏗️시스템·데이터 구조(Architecture, Mermaid/텍스트 다이어그램), 🔢알고리즘·로직(Algorithm, 플로우차트), 🎯특허 포인트 우선순위, 📜청구항 후보 1~5개, ★발명자 기여 점수(차원별 사람/AI).',
+      '"🔬 특허 분석·품질검사" 버튼을 추가했습니다 — 기존 기록을 읽기 전용으로 분석해 PART별 특허 요소 커버리지와 10항 품질검사 평균, 보완이 필요한 기록을 리포트로 보여줍니다(MD 저장 가능). 기존 기록은 절대 건드리지 않고, 부족분은 새 기록/소급 분석으로 보완하도록 안내합니다.',
+      '무결성 안전: 해시 코어(_rnComputeHash·stableForHash·해시 제외 목록)는 전혀 바꾸지 않았습니다. 새 필드는 chain_annotation과 같은 "조건부 저장" 방식이라, 그 필드를 쓰지 않은 기록의 해시 페이로드는 이전과 바이트 단위로 동일합니다 → 과거 기록·서명·RFC3161 TSA 증거력에 영향 0. 소급 기록에는 규정 문구("본 기록은 기존 개발자료를 기반으로 작성한 기술적 분석 기록이며 당시 작성된 원본 연구노트가 아니다")가 자동 표시됩니다.',
+    ],
+  },
+  {
+    title: 'v2.34 — KBG Medical Note Platform 뼈대: 8개 방(구조트리) 내비게이션 계층 추가',
     items: [
       '헤더에 "🏠 플랫폼" 버튼을 추가했습니다. 누르면 좌측 사이드바에 8개 방(Dashboard · Medical Core · Clinical Language · CPX/OSCE · Review Engine · Unified Search · Data Management · Evidence/Research Note)이 있는 플랫폼 홈이 전체화면으로 열립니다. 향후 어학(회화·CPX·OSCE) 기능을 이식할 "방"을 먼저 만든 구조 뼈대입니다.',
       '이 버전은 additive(덧대기)입니다 — 기존 화면·버튼·DOM id·함수·localStorage·IndexedDB·Supabase 동기화·해시체인·TSA는 한 줄도 바뀌지 않았습니다. 6개 방은 기존 기능으로 연결만 하고(Medical Core→자료 모드, Review Engine→퀴즈/플래시카드, Unified Search→검색, Data Management→데이터 관리, Evidence→연구노트), Dashboard는 기존 데이터로 복습·오답·노트·연구노트 로그 수치를 읽어 표시하며, Clinical Language·CPX/OSCE는 어학 소스 이식 전까지 빈 방(placeholder)입니다.',
@@ -20976,6 +20984,10 @@ async function _rnVerifySig(entry) {
     return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, _rnB64ToBytes(entry.entry_hash_signature), new TextEncoder().encode(entry.entry_hash));
   } catch (e) { return false; }
 }
+// 객체에 비지 않은 값(문자열/배열)이 하나라도 있는가 — v2.0 보강 필드의 조건부 저장 판정용.
+function _rnObjHasContent(o) { return !!o && typeof o === 'object' && Object.values(o).some(v => Array.isArray(v) ? v.length > 0 : String(v == null ? '' : v).trim() !== ''); }
+// PART 14 소급 분석(Retrospective Reconstruction) 필수 면책 문구 — 지시서 규정 그대로. 소급 기록에 표시한다.
+const RN_RETRO_DISCLAIMER = '본 기록은 기존 개발자료를 기반으로 작성한 기술적 분석 기록이며 당시 작성된 원본 연구노트가 아니다.';
 function _rnBlank(data) {
   data = data || {};
   return {
@@ -20998,6 +21010,14 @@ function _rnBlank(data) {
     prior_art: Array.isArray(data.prior_art) ? data.prior_art : [],
     // 체인 무결성 주석(공유테이블 오염으로 생긴 끊김 경위) — 있을 때만 실어 일반 기록의 해시 페이로드는 그대로 둔다.
     ...(data.chain_annotation ? { chain_annotation: data.chain_annotation } : {}),
+    // ── 특허연구노트 v2.0 보강(additive) — 값이 있을 때만 실어, 안 쓴 기록의 해시 페이로드는 이전과 바이트 동일 ──
+    // (chain_annotation과 동일 패턴. 새 필드는 내용 필드라 해시에 포함되나, 비면 키 자체가 없어 과거 포맷 불변.)
+    ...(_rnObjHasContent(data.technical_decision) ? { technical_decision: Object.assign({ reviewed: '', chosen: '', rejected: '', reason: '', pros: '', cons: '' }, data.technical_decision) } : {}),   // PART 2
+    ...(_rnObjHasContent(data.architecture) ? { architecture: Object.assign({ system: '', data_structure: '', api: '', component: '', ui: '', db: '', diagram: '' }, data.architecture) } : {}),           // PART 3
+    ...(_rnObjHasContent(data.algorithm) ? { algorithm: Object.assign({ processing_order: '', data_flow: '', core_logic: '', complexity: '', flowchart: '' }, data.algorithm) } : {}),                     // PART 4
+    ...(Array.isArray(data.patent_points) && data.patent_points.length ? { patent_points: data.patent_points } : {}),      // PART 10 (우선순위 있는 특허 포인트 배열)
+    ...(Array.isArray(data.claim_candidates) && data.claim_candidates.length ? { claim_candidates: data.claim_candidates } : {}),  // PART 11 (청구항 후보 1~5)
+    ...(_rnObjHasContent(data.inventor_score) ? { inventor_score: data.inventor_score } : {}),   // PART 13 (차원별 사람/AI 점수)
   };
 }
 async function rnAddEntry(eventType, data, opts) {
@@ -21367,7 +21387,8 @@ function _rnMd(entry, notes) {
     `Evidence Chain ID: ${entry.evidence_chain_id || '(없음)'}`, `Entry ID: ${entry.id}`, `Created At: ${entry.created_at} (${entry.timezone})`, `Project: ${entry.project_name}`,
     `Version: ${entry.app_version}`, `Feature: ${entry.feature_name}`, `Event Type: ${entry.event_type}${entry.corrects_id ? ` (corrects ${entry.corrects_id} · ${entry.correction_type || ''})` : ''}`,
     `Inventor (human): ${entry.inventor_name || '(미설정)'}${entry.inventor_birthdate ? ' · ' + entry.inventor_birthdate : ''}${entry.inventor_affiliation ? ' · ' + entry.inventor_affiliation : ''}`,
-    `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`, '',
+    `Authorship: 이 기록의 3·5·6번(Human Idea / Human Modification / Final Decision)은 위 발명자(사람)의 착상·판단이며, AI는 도구로서 보조함(4번 AI Assistance).${entry.retrospective ? ' [소급 기록 · 작성일=가져온 시각]' : ''}`,
+    ...(entry.retrospective ? [`> ⚠️ 소급 분석(Retrospective): ${RN_RETRO_DISCLAIMER}`] : []), '',
     `## 1. Problem`, entry.problem_statement || '', '', `## 2. Prior Limitation`, entry.prior_limitation || '', '',
     `## 3. Human Idea (발명자 착상)`, entry.human_idea || '', '', `## 4. AI Assistance (도구 보조)`, `- Prompt(요약): ${entry.ai_prompt_summary || ''}`, `- Output(요약): ${entry.ai_output_summary || ''}`, `- Model: ${ai.model_name || ''} (${ai.provider || ''})`, `- Conversation ID: ${ai.conversation_id || ''}`,
     ...(entry.ai_prompt_full ? [`- Prompt 전문 (sha256:${ai.prompt_hash_sha256 || ''}):`, '```', entry.ai_prompt_full, '```'] : []),
@@ -21380,6 +21401,12 @@ function _rnMd(entry, notes) {
     `## 13. Prior Art (선행기술 조사)`, priorArt, '',
     `## 14. Git Evidence`, `- Repo: ${cm.repo_url || ''}`, `- Branch: ${cm.branch_name || ''}`, `- Commit: ${cm.git_commit_hash || ''}`, `- PR #${cm.pr_number || ''} · Issue #${cm.issue_number || ''}`, `- Diff: ${cm.diff_summary || ''}`, '',
     `## 15. Witness (증인·입회)`, `- 이름: ${w.name || '(없음)'}`, `- 이메일: ${w.email || ''}`, `- 서명: ${w.signature || ''}`, `- 서명일: ${w.signed_at || ''}`, `- (참고: 자체 기록이라 제3자 확인은 아님 — 입회 사실의 구조화 기록)`, '',
+    ...(entry.technical_decision ? [`## Technical Decision (기술적 의사결정)`, `- 검토: ${entry.technical_decision.reviewed || ''}`, `- 선택: ${entry.technical_decision.chosen || ''}`, `- 미선택: ${entry.technical_decision.rejected || ''}`, `- 이유: ${entry.technical_decision.reason || ''}`, `- 장점: ${entry.technical_decision.pros || ''}`, `- 단점: ${entry.technical_decision.cons || ''}`, ''] : []),
+    ...(entry.architecture ? [`## Architecture (시스템·데이터 구조)`, `- 시스템: ${entry.architecture.system || ''}`, `- 데이터: ${entry.architecture.data_structure || ''}`, `- DB: ${entry.architecture.db || ''}`, `- API: ${entry.architecture.api || ''}`, `- 컴포넌트: ${entry.architecture.component || ''}`, `- UI: ${entry.architecture.ui || ''}`, ...(entry.architecture.diagram ? ['- 다이어그램:', '```', entry.architecture.diagram, '```'] : []), ''] : []),
+    ...(entry.algorithm ? [`## Algorithm (알고리즘·로직)`, `- 처리순서: ${entry.algorithm.processing_order || ''}`, `- 데이터흐름: ${entry.algorithm.data_flow || ''}`, `- 핵심로직: ${entry.algorithm.core_logic || ''}`, `- 복잡도: ${entry.algorithm.complexity || ''}`, ...(entry.algorithm.flowchart ? ['- 플로우차트:', '```', entry.algorithm.flowchart, '```'] : []), ''] : []),
+    ...(entry.patent_points && entry.patent_points.length ? [`## Patent Points (우선순위)`, ...entry.patent_points.map(pp => `- [${pp.priority || '-'}] ${pp.point || ''}${pp.basis ? ' — 근거: ' + pp.basis : ''}`), ''] : []),
+    ...(entry.claim_candidates && entry.claim_candidates.length ? [`## Claim Candidates (청구항 후보)`, ...entry.claim_candidates.map((c, i) => `${i + 1}. ${c}`), ''] : []),
+    ...(entry.inventor_score && Object.keys(entry.inventor_score).length ? [`## Inventor Score (발명자 기여 점수 · 사람/AI)`, ...Object.entries(entry.inventor_score).map(([k, v]) => `- ${k}: 사람 ${(v && v.human) || '-'} / AI ${(v && v.ai) || '-'}`), ''] : []),
     `## 16. Attachments`, files, '', `## 17. Hash Verification`, `- entry_hash (SHA-256): ${entry.entry_hash}`, `- previous_entry_hash: ${entry.previous_entry_hash || '(genesis)'}`,
     `- signature: ${entry.signature_status}${entry.signature_algo ? ' (' + entry.signature_algo + ')' : ''}${entry.signed_by ? (' by ' + entry.signed_by) : ''}`,
     `- created_at: ${entry.created_at} (기기 시각 · 조작 가능)`, `- server_time: ${entry.server_time || '(미동기화)'} (Supabase 서버 시각 · 제3자 타임스탬프)`,
@@ -21408,7 +21435,13 @@ const RN_FORM_FIELDS = [
   { group: '효과·검증', fields: [['technical_effect', '기술적 효과', 'ta'], ['test_method', '테스트 방법', 'input'], ['test_result', '테스트 결과', 'ta'], ['failure_reason', '실패 원인 (있으면)', 'input'], ['next_action', '다음 행동', 'input']] },
   { group: '발명 기여 단계 📶 (착상→실시→검증→테스트→청구항)', fields: [['stage_conception', '① 착상 (Conception)', 'input'], ['stage_rtp', '② 실시 (Reduction to Practice)', 'input'], ['stage_verification', '③ 검증 (Verification)', 'input'], ['stage_testing', '④ 테스트 (Testing)', 'input'], ['stage_claim', '⑤ 청구항 작성 (Claim Drafting)', 'input']] },
   { group: '발명 일자 📅', fields: [['date_idea', '아이디어 착안일', 'input'], ['date_prototype', '프로토타입일', 'input'], ['date_rtp', '실시(RTP)일', 'input'], ['date_public', '공개일 (있으면)', 'input'], ['date_filing', '출원(예정)일', 'input']] },
+  { group: '기술적 의사결정 ⚖️ (검토→선택→이유)', fields: [['td_reviewed', '검토한 기술(들)', 'ta'], ['td_chosen', '선택한 기술', 'input'], ['td_rejected', '선택하지 않은 기술', 'ta'], ['td_reason', '선택/미선택 이유', 'ta'], ['td_pros', '장점', 'ta'], ['td_cons', '단점', 'ta']] },
+  { group: '시스템·데이터 구조 🏗️ (Architecture)', fields: [['arch_system', '시스템 구조', 'ta'], ['arch_data', '데이터 구조', 'ta'], ['arch_db', 'DB 구조', 'ta'], ['arch_api', 'API 구조', 'ta'], ['arch_component', '컴포넌트 구조', 'ta'], ['arch_ui', 'UI 구조', 'ta'], ['arch_diagram', '다이어그램(Mermaid/텍스트 · ERD·Flowchart)', 'ta']] },
+  { group: '알고리즘·로직 🔢 (Algorithm)', fields: [['algo_order', '처리 순서', 'ta'], ['algo_flow', '데이터 흐름', 'ta'], ['algo_logic', '핵심 로직(추천·검색·연결 등)', 'ta'], ['algo_complexity', '복잡도/성능', 'input'], ['algo_flowchart', '플로우차트(Mermaid/텍스트)', 'ta']] },
   { group: '특허 포인트 🏷️', fields: [['patent_possible_claim', '가능한 청구항', 'ta'], ['patent_novelty', '신규성 (novelty)', 'ta'], ['patent_inventive', '진보성 (inventive step)', 'ta'], ['patent_industrial', '산업상 이용가능성', 'input'], ['patent_human', '발명자(사람) 실질 기여', 'ta'], ['patent_claim_links', '연결 청구항 (예: Claim 1, 2)', 'input']] },
+  { group: '특허 포인트 우선순위 🎯 (한 줄에 하나 · "우선순위 | 포인트 | 근거")', fields: [['patent_points_note', '예: 1 | 도메인 무관 canonical 해시 체인 | 기존 방식은 기기시각 의존', 'ta']] },
+  { group: '청구항 후보 📜 (1~5개 · 한 줄에 하나)', fields: [['claim_candidates_note', '예: ...하는 방법 / ...하는 시스템 / ...를 포함하는 장치', 'ta']] },
+  { group: '발명자 점수 ★ (한 줄에 하나 · "차원 | 사람(0-5) | AI(0-5)")', fields: [['inventor_score_note', '예: 착상 | 5 | 0\\n구조설계 | 5 | 1\\n구현 | 2 | 5', 'ta']] },
   { group: '선행기술 조사 🔍', fields: [['prior_art_note', '선행기술 (한 줄에 하나 · "특허번호 | 출처 | 조사일 | 키워드 | 차별점")', 'ta']] },
   { group: '증인(입회) 🖊️', fields: [['witness_name', '증인 이름', 'input'], ['witness_email', '증인 이메일', 'input'], ['witness_signature', '증인 서명(문구)', 'input'], ['witness_signed_at', '증인 서명일', 'input']] },
   { group: '코드·git 증거', fields: [['code_git', 'git commit hash', 'input'], ['code_branch', '브랜치', 'input'], ['code_repo', '저장소 URL', 'input'], ['code_pr', 'PR 번호', 'input'], ['code_issue', 'Issue 번호', 'input'], ['code_diff', 'diff 요약', 'input']] },
@@ -21451,6 +21484,7 @@ function rnOpenNotebook() {
           <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 새 기록</button>
           <button class="ui-btn sm safe" onclick="rnRunVerify()">🔒 해시 검증</button>
           <button class="ui-btn sm" onclick="rnAnnotateChainBreaks()" title="체인 링크 불연속(공유테이블 오염 흔적) 구간을, 기존 기록 수정 없이 새 정정 기록으로 경위 설명·각인">🧷 끊김 경위 주석</button>
+          <button class="ui-btn sm" onclick="rnAnalyzeNotebook()" title="기존 기록을 읽기 전용으로 분석 — 특허 요소(구조·알고리즘·청구항·발명자 점수 등) 커버리지와 10항 품질검사 리포트. 기존 기록은 수정하지 않습니다.">🔬 특허 분석·품질검사</button>
           <button class="ui-btn sm" onclick="rnExport('json')">JSON</button>
           <button class="ui-btn sm" onclick="rnExport('csv')">CSV</button>
           <button class="ui-btn sm" onclick="rnExport('md')">Markdown</button>
@@ -21643,8 +21677,20 @@ async function rnSubmitForm(opts) {
     const p = l.split('|').map(x => x.trim());
     return { patent_number: p[0] || '', source: p[1] || '', search_date: p[2] || '', keywords: p[3] || '', differentiation: p[4] || '' };
   }) : [];
+  // v2.0 보강 파싱 — 특허 포인트(우선순위)·청구항 후보(1~5)·발명자 점수(차원별 사람/AI)
+  const ppNote = _rnV('patent_points_note');
+  const patentPoints = ppNote ? ppNote.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(x => x.trim()); return { priority: p[0] || '', point: p[1] || '', basis: p[2] || '' }; }) : [];
+  const ccNote = _rnV('claim_candidates_note');
+  const claimCandidates = ccNote ? ccNote.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5) : [];
+  const scNote = _rnV('inventor_score_note');
+  const inventorScore = {};
+  if (scNote) scNote.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => { const p = l.split('|').map(x => x.trim()); if (p[0]) inventorScore[p[0]] = { human: p[1] || '', ai: p[2] || '' }; });
   const data = {
     feature_name: _rnV('feature_name'), problem_statement: _rnV('problem_statement'), prior_limitation: _rnV('prior_limitation'),
+    technical_decision: { reviewed: _rnV('td_reviewed'), chosen: _rnV('td_chosen'), rejected: _rnV('td_rejected'), reason: _rnV('td_reason'), pros: _rnV('td_pros'), cons: _rnV('td_cons') },
+    architecture: { system: _rnV('arch_system'), data_structure: _rnV('arch_data'), db: _rnV('arch_db'), api: _rnV('arch_api'), component: _rnV('arch_component'), ui: _rnV('arch_ui'), diagram: _rnV('arch_diagram') },
+    algorithm: { processing_order: _rnV('algo_order'), data_flow: _rnV('algo_flow'), core_logic: _rnV('algo_logic'), complexity: _rnV('algo_complexity'), flowchart: _rnV('algo_flowchart') },
+    patent_points: patentPoints, claim_candidates: claimCandidates, inventor_score: inventorScore,
     human_idea: _rnV('human_idea'), human_modification: _rnV('human_modification'), final_decision: _rnV('final_decision'),
     ai_prompt_summary: _rnV('ai_prompt_summary'), ai_output_summary: _rnV('ai_output_summary'),
     ai_prompt_full: _rnV('ai_prompt_full'), ai_output_full: _rnV('ai_output_full'),
@@ -27175,6 +27221,105 @@ D) Date`;
     try { initAssystTxtConverterWindow(window); } catch (e) { console.warn('TXT converter init failed', e); if (typeof showToast === 'function') showToast('⚠️ TXT 변환도구 초기화 실패'); }
   };
 })();
+</script>
+
+<script>
+/* ===================================================================
+   연구노트 v2.0 — 읽기 전용 특허 분석 · 자동 품질검사 (additive)
+   기존 기록을 수정/삭제/덮어쓰기하지 않는다. 부족분은 리포트로만 제시하고,
+   보완은 사용자가 새 Upgrade/Retrospective 기록으로 추가한다(append-only).
+   =================================================================== */
+// 엔트리 1건의 10항 품질검사 → {score, max, items:[{label, ok}]}
+function rnQualityCheck(entry) {
+  const has = v => !!(v && String(v).trim());
+  const objHas = o => (typeof _rnObjHasContent === 'function') ? _rnObjHasContent(o) : false;
+  const p = entry.patent_metadata || {}, cm = entry.code_metadata || {}, cs = entry.contribution_stages || {};
+  const items = [
+    { label: '창작 과정(문제·착상) 기록', ok: has(entry.problem_statement) || has(entry.human_idea) },
+    { label: '기술적 의사결정 기록', ok: has(entry.final_decision) || objHas(entry.technical_decision) },
+    { label: '시스템·데이터 구조(Architecture)', ok: !!entry.architecture },
+    { label: '알고리즘·로직(Algorithm)', ok: !!entry.algorithm },
+    { label: '발명자(사람) 기여 명시', ok: has(entry.inventor_name) && (has(entry.human_idea) || has(entry.final_decision) || objHas(cs) || objHas(entry.inventor_score)) },
+    { label: 'AI를 발명자로 기록하지 않음', ok: String(entry.authorship || '').includes('human_conceived') },
+    { label: '특허 포인트 작성', ok: has(p.novelty_point) || has(p.inventive_step_point) || (Array.isArray(entry.patent_points) && entry.patent_points.length > 0) },
+    { label: '청구항 후보 작성', ok: has(p.possible_claim) || (Array.isArray(entry.claim_candidates) && entry.claim_candidates.length > 0) },
+    { label: '증거자료 연결(파일·git·해시)', ok: (Array.isArray(entry.files) && entry.files.length > 0) || has(cm.git_commit_hash) || has(entry.entry_hash) },
+    { label: '무결성(해시 체인) 유지', ok: has(entry.entry_hash) },
+  ];
+  return { score: items.filter(i => i.ok).length, max: items.length, items };
+}
+// 노트북 전체 읽기 전용 분석 → 리포트 모달(기존 기록 무수정). 특허 요소 커버리지 + 10항 품질 + 부족분 권고.
+function rnAnalyzeNotebook() {
+  const all = _rnLoad();
+  const notes = all.filter(e => e && e.event_type !== 'export'); // export 마커는 내용 분석 대상 제외
+  const n = notes.length;
+  const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+  // 특허 요소별 커버리지(엔트리 단위 존재 비율)
+  const cov = [
+    ['PART 1 착상/문제', e => (e.problem_statement || e.human_idea)],
+    ['PART 2 기술적 의사결정', e => (e.final_decision || _rnObjHasContent(e.technical_decision))],
+    ['PART 3 Architecture', e => !!e.architecture],
+    ['PART 4 Algorithm', e => !!e.algorithm],
+    ['PART 5 구현(git 증거)', e => (e.code_metadata || {}).git_commit_hash],
+    ['PART 6 검증(테스트)', e => (e.test_method || e.test_result)],
+    ['PART 7 AI 협업', e => (e.ai_output_summary || e.ai_prompt_summary || (e.ai_metadata || {}).model_name)],
+    ['PART 8 발명자 기여', e => (e.contribution_stages && _rnObjHasContent(e.contribution_stages)) || e.human_idea],
+    ['PART 9 기술적 차별성', e => (e.technical_effect || (e.patent_metadata || {}).novelty_point || (e.prior_art || []).length)],
+    ['PART 10 특허 포인트', e => ((e.patent_metadata || {}).novelty_point || (e.patent_points || []).length)],
+    ['PART 11 청구항 후보', e => ((e.patent_metadata || {}).possible_claim || (e.claim_candidates || []).length)],
+    ['PART 12 증거 연결', e => ((e.files || []).length || (e.code_metadata || {}).git_commit_hash || e.entry_hash)],
+    ['PART 13 발명자 점수', e => (e.inventor_score && Object.keys(e.inventor_score).length)],
+    ['PART 14 소급 표시', e => (!e.retrospective || true)], // 소급 기록은 자동으로 필수문구 표시(_rnMd)
+  ].map(([label, fn]) => ({ label, count: notes.filter(e => { try { return !!fn(e); } catch (_) { return false; } }).length }));
+  // 10항 품질 평균 + 취약 기록
+  const perQ = notes.map(e => ({ e, q: rnQualityCheck(e) }));
+  const avg = n ? (perQ.reduce((s, x) => s + x.q.score, 0) / n) : 0;
+  const weak = perQ.filter(x => x.q.score < 7).sort((a, b) => a.q.score - b.q.score).slice(0, 8);
+  const gaps = cov.filter(c => c.count === 0).map(c => c.label);
+  const covHtml = cov.map(c => { const pct = n ? Math.round(c.count / n * 100) : 0; const col = c.count === 0 ? 'var(--red,#e5484d)' : (pct >= 50 ? 'var(--accent)' : 'var(--text2)'); return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--text2)">${esc(c.label)}</span><span style="color:${col};font-weight:700">${c.count}/${n} (${pct}%)</span></div>`; }).join('');
+  const weakHtml = weak.length ? weak.map(x => `<div style="font-size:11.5px;color:var(--text2);padding:4px 0;border-top:1px solid var(--border)"><b>${esc((x.e.feature_name || x.e.event_type || x.e.id || '').toString().slice(0, 48))}</b> — ${x.q.score}/${x.q.max} · 부족: ${esc(x.q.items.filter(i => !i.ok).map(i => i.label).join(', ') || '없음')}</div>`).join('') : '<div class="kbg-empty" style="color:var(--text3);font-size:12px">취약(7점 미만) 기록 없음 — 양호</div>';
+  const gapHtml = gaps.length ? `<div style="background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.4);border-radius:8px;padding:10px 12px;font-size:12px;color:#b45309;margin-top:6px"><b>⚠️ 노트북 전체에서 0건인 특허 요소</b><br>${gaps.map(esc).join(' · ')}<br><span style="font-size:11px">→ 기존 기록 수정 없이, <b>새 기록(➕)</b> 또는 <b>소급 분석(Retrospective)</b>으로 보완하세요.</span></div>` : '<div style="background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);border-radius:8px;padding:10px 12px;font-size:12px;color:#2ea043;margin-top:6px">✅ 14개 특허 요소가 모두 최소 1건 이상 기록되어 있습니다.</div>';
+  const md = rnBuildAnalysisMd(notes, cov, avg, weak, gaps);
+  document.getElementById('rnAnalysisModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rnAnalysisModal'; overlay.className = 'developer-modal-overlay'; overlay.style.zIndex = '1003';
+  overlay.innerHTML = `
+    <section class="developer-modal disease-edit-wide" role="dialog" aria-modal="true">
+      <div class="developer-modal-head">
+        <div><div style="font-size:16px;font-weight:900;color:var(--text)">🔬 특허 분석 · 자동 품질검사</div><div style="font-size:11px;color:var(--text3);margin-top:2px">읽기 전용 · 기존 기록을 수정하지 않습니다 · 분석 대상 ${n}건</div></div>
+        <button onclick="document.getElementById('rnAnalysisModal').remove()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:14px 18px 20px">
+        <div style="font-size:13px;color:var(--text);font-weight:700;margin-bottom:6px">10항 품질검사 평균: <span style="color:var(--accent)">${avg.toFixed(1)} / 10</span></div>
+        ${gapHtml}
+        <div style="font-size:12px;font-weight:800;color:var(--accent);margin:14px 0 4px">특허 요소 커버리지 (PART별)</div>
+        ${covHtml}
+        <div style="font-size:12px;font-weight:800;color:var(--accent);margin:14px 0 4px">보완 우선 기록 (품질 7점 미만)</div>
+        ${weakHtml}
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="ui-btn sm primary" onclick="rnOpenForm(null,{})">➕ 부족분 보완 기록 추가</button>
+          <button class="ui-btn sm" onclick='rnDownload("research_analysis.md", ${JSON.stringify(md)}, "text/markdown")'>📄 분석 리포트 저장(MD)</button>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:10px">품질검사 항목: 기존 기록은 append-only로 <b>유지</b>되며(수정·삭제 없음), 프로젝트 격리(<code>${esc(RN_PROJECT_NAME)}</code>)로 중복·오염을 막고, 해시 체인으로 무결성을 유지합니다.</div>
+      </div>
+    </section>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+function rnBuildAnalysisMd(notes, cov, avg, weak, gaps) {
+  const n = notes.length;
+  const lines = ['# 연구노트 특허 분석 리포트 (읽기 전용)', '',
+    `- 프로젝트: ${RN_PROJECT_NAME}`, `- 분석 대상: ${n}건 (export 마커 제외)`, `- 10항 품질 평균: ${avg.toFixed(1)} / 10`,
+    '- 주의: 본 리포트는 기존 기록을 수정하지 않는다. 부족분은 새 Upgrade/Retrospective 기록으로 보완한다.', '',
+    '## 특허 요소 커버리지 (PART별)'];
+  cov.forEach(c => lines.push(`- ${c.label}: ${c.count}/${n} (${n ? Math.round(c.count / n * 100) : 0}%)`));
+  lines.push('', '## 노트북 전체에서 0건인 요소');
+  lines.push(gaps.length ? gaps.map(g => `- ${g}`).join('\n') : '- (없음)');
+  lines.push('', '## 보완 우선 기록 (품질 7점 미만)');
+  lines.push(weak.length ? weak.map(x => `- ${(x.e.feature_name || x.e.event_type || x.e.id)}: ${x.q.score}/${x.q.max} · 부족: ${x.q.items.filter(i => !i.ok).map(i => i.label).join(', ')}`).join('\n') : '- (없음 — 양호)');
+  lines.push('', `> ${RN_RETRO_DISCLAIMER}`);
+  return lines.join('\n');
+}
 </script>
 
 <script>
