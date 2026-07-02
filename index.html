@@ -6412,6 +6412,9 @@ document.addEventListener('keydown', e => {
 .kbg-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
 .kbg-brand .kbg-logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px}
 .kbg-brand b{font-size:13.5px;color:var(--text)}
+.kbg-brand-text{display:flex;flex-direction:column;line-height:1.22;min-width:0}
+.kbg-brand-text b{font-size:13.5px;color:var(--text)}
+.kbg-brand-sub{font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.2px}
 .kbg-navbtn{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:0;border-radius:9px;padding:10px 12px;color:var(--text2);font-size:13.5px;cursor:pointer;font-family:inherit}
 .kbg-navbtn:hover{background:var(--surface2)}
 .kbg-navbtn.active{background:var(--accent);color:#fff}
@@ -6541,7 +6544,7 @@ document.addEventListener('keydown', e => {
   <div class="header-top">
     <div class="logo-badge">🩺</div>
     <div class="header-titles">
-      <h1 onclick="goSearchHome()" style="cursor:pointer" title="홈으로 · 검색 초기화">Dr. Bugeon의 Medical Note</h1>
+      <h1 onclick="goSearchHome()" style="cursor:pointer" title="홈으로 · 검색 초기화">Dr. Bugeon의 Medical Learning Platform</h1>
       <p>Integrated Medical Study Note</p>
     </div>
     <button class="theme-toggle-btn kbg-plat-btn" onclick="KBG_MedicalNote.open()" title="KBG Medical Note Platform 홈 열기">🏠 <span class="wide-label">플랫폼</span><span class="mobile-label" style="display:none">홈</span></button>
@@ -18860,7 +18863,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.44',
+  version: '2.45',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18869,7 +18872,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.44 — 디자인 개편 3단계: Dashboard 기본 랜딩 + 카드 보강',
+    title: '최신 · v2.45 — 브랜드 표기 변경: "Dr. Bugeon의 Medical Learning Platform"',
+    items: [
+      '화면에 보이는 제목을 "Dr. Bugeon의 Medical Learning Platform"으로 바꿨습니다. 좌측 사이드바 브랜드(기존 "KBG Medical Note")와 상단 헤더 제목을 새 명칭으로 표기합니다(2줄: "Dr. Bugeon의" + "Medical Learning Platform"). 로고 이미지는 파일 확보 후 사이드바 브랜드 자리에 임베드 예정입니다.',
+      '표시 명칭만 변경했습니다 — 내부 식별자(APP_INFO.name, 연구노트 격리 키 RN_PROJECT_NAME, 백업 앱 이름, Supabase 테이블·설정)는 그대로 유지했습니다. 이 값들을 바꾸면 과거 연구노트가 격리 필터에서 숨겨지거나 백업 호환이 깨지기 때문입니다(증거 무결성 보존).',
+    ],
+  },
+  {
+    title: 'v2.44 — 디자인 개편 3단계: Dashboard 기본 랜딩 + 카드 보강',
     items: [
       '데스크톱 플랫폼의 기본 화면이 Dashboard가 되었습니다(개념도의 홈). 인사말·오늘 날짜와 함께 오늘의 복습 예정·오답 노트·개념·오답 노트·의학 자료 수를 카드로 보여주고, Medical Core·Review Engine·Unified Search·Evidence로 바로 가는 빠른 이동 카드, 최근 추가 노트(클릭 시 열림)·연구노트 최근 로그를 배치했습니다. 하단에 라이브러리 현황(용어·약물·미생물·공식·질환 개수)도 표시합니다.',
       '카드·수치는 모두 기존 데이터를 읽어 표시하는 읽기 전용이고, 저장/동기화/해시/백업/Supabase 변경이 없습니다. 룸 내부 이동을 데스크톱(상시 사이드바)·모바일(오버레이) 컨텍스트에 맞게 라우팅하도록 정리했습니다(기존에 데스크톱에서 카드 클릭이 반응하지 않던 부분도 수정). "학습 연속일·학습 목표·항목별 추천 복습"은 학습통계/어학 이식 후 확장 예정.',
@@ -27574,6 +27584,11 @@ KBG_MedicalNote.AppSchema = {
   },
 };
 
+// ── 사이드바 브랜드(공용) — 표시 전용. 내부 APP_INFO.name/RN_PROJECT_NAME은 불변(연구노트 격리·백업 식별). ──
+// 로고 이미지 교체 지점: <span class="kbg-logo">🩺</span>를 <img src="..."> 로 바꾸면 됨(파일 확보 후 base64 임베드).
+KBG_MedicalNote.AppUI.brandHtml = function () {
+  return '<div class="kbg-brand"><span class="kbg-logo">🩺</span><div class="kbg-brand-text"><b>Dr. Bugeon의</b><span class="kbg-brand-sub">Medical Learning Platform</span></div></div>';
+};
 // ── 사이드바 푸터(공용): Settings → 기존 설정 화면(API·Supabase·Cloudinary 키 관리) 연결 ──
 KBG_MedicalNote.AppUI.sidebarFooterHtml = function () {
   return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
@@ -27585,7 +27600,7 @@ KBG_MedicalNote.AppUI.sidebarFooterHtml = function () {
 KBG_MedicalNote.AppUI.renderSidebar = function () {
   const el = document.getElementById('kbgSidebar'); if (!el) return;
   el.innerHTML =
-    '<div class="kbg-brand"><span class="kbg-logo">🩺</span><b>KBG Medical Note</b></div>' +
+    KBG_MedicalNote.AppUI.brandHtml() +
     KBG_MedicalNote.AppConfig.rooms.map(r =>
       `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.AppRouter.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
     ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
@@ -27800,7 +27815,7 @@ KBG_MedicalNote.Shell = {
     const sb = document.getElementById('kbgShellSidebar'); if (!sb) return;
     document.body.classList.add('kbg-shell-on');
     sb.innerHTML =
-      '<div class="kbg-brand"><span class="kbg-logo">🩺</span><b>KBG Medical Note</b></div>' +
+      KBG_MedicalNote.AppUI.brandHtml() +
       KBG_MedicalNote.AppConfig.rooms.map(r =>
         `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.Shell.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
       ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
