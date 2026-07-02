@@ -18877,7 +18877,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.52',
+  version: '2.53',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18886,7 +18886,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.52 — 어학 데이터 통합 L2: 언어 도메인 저장 계층 + BOM 안전 임포터(무손실)',
+    title: '최신 · v2.53 — 어학 데이터 통합 L3-①: 임상 어학/CPX·OSCE 방 렌더 + 복원 UI 배선',
+    items: [
+      '임상 어학 · CPX / OSCE 방에서 복원된 어학 항목을 실제로 볼 수 있습니다. type으로 자동 분류(General·Vocabulary·회화 프레임 → 임상 어학, CPX·OSCE·CPX 증례 → CPX/OSCE)하고, 분류칩·검색·목록·상세 보기(우즈벡/한국어/영어/발음/예문/메모/학습레벨·즐겨찾기)를 제공합니다.',
+      '어학 데이터 복원 버튼(📥)을 방에 추가했습니다. 어학앱 백업(JSON)을 고르면 BOM 안전 임포터가 무손실로 불러오고 방이 즉시 갱신됩니다. 또한 Medical Note 전체 백업(languageRecords 포함)을 표준 복원할 때도 어학 도메인이 함께 편입되도록 배선했습니다(용어 중심 복원 흐름에는 최소 개입).',
+      '오디오 재생 UI는 자리만 잡았고(현재 주소는 폐기 예정 어학앱 저장소라 재생이 안 될 수 있음), 실제 오디오는 L4에서 Medical Note Supabase Storage로 이관 후 연결됩니다. 학습 액션(레벨 변경·별표·녹음)은 L3-②에서 붙입니다.',
+      'SQL(Supabase)·연구노트/해시체인/TSA는 이번에도 변경 없음.',
+    ],
+  },
+  {
+    title: 'v2.52 — 어학 데이터 통합 L2: 언어 도메인 저장 계층 + BOM 안전 임포터(무손실)',
     items: [
       '어학앱(폐기 예정) 복원 데이터를 Medical Note로 흡수하기 위한 언어 도메인 저장 계층을 추가했습니다. 기존 6개 라이브러리(용어·약물·공식·미생물·질환·노트)와 나란한 별도 로컬 저장소(IndexedDB large-cache)로, 이번 단계에서는 데이터 계층만 얹고 화면(방) 표시는 다음 단계입니다.',
       'BOM(UTF-8) 안전 임포터를 추가했습니다: 어학앱 백업(dr-bugeon-language-full-backup, records 배열)과 자체 백업(languageRecords) 양쪽을 인식하며, 레코드의 16개 필드와 학습 상태(level·needCheck·starred·updatedAt)를 그대로(무손실) 보존합니다. 원본→도메인모델→원본 왕복 무손실을 코드로 검증했습니다.',
@@ -27303,6 +27312,37 @@ initApp();
     return { ok: mismatched === 0, checked, mismatched, samples };
   };
 
+  // ── 표준 전체백업 복원 배선(L3-①): Medical Note 백업(languageRecords 포함)이 복원되면 어학 도메인도 함께 편입 ──
+  // 어학앱 전용 백업(BOM·records 형식)은 방의 '📥 복원' 버튼(langRestorePrompt)이 importLanguageBackupData로 직접 처리.
+  // 여기서는 Medical Note 자체 백업에 담긴 languageRecords만 통과시켜 전체백업 복원 왕복을 보장(용어 중심 파이프에 최소 개입).
+  const _origReadDataImportFile = readDataImportFile;
+  readDataImportFile = async function langPatchedReadDataImportFile(file, kind) {
+    const base = await _origReadDataImportFile(file, kind); // 지원 형식이 아니면 원본이 throw — 어학 전용 백업은 전용 버튼 경로로.
+    if (kind === 'json' && base && !base.languageRecords) {
+      try {
+        let raw = await file.text();
+        if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.languageRecords)) { base.languageRecords = parsed.languageRecords; base.hasLanguagePayload = true; }
+      } catch (e) { /* 파싱 실패는 무시(base 그대로) */ }
+    }
+    return base;
+  };
+  const _origApplyPendingDataImport = applyPendingDataImport;
+  applyPendingDataImport = async function langPatchedApplyPendingDataImport(options = {}) {
+    // 원본이 반환 전 pendingDataImport=null 로 만들므로 호출 전에 캡처(노트 패치와 동일 패턴).
+    const langImportData = (pendingDataImport && Array.isArray(pendingDataImport.languageRecords)) ? pendingDataImport.languageRecords : null;
+    const mode = options.mode || document.getElementById('dataImportMode')?.value || 'merge';
+    const result = await _origApplyPendingDataImport(options);
+    if (result && langImportData) {
+      try {
+        await importLanguageBackupData({ languageRecords: langImportData }, { mode });
+        if (KBG_MedicalNote && KBG_MedicalNote.AppUI && typeof KBG_MedicalNote.AppUI.langRefreshRooms === 'function') KBG_MedicalNote.AppUI.langRefreshRooms();
+      } catch (e) { console.warn('language import (full backup) failed', e); }
+    }
+    return result;
+  };
+
   // ── 부트스트랩 ──
   document.addEventListener('DOMContentLoaded', () => { bootstrapLanguageRecords(); ensureLangTombstones(); });
   if (document.readyState !== 'loading') { bootstrapLanguageRecords(); ensureLangTombstones(); }
@@ -28093,30 +28133,139 @@ KBG_MedicalNote.AppUI._soonList = function (items) {
   return '<div class="kbg-soon-list">' + items.map(([ic, name, desc]) =>
     `<div class="kbg-soon"><span class="kbg-soon-ic">${ic}</span><div class="kbg-soon-t"><b>${esc(name)}</b><span>${esc(desc)}</span></div><span class="kbg-soon-badge">준비 중</span></div>`).join('') + '</div>';
 };
-KBG_MedicalNote.AppUI.roomClinicalLanguage = function () {
-  return `<p class="kbg-sub">임상 어학 — 회화·문장·단어·발음·녹음. 어학 소스 이식 후 채워질 방입니다(기존 TTS·녹음·Cloudinary 코어 재사용).</p>
-    ${this._soonList([
-    ['🗨️', '일반 회화', '일상·기본 회화 표현'],
-    ['🩺', '의학 문장', '임상 상황별 의학 문장'],
-    ['📖', '단어장', '의학·일반 어휘'],
-    ['🧩', '회화 프레임', '상황별 회화 틀'],
-    ['🔊', 'IPA / 발음', '발음기호 · 듣기(TTS)'],
-    ['🎙️', '녹음 / 재생', '내 발음 녹음 · 비교'],
-  ])}
-    <div class="kbg-note">ℹ️ 소스 확보 시 이 목록이 실제 기능으로 채워집니다. 시스템(저장·동기화·연구노트·TSA)은 Medical Note 코어를 그대로 씁니다.</div>`;
+// ── 어학 도메인 방 렌더(L3-①) — window.LANGRECORDS를 type별로 표시. 읽기전용 뷰(학습·녹음은 L3-②) ──
+KBG_MedicalNote.AppUI._langAll = function () { return Array.isArray(window.LANGRECORDS) ? window.LANGRECORDS.filter(r => r && !r.deletedAt) : []; };
+// 방 분류: CPX/OSCE(type CPX·OSCE 또는 subtype CPX_CASE) vs 임상 어학(그 외 — General·Vocabulary·Frame)
+KBG_MedicalNote.AppUI._langIsCpx = function (r) { return r.type === 'CPX' || r.type === 'OSCE' || r.subtype === 'CPX_CASE'; };
+KBG_MedicalNote.AppUI._langScoped = function (scope) { return this._langAll().filter(r => scope === 'cpx' ? this._langIsCpx(r) : !this._langIsCpx(r)); };
+KBG_MedicalNote.AppUI.langListHtml = function (scope, query) {
+  const esc = KBG_MedicalNote._esc;
+  const q = String(query || '').trim().toLowerCase();
+  let rows = this._langScoped(scope);
+  if (q) rows = rows.filter(r => [r.uzbek, r.korean, r.english, r.note, r.category, r.situation, r.ipa].some(v => String(v || '').toLowerCase().includes(q)));
+  rows.sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || String(a.korean || '').localeCompare(String(b.korean || '')));
+  const total = rows.length, CAP = 300;
+  if (!total) return '<div class="kbg-empty">표시할 어학 항목이 없습니다.</div>';
+  const body = rows.slice(0, CAP).map(r => {
+    const star = r.learning && r.learning.starred ? '⭐ ' : '';
+    const lvl = r.learning ? `L${r.learning.level || 0}` : '';
+    const primary = esc(star + (r.uzbek || r.korean || r.english || '(제목 없음)'));
+    const sub = esc([r.korean, r.english].filter(Boolean).join(' · ').slice(0, 70));
+    const audioMark = r.audioUrl ? '🎙️ ' : '';
+    return `<div class="kbg-li" style="cursor:pointer;align-items:flex-start" onclick='KBG_MedicalNote.AppUI.langOpenDetail(${JSON.stringify(String(r.id))})'>`
+      + `<div style="flex:1;min-width:0"><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${audioMark}${primary}</b>`
+      + `<span style="color:var(--text3);font-size:11px">${sub}</span></div>`
+      + `<span class="kbg-when">${esc(r.category || '')}${lvl ? ' · ' + lvl : ''}</span></div>`;
+  }).join('');
+  const more = total > CAP ? `<div class="kbg-note">상위 ${CAP}개 표시 중 · 전체 ${total}개 — 검색으로 좁히세요.</div>` : `<div class="kbg-note">${total}개</div>`;
+  return body + more;
 };
-
-// ── CPX / OSCE(빈 방 · 어학 소스 이식 예정) ──
+KBG_MedicalNote.AppUI.langRenderList = function (scope) {
+  const el = document.getElementById('kbgLangList'); if (!el) return;
+  const inp = document.getElementById('kbgLangSearch');
+  el.innerHTML = this.langListHtml(scope, inp ? inp.value : '');
+};
+KBG_MedicalNote.AppUI._langRoom = function (scope, subtitle, soonItems) {
+  const esc = KBG_MedicalNote._esc;
+  const scoped = this._langScoped(scope);
+  if (!scoped.length) {
+    return `<p class="kbg-sub">${esc(subtitle)}</p>
+      <div class="kbg-cards"><button class="kbg-card" onclick="KBG_MedicalNote.AppUI.langRestorePrompt()"><div class="kbg-card-ic">📥</div><b>어학 데이터 복원</b><span>백업 JSON에서 불러오기</span></button></div>
+      ${this._soonList(soonItems)}
+      <div class="kbg-note">ℹ️ 어학 백업(JSON)을 복원하면 이 방이 실제 항목으로 채워집니다. 오디오 재생·학습 기능은 다음 단계(L3-②/L4)에서 연결됩니다.</div>`;
+  }
+  const byCat = {};
+  scoped.forEach(r => { const c = r.category || '(미분류)'; byCat[c] = (byCat[c] || 0) + 1; });
+  const chips = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]).slice(0, 14)
+    .map(c => `<span style="display:inline-block;padding:3px 8px;margin:2px;border:1px solid var(--border);border-radius:12px;font-size:11px;color:var(--text2)">${esc(c)} ${byCat[c]}</span>`).join('');
+  return `<p class="kbg-sub">${esc(subtitle)} · 총 ${scoped.length}개</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <input id="kbgLangSearch" type="search" placeholder="검색(우즈벡·한국어·영어·메모)" oninput="KBG_MedicalNote.AppUI.langRenderList('${scope}')" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+      <button class="kbg-card" style="padding:8px 12px;min-height:0" onclick="KBG_MedicalNote.AppUI.langRestorePrompt()">📥 복원</button>
+    </div>
+    <div style="margin-bottom:8px">${chips}</div>
+    <div class="kbg-list" id="kbgLangList">${this.langListHtml(scope, '')}</div>`;
+};
+KBG_MedicalNote.AppUI.roomClinicalLanguage = function () {
+  return this._langRoom('clinical', '임상 어학 — 회화·문장·단어·발음·녹음(어학앱 이식 데이터)', [
+    ['🗨️', '일반 회화', '일상·기본 회화'], ['🩺', '의학 문장', '임상 문장'], ['📖', '단어장', '어휘'],
+    ['🧩', '회화 프레임', '상황 틀'], ['🔊', 'IPA / 발음', '발음기호·TTS'], ['🎙️', '녹음 / 재생', '내 발음 녹음'],
+  ]);
+};
 KBG_MedicalNote.AppUI.roomCpxOsce = function () {
-  return `<p class="kbg-sub">CPX / OSCE — 임상 실기. 어학 소스 이식 후 채워질 방입니다.</p>
-    ${KBG_MedicalNote.AppUI._soonList([
-    ['❓', 'CPX 문진 문장', '병력청취 질문'],
-    ['📋', 'CPX 증례', '증례별 문진 · 설명'],
-    ['🩻', 'OSCE 술기', '술기 체크리스트'],
-    ['🗣️', '환자 설명 문장', '환자 눈높이 설명'],
-    ['💬', '진료실 대화 시뮬레이션', '상황 롤플레이'],
-  ])}
-    <div class="kbg-note">ℹ️ 개념도의 "CPX 증례 상세(환자 정보·문진 예시·환자 설명·연결 노트)"는 소스 이식 후 이 방에 구현됩니다.</div>`;
+  return this._langRoom('cpx', 'CPX / OSCE — 임상 실기(문진·증례·술기·환자 설명)', [
+    ['❓', 'CPX 문진 문장', '병력청취'], ['📋', 'CPX 증례', '증례 문진'], ['🩻', 'OSCE 술기', '체크리스트'],
+    ['🗣️', '환자 설명 문장', '눈높이 설명'], ['💬', '진료실 대화 시뮬레이션', '롤플레이'],
+  ]);
+};
+// ── 어학 항목 상세(읽기전용 · L3-①). 학습·녹음 액션은 L3-②에서 연결 ──
+KBG_MedicalNote.AppUI.langOpenDetail = function (id) {
+  const esc = KBG_MedicalNote._esc;
+  const r = this._langAll().find(x => String(x.id) === String(id));
+  if (!r) return;
+  const row = (label, val) => val ? `<div style="margin:8px 0"><span style="color:var(--text3);font-size:11px;display:block;margin-bottom:2px">${esc(label)}</span><span style="font-size:14px;color:var(--text)">${esc(val)}</span></div>` : '';
+  const learn = r.learning || {};
+  const badges = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 8px">
+    <span style="padding:3px 8px;border-radius:10px;background:var(--surface2);font-size:11px;color:var(--text2)">레벨 L${learn.level || 0}</span>
+    ${learn.starred ? '<span style="padding:3px 8px;border-radius:10px;background:var(--surface2);font-size:11px;color:var(--text2)">⭐ 즐겨찾기</span>' : ''}
+    ${learn.needCheck ? '<span style="padding:3px 8px;border-radius:10px;background:var(--surface2);font-size:11px;color:var(--text2)">🔁 확인 필요</span>' : ''}
+    ${r.type ? `<span style="padding:3px 8px;border-radius:10px;background:var(--surface2);font-size:11px;color:var(--text2)">${esc(r.type)}${r.subtype ? '/' + esc(r.subtype) : ''}</span>` : ''}
+  </div>`;
+  const audioHtml = r.audioUrl
+    ? `<audio controls preload="none" src="${esc(r.audioUrl)}" style="width:100%;margin-top:8px"></audio><div class="kbg-note">※ 현재 오디오 주소는 폐기 예정 어학앱 저장소를 가리켜 재생이 안 될 수 있습니다 — L4(Supabase Storage 통합)에서 새 주소로 갱신됩니다.</div>`
+    : '<div class="kbg-note">녹음 없음.</div>';
+  document.getElementById('kbgLangDetailModal')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'kbgLangDetailModal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:560px;width:96%;max-height:92vh;overflow:auto;padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <b style="flex:1;color:var(--text);font-size:16px">${esc(r.uzbek || r.korean || r.english || '어학 항목')}</b>
+        <button onclick="document.getElementById('kbgLangDetailModal').remove()" style="width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      ${badges}
+      ${row('우즈벡어', r.uzbek)}
+      ${row('한국어', r.korean)}
+      ${row('영어', r.english)}
+      ${row('발음(IPA)', r.ipa)}
+      ${row('예문', r.example)}
+      ${row('메모', r.note)}
+      ${row('상황', r.situation)}
+      ${row('분류', r.category)}
+      ${audioHtml}
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+};
+// ── 어학 데이터 복원(전용 버튼) — BOM 안전 importLanguageBackupData 경유. 표준 전체백업 복원은 applyPendingDataImport 패치가 담당 ──
+KBG_MedicalNote.AppUI.langRestorePrompt = function () {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json,application/json'; input.style.display = 'none';
+  input.onchange = async () => {
+    const file = input.files && input.files[0]; if (!file) return;
+    try {
+      const text = await file.text();
+      const res = await window.importLanguageBackupData(text, { mode: 'merge' });
+      if (typeof showToast === 'function') showToast(`✅ 어학 데이터 복원 완료 · ${res.imported}개 처리 · 현재 ${res.total}개`);
+      KBG_MedicalNote.AppUI.langRefreshRooms();
+    } catch (e) {
+      console.warn('language restore failed', e);
+      if (typeof showToast === 'function') showToast('⚠️ 어학 백업 형식이 아니거나 읽기 실패');
+    } finally { input.remove(); }
+  };
+  document.body.appendChild(input); input.click();
+};
+// 현재 열린 방을 다시 그려 복원/변경을 반영
+KBG_MedicalNote.AppUI.langRefreshRooms = function () {
+  try {
+    const cur = KBG_MedicalNote.Shell && KBG_MedicalNote.Shell.current;
+    if ((cur === 'clinicalLanguage' || cur === 'cpxOsce') && typeof KBG_MedicalNote.Shell.go === 'function') { KBG_MedicalNote.Shell.go(cur); return; }
+    const ov = document.getElementById('kbgPlatformOverlay');
+    if (ov && ov.classList.contains('open')) {
+      const active = KBG_MedicalNote.AppStore && KBG_MedicalNote.AppStore.current;
+      if ((active === 'clinicalLanguage' || active === 'cpxOsce') && KBG_MedicalNote.AppRouter) KBG_MedicalNote.AppRouter.go(active);
+    }
+  } catch (e) {}
 };
 
 // ── 룸 HTML 헬퍼(오버레이·셸 공용) ──
