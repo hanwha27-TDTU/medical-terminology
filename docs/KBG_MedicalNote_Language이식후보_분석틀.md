@@ -2,8 +2,19 @@
 
 > **성격:** 소스(Language-main `index.html`)가 도착하면 **빈칸만 채우면 되는** 분석 틀. 이 문서 자체는 코드가 아니며, `index.html`을 변경하지 않는다.
 > **범위:** Language-main에서 **실제 사용자 기능으로 구현된 학습 기능만** 식별(§상위 계획서 §7). 시스템 계층(Supabase/백업/연구노트/TSA/.claude/skills/AGENTS.md/테마·AI·device_id)은 **분석 대상 아님** — Medical Note 코어 기준 유지, Language-main은 참고자료로만.
-> **소스 상태:** 미확보(2026-07-02). 채우기 전까지 모든 셀은 `TBD`.
-> **연계 문서:** `docs/KBG_MedicalNote_통합_1차_구조안정화.md`
+> **소스 상태:** **확보 완료(2026-07-02)** — Language `index.html` + 백업 JSON(2,013 레코드/100 연구노트) + 녹음 ZIP(55개). 데이터 왕복검증 통과.
+> **연계 문서:** `docs/KBG_MedicalNote_통합_1차_구조안정화.md`, **`docs/KBG_MedicalNote_Language이식_L1_임포터_왕복검증.md`(데이터 무손실 증명·도메인 모델·단계계획)**
+
+---
+
+## ✅ 소스 도착 후 확정 사실 (L1, 2026-07-02)
+- 백업 레코드 **2,013건 전부 동일 16필드 스키마**(변형 0), `learning{level,needCheck,starred,updatedAt}` 100% 커버리지.
+- `type`: General 2,006 / Vocabulary 4 / CPX 3 · `subtype`: FRAME 1 / CPX_CASE 3 / 빈값 2,009.
+- **왕복검증 2,013/2,013 무손실** (원본→언어도메인모델→원본 byte-identical).
+- 녹음 ZIP **55개 전부 recordId로 매칭**, http audio_url 55개와 완전 정합(고아 0). 오디오는 **어학앱 Supabase 폐기 → ZIP을 Medical Note Supabase Storage로 재업로드(L4)**. (저장소 역할: **Supabase=텍스트+오디오**, **Cloudinary=이미지+영상**.)
+- 연구노트 100건은 **레거시 증거로 격리 보존**(법적효력 유지), 신규 어학기능 증거는 Medical Note 체계로 축적.
+- 백업 JSON **UTF-8 BOM** → 임포터 BOM 제거 필수.
+- **SQL은 L4에서 단일 마이그레이션 한 방.**
 
 ---
 
@@ -29,7 +40,7 @@
 | 3 | 단어장 | Clinical Language | TBD | TBD | TBD | 단어 뷰 | terms 태그 뷰? | TBD | 기존 `medical_terms` 재사용 가능성 검토 |
 | 4 | 회화 프레임 | Clinical Language | TBD | TBD | TBD | 프레임 뷰 | 카드/드로어 골격 | TBD | |
 | 5 | IPA/발음 | Clinical Language | TBD | TBD | TBD | (문장/단어에 부착) | `speakText`/`ttsSpeed` | TBD | 신규 TTS 만들지 말 것 |
-| 6 | 녹음/재생 | Clinical Language | TBD | TBD | TBD | 녹음 뷰 | `MediaRecorder`+Cloudinary | TBD | 녹음 무결성(§storage-sync 15.5) |
+| 6 | 녹음/재생 | Clinical Language | TBD | TBD | TBD | 녹음 뷰 | `MediaRecorder`+**Supabase Storage**(오디오) | TBD | 녹음 무결성(§storage-sync 15.5). 오디오는 Cloudinary 아님 |
 | 7 | CPX 문진 문장 | CPX/OSCE | TBD | TBD | TBD | 문진 뷰 | 문장 카드/TTS | TBD | |
 | 8 | CPX 증례 | CPX/OSCE | TBD | TBD | TBD | 증례 뷰 | 드로어 골격 | TBD | |
 | 9 | OSCE 술기 | CPX/OSCE | TBD | TBD | TBD | 술기 뷰 | 체크리스트 카드 | TBD | |
@@ -46,7 +57,8 @@
 |---|---|---|
 | 발음/TTS | `speakText`, `ttsSpeed`, `.speak-btn`, `speakingBtn` | 새 TTS 금지, id는 `speak-<module>-<id>` 규칙 |
 | 녹음/재생 | `MediaRecorder.start(200)` + `requestData()` | 끝부분 잘림 방지 패턴 유지 |
-| 미디어 저장 | Cloudinary(`uploadImageToCloudinary`/`cloudinaryThumb`) + Edge Function | 녹음/이미지 동일 파이프 |
+| 이미지/영상 저장 | Cloudinary(`uploadImageToCloudinary`/`cloudinaryThumb`) + Edge Function | 이미지·영상 전용 |
+| 오디오 녹음 저장 | **Supabase Storage**(예: `language-audio` 버킷) | 오디오는 텍스트와 같은 백엔드(Supabase) — Cloudinary 아님 |
 | 저장 계층 | `scheduleLargeCacheWrite`/`readLargeCacheValue` (IndexedDB+메타) | 신규 도메인도 동일 래퍼 |
 | 동기화 | `sbPushAll`/`pullFromCloud`/`syncWithCloud` | 🔴 모드 혼용 금지, 신규 도메인은 canonical 메타 세트 추가 |
 | 삭제 | tombstone(소프트삭제) + `pruneOldLocalTombstones`/`getProtectedRecordCounts`/`confirmClearAllProtectedRecords` | 신규 도메인 tombstone 키를 3함수 전부에 등록(불변조건 13) |
@@ -96,7 +108,7 @@ KBG_MedicalNote.AppRouter = {
 |---|---|---|---|
 | 단어장 | `medical_terms` + 언어 태그 | 신규 `language_words` | 의학용어와 성격 다르면 B, 겹치면 A |
 | 회화/문장/CPX/OSCE | 신규 JSONB 도메인(노트형) | 정규 컬럼 테이블 | 필드 가변성 크면 JSONB(노트형) |
-| 녹음 메타 | 기존 이미지 메타 패턴 확장 | — | Cloudinary URL만 저장(바이트 DB 금지) |
+| 녹음 메타 | 기존 이미지 메타 패턴 확장 | — | **Supabase Storage URL만 저장**(바이트 DB 금지). 오디오는 Supabase, 이미지/영상은 Cloudinary |
 
 > 신규 테이블 채택 시 반드시: SQL 스키마 + `check-schema-drift.mjs` + `*ToRow/rowTo*` + canonical 메타 세트 + tombstone 3함수 + 백업/복원 + 해시 페이로드 + `check-index-scripts` parity 목록까지 **동시 갱신**(도메인 추가 6곳 누락이 최빈 결함).
 
