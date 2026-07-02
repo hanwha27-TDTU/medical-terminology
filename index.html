@@ -6544,7 +6544,7 @@ document.addEventListener('keydown', e => {
 <!-- KBG Shell (데스크톱 상시 사이드바 · v2.39) — 모바일은 CSS로 숨김, 기존 🏠 오버레이 유지 -->
 <aside class="kbg-shell-sidebar" id="kbgShellSidebar"></aside>
 <div class="kbg-shell-topbar" id="kbgShellTopbar">
-  <input class="kbg-topsearch" id="kbgTopSearch" type="text" placeholder="🔍 전체 검색 — 용어·약물·미생물·공식·질환·노트 (한국어·영어·우즈베크어)" oninput="KBG_MedicalNote.Shell.topSearch(this.value)" autocomplete="off" aria-label="전체 검색">
+  <input class="kbg-topsearch" id="kbgTopSearch" type="text" placeholder="🔍 전체 검색 — 용어·약물·미생물·공식·질환·노트·어학 (한국어·영어·우즈베크어)" oninput="KBG_MedicalNote.Shell.topSearch(this.value)" autocomplete="off" aria-label="전체 검색">
   <button class="kbg-topicon" onclick="showAISettings()" title="설정 (API·Supabase·Cloudinary)">⚙️</button>
   <button class="kbg-topicon" onclick="toggleThemeMode()" title="라이트/다크 전환">🌓</button>
   <button class="kbg-topicon" onclick="showDeveloperInfo()" title="개발자 정보·업데이트 내역">👤</button>
@@ -18880,7 +18880,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.58',
+  version: '2.59',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18889,7 +18889,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.58 — 어학 통합 전수감사 후속: 확정 결함 8건 일괄 수정(부활 방지·TTS·SRS 보존)',
+    title: '최신 · v2.59 — 어학 도메인 수평전개: 통합검색·대시보드·플래시카드에 어학 편입',
+    items: [
+      '통합검색이 이제 어학까지 검색합니다. "어학" 탭을 추가했고, 전체 검색에 어학 항목(우즈벡·한국어·영어·메모)이 함께 나오며 결과를 누르면 어학 상세가 열립니다.',
+      '대시보드에 어학 현황을 추가했습니다: "어학 복습(예정)" · "어학 자료" 수치 카드와 빠른 이동(임상 어학), 라이브러리 현황에 어학 개수·복습 연속일을 표시합니다("어학 이식 후 확장 예정" 자리 교체).',
+      '플래시카드(복습 엔진)에 "🗣️ 어학"을 추가했습니다. 우즈벡어를 앞면, 뜻·발음·예문을 뒷면으로 랜덤 능동회상합니다(어학 방의 SRS 복습 모드와는 별개 도구).',
+      '수평전개 원칙(전 도메인 동일 취급)에 따라 어학을 전역 기능에 편입한 것으로, 저장·동기화·SQL·연구노트/해시체인/TSA는 변경 없습니다.',
+    ],
+  },
+  {
+    title: 'v2.58 — 어학 통합 전수감사 후속: 확정 결함 8건 일괄 수정(부활 방지·TTS·SRS 보존)',
     items: [
       '멀티에이전트 전수감사(6차원 병렬 + 적대적 재검증)에서 확정된 결함 8건을 고쳤습니다.',
       '[중요] 어학 "영어 듣기(TTS)" 버튼이 따옴표 처리 문제로 모든 항목에서 무동작이던 것을 고쳤습니다(텍스트 대신 id만 넘겨 핸들러에서 조회). 상세·복습 뷰 모두 정상 재생됩니다.',
@@ -22893,6 +22902,11 @@ function buildFlashcardPool(domain = 'all') {
     cardId: `note:${n.id}`, domain: 'notes', label: '🧠 개념·오답 노트', front: escapeHtml(n.title || (n.noteType === 'wrong' ? '이 문제를 틀린 이유는?' : '이 개념의 핵심은?')),
     back: _fcRow('요약', n.summary) + _fcRow('핵심 포인트', n.keyPoint) + _fcRow('틀린 이유', n.wrongReason) + _fcRow('정답', n.correctAnswer) + _fcRow('비교', n.comparison),
   }));
+  // 어학(Language) — 우즈벡어 제시 → 뜻/발음 뒷면(수평전개). 어학 자체 SRS 복습(복습 모드)과 별개인 랜덤 능동회상 풀.
+  if (want('language')) (Array.isArray(window.LANGRECORDS) ? window.LANGRECORDS.filter(r => r && !r.deletedAt) : []).forEach(r => push({
+    cardId: `lang:${r.id}`, domain: 'language', label: '🗣️ 어학', front: escapeHtml(r.uzbek || r.korean || r.english || ''),
+    back: _fcRow('한국어', r.korean) + _fcRow('English', r.english) + _fcRow("O'zbek", r.uzbek) + _fcRow('발음(IPA)', r.ipa) + _fcRow('메모', r.note) + _fcRow('예문', r.example),
+  }));
   return cards;
 }
 function showFlashcards(domain = 'all') {
@@ -23008,6 +23022,7 @@ function showQuizSetup() {
           <button class="ui-btn sm" onclick="showFlashcards('microbes')">🧫 미생물</button>
           <button class="ui-btn sm" onclick="showFlashcards('diseases')">🩺 질환</button>
           <button class="ui-btn sm" onclick="showFlashcards('notes')">🧠 개념·오답</button>
+          <button class="ui-btn sm" onclick="showFlashcards('language')">🗣️ 어학</button>
         </div>
       </div>
 
@@ -28454,6 +28469,10 @@ KBG_MedicalNote.AppUI.roomDashboard = function () {
     drugs: getActiveDrugs().length, microbes: getActiveMicrobes().length, formulas: getActiveFormulas().length, diseases: getActiveDiseases().length,
   }), { terms: 0, drugs: 0, microbes: 0, formulas: 0, diseases: 0 });
   const medTotal = dc.terms + dc.drugs + dc.microbes + dc.formulas + dc.diseases;
+  // 어학 도메인 현황(수평전개) — 활성 개수·오늘 복습 예정·연속일
+  const langCount = safe(() => (Array.isArray(window.LANGRECORDS) ? window.LANGRECORDS.filter(r => r && !r.deletedAt).length : 0), 0);
+  const langDue = safe(() => (typeof window.langDueCount === 'function' ? window.langDueCount() : 0), 0);
+  const langStreak = safe(() => (typeof window.langReviewStreak === 'function' ? window.langReviewStreak() : 0), 0);
   let dateStr = '';
   try { const d = new Date(); dateStr = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]})`; } catch (e) {}
   const stat = (label, num, unit, room) => `<div class="kbg-stat" onclick="KBG_MedicalNote.navTo('${room}')"><div class="kbg-stat-label">${esc(label)}</div><div><span class="kbg-stat-num">${num}</span><span class="kbg-stat-unit">${esc(unit)}</span></div></div>`;
@@ -28472,21 +28491,22 @@ KBG_MedicalNote.AppUI.roomDashboard = function () {
     <p class="kbg-sub">오늘도 좋은 하루의 학습을 시작해보세요.</p>
     <div class="kbg-stat-grid">
       ${stat('오늘의 복습 (예정)', due, '개', 'reviewEngine')}
-      ${stat('오답 노트', wrong, '개', 'medicalCore')}
+      ${stat('어학 복습 (예정)', langDue, '개', 'clinicalLanguage')}
       ${stat('개념·오답 노트', notes.length, '개', 'medicalCore')}
       ${stat('의학 자료', medTotal, '개', 'medicalCore')}
+      ${stat('어학 자료', langCount, '개', 'clinicalLanguage')}
     </div>
     <div class="kbg-cards" style="margin-bottom:20px">
       ${qcard('🧬', '의학 코어', '용어·약물·미생물·공식·질환·노트', 'medicalCore')}
+      ${qcard('🗣️', '임상 어학', '회화·문장·단어·발음·녹음', 'clinicalLanguage')}
       ${qcard('🔁', '복습 엔진', '플래시카드·퀴즈', 'reviewEngine')}
       ${qcard('🔍', '통합검색', '전체·도메인 검색', 'unifiedSearch')}
-      ${qcard('📜', '연구노트', '연구노트·특허 증거', 'evidence')}
     </div>
     <div class="kbg-panel-grid">
       <div class="kbg-panel"><h3>최근 추가 노트</h3><div class="kbg-list">${recentHtml}</div></div>
       <div class="kbg-panel"><h3>연구노트 최근 로그</h3><div class="kbg-list">${rlogHtml}</div></div>
     </div>
-    <div class="kbg-note">ℹ️ 라이브러리 현황 — 용어 ${dc.terms} · 약물 ${dc.drugs} · 미생물 ${dc.microbes} · 공식 ${dc.formulas} · 질환 ${dc.diseases}. "학습 연속일 / 학습 목표 / 추천 복습(항목별)"은 학습통계·어학 이식 후 확장 예정.</div>`;
+    <div class="kbg-note">ℹ️ 라이브러리 현황 — 용어 ${dc.terms} · 약물 ${dc.drugs} · 미생물 ${dc.microbes} · 공식 ${dc.formulas} · 질환 ${dc.diseases} · 어학 ${langCount}${langStreak ? ` · 🔥 어학 복습 ${langStreak}일 연속` : ''}.</div>`;
 };
 
 // ── Medical Core(기존 자료 모드로 연결) ──
@@ -28519,16 +28539,15 @@ KBG_MedicalNote.AppUI.roomReviewEngine = function () {
 
 // ── Unified Search — 크로스 도메인 검색(읽기 전용). 한 필드로 전체, 탭으로 도메인별. 결과 클릭 → 기존 드로어 ──
 KBG_MedicalNote.AppUI.roomUnifiedSearch = function () {
-  const scopes = [['all', '전체'], ['terms', '용어'], ['drugs', '약물'], ['microbes', '미생물'], ['formulas', '공식'], ['diseases', '질환'], ['notes', '노트']];
+  const scopes = [['all', '전체'], ['terms', '용어'], ['drugs', '약물'], ['microbes', '미생물'], ['formulas', '공식'], ['diseases', '질환'], ['notes', '노트'], ['language', '어학']];
   KBG_MedicalNote.AppStore.uniScope = KBG_MedicalNote.AppStore.uniScope || 'all';
   const cur = KBG_MedicalNote.AppStore.uniScope;
   const chips = scopes.map(([k, l]) => `<button class="kbg-uni-chip${k === cur ? ' active' : ''}" data-scope="${k}" onclick="KBG_MedicalNote.AppUI.uniSetScope('${k}')">${l}</button>`).join('');
   return `
     <p class="kbg-sub">통합 검색 — 한 필드로 전체를, 또는 도메인 탭으로 좁혀서. (읽기 전용 · 결과 클릭 시 해당 자료 열림)</p>
-    <input id="kbgUniInput" class="kbg-uni-input" type="text" placeholder="용어·약물·미생물·공식·질환·노트 검색 (한국어·영어·우즈베크어)…" oninput="KBG_MedicalNote.AppUI.uniSearch()" autocomplete="off">
+    <input id="kbgUniInput" class="kbg-uni-input" type="text" placeholder="용어·약물·미생물·공식·질환·노트·어학 검색 (한국어·영어·우즈베크어)…" oninput="KBG_MedicalNote.AppUI.uniSearch()" autocomplete="off">
     <div class="kbg-uni-scopes">${chips}</div>
-    <div id="kbgUniResults" class="kbg-uni-results"><div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div></div>
-    <div class="kbg-note">ℹ️ "언어 검색 / CPX·OSCE 검색 / 연결 시각화"는 어학 기능 이식 후 추가 예정입니다.</div>`;
+    <div id="kbgUniResults" class="kbg-uni-results"><div class="kbg-empty">🔎 2글자 이상 입력하세요 · 한국어·영어·우즈베크어</div></div>`;
 };
 KBG_MedicalNote.AppUI.uniSetScope = function (k) {
   KBG_MedicalNote.AppStore.uniScope = k;
@@ -28549,6 +28568,8 @@ KBG_MedicalNote.AppUI.uniSearch = function () {
     { key: 'formulas', label: '공식', color: '#a78bfa', get: () => getActiveFormulas(), fields: f => [f.name, f.short_name, f.formula], title: f => f.name || f.short_name || '(무제)', sub: f => f.short_name || '', open: f => `openFormulaEditModal(event,${JSON.stringify(f.id)})` },
     { key: 'diseases', label: '질환', color: '#f778ba', get: () => getActiveDiseases(), fields: d => [d.ko_name, d.en_name, d.uz_name], title: d => d.ko_name || d.en_name || '(무제)', sub: d => [d.en_name].filter(Boolean).join(' · '), open: d => `openDiseaseDrawer(event,${JSON.stringify(d.id)})` },
     { key: 'notes', label: '노트', color: '#7ee787', get: () => (window.NOTEBOOK || []).filter(n => n && !n.deletedAt && !n.hiddenAt), fields: n => [n.title, n.summary, n.keyPoint, (n.tags || []).join(' ')], title: n => n.title || '(무제 노트)', sub: n => n.summary || n.keyPoint || '', open: n => `openIntegratedNoteView(${JSON.stringify(n.id)})` },
+    // 어학(Language) — 엔티티 연결맵 대상이 아니므로 noMap. 결과 클릭 → 어학 상세.
+    { key: 'language', label: '어학', color: '#6ee7ff', noMap: true, get: () => (Array.isArray(window.LANGRECORDS) ? window.LANGRECORDS.filter(r => r && !r.deletedAt) : []), fields: r => [r.uzbek, r.korean, r.english, r.note], title: r => r.uzbek || r.korean || r.english || '(무제)', sub: r => [r.korean, r.english].filter(Boolean).join(' · '), open: r => `KBG_MedicalNote.AppUI.langOpenDetail(${KBG_MedicalNote._j(r.id)})` },
   ];
   const cap = scope === 'all' ? 6 : 100;
   let total = 0, html = '';
@@ -28557,7 +28578,7 @@ KBG_MedicalNote.AppUI.uniSearch = function () {
     const rows = safe(() => d.get(), []).filter(x => d.fields(x).some(f => norm(f).includes(q)));
     if (!rows.length) return;
     total += rows.length;
-    const items = rows.slice(0, cap).map(x => `<button class="kbg-uni-item" onclick='${d.open(x)}'><span class="kbg-uni-dot" style="background:${d.color}"></span><span class="kbg-uni-t">${esc(d.title(x))}</span><span class="kbg-uni-s">${esc((d.sub(x) || '').slice(0, 70))}</span><span class="kbg-uni-map" onclick='event.stopPropagation();showEntityConnectionMap(${JSON.stringify(d.key)},${JSON.stringify(x.id)})' title="연결 지도 보기">🔗</span></button>`).join('');
+    const items = rows.slice(0, cap).map(x => `<button class="kbg-uni-item" onclick='${d.open(x)}'><span class="kbg-uni-dot" style="background:${d.color}"></span><span class="kbg-uni-t">${esc(d.title(x))}</span><span class="kbg-uni-s">${esc((d.sub(x) || '').slice(0, 70))}</span>${d.noMap ? '' : `<span class="kbg-uni-map" onclick='event.stopPropagation();showEntityConnectionMap(${JSON.stringify(d.key)},${JSON.stringify(x.id)})' title="연결 지도 보기">🔗</span>`}</button>`).join('');
     const more = rows.length > cap ? `<div class="kbg-uni-more">…외 ${rows.length - cap}개 · "${esc(d.label)}" 탭에서 전체 보기</div>` : '';
     html += `<div class="kbg-uni-group"><div class="kbg-uni-gh"><span class="kbg-uni-dot" style="background:${d.color}"></span>${esc(d.label)} <b>${rows.length}</b></div>${items}${more}</div>`;
   });
