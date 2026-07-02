@@ -2,8 +2,19 @@
 
 > **성격:** 소스(Language-main `index.html`)가 도착하면 **빈칸만 채우면 되는** 분석 틀. 이 문서 자체는 코드가 아니며, `index.html`을 변경하지 않는다.
 > **범위:** Language-main에서 **실제 사용자 기능으로 구현된 학습 기능만** 식별(§상위 계획서 §7). 시스템 계층(Supabase/백업/연구노트/TSA/.claude/skills/AGENTS.md/테마·AI·device_id)은 **분석 대상 아님** — Medical Note 코어 기준 유지, Language-main은 참고자료로만.
-> **소스 상태:** 미확보(2026-07-02). 채우기 전까지 모든 셀은 `TBD`.
-> **연계 문서:** `docs/KBG_MedicalNote_통합_1차_구조안정화.md`
+> **소스 상태:** **확보 완료(2026-07-02)** — Language `index.html` + 백업 JSON(2,013 레코드/100 연구노트) + 녹음 ZIP(55개). 데이터 왕복검증 통과.
+> **연계 문서:** `docs/KBG_MedicalNote_통합_1차_구조안정화.md`, **`docs/KBG_MedicalNote_Language이식_L1_임포터_왕복검증.md`(데이터 무손실 증명·도메인 모델·단계계획)**
+
+---
+
+## ✅ 소스 도착 후 확정 사실 (L1, 2026-07-02)
+- 백업 레코드 **2,013건 전부 동일 16필드 스키마**(변형 0), `learning{level,needCheck,starred,updatedAt}` 100% 커버리지.
+- `type`: General 2,006 / Vocabulary 4 / CPX 3 · `subtype`: FRAME 1 / CPX_CASE 3 / 빈값 2,009.
+- **왕복검증 2,013/2,013 무손실** (원본→언어도메인모델→원본 byte-identical).
+- 녹음 ZIP **55개 전부 recordId로 매칭**, http audio_url 55개와 완전 정합(고아 0). 오디오는 **어학앱 Supabase 폐기 → ZIP을 Cloudinary 재업로드**.
+- 연구노트 100건은 **레거시 증거로 격리 보존**(법적효력 유지), 신규 어학기능 증거는 Medical Note 체계로 축적.
+- 백업 JSON **UTF-8 BOM** → 임포터 BOM 제거 필수.
+- **SQL은 L4에서 단일 마이그레이션 한 방.**
 
 ---
 
