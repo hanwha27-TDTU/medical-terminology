@@ -179,8 +179,53 @@ golden('_rnContrib', e => {
   {},
 ]);
 
+// ── 어학(Language) 도메인 잠금: normalizeLangRecord (무손실 왕복·audioUrl null 보존·id 문자열·level 숫자화·reviewedAt 조건부) ──
+// L1 무손실 왕복(2013/0)의 핵심 정규화 + 전수감사 수정(learning.reviewedAt 조건부 보존)을 회귀로 고정.
+// normalizeLangRecord는 헬퍼 s(v)에 의존 → 실제와 동일한 s를 스코프에 주입해 실행.
+{
+  // 파라미터 기본값 객체(r = {})가 있어 표준 extractSource(첫 '{'=본문 가정)로는 안 됨 → 파라미터 리스트를 건너뛰고 본문을 잡는다.
+  function extractLangSource(name) {
+    const start = html.indexOf(`function ${name}`);
+    if (start < 0) throw new Error(`함수 ${name} 없음`);
+    const paren = html.indexOf('(', start);
+    let d = 0, i = paren;
+    for (; i < html.length; i++) { if (html[i] === '(') d++; else if (html[i] === ')') { d--; if (d === 0) { i++; break; } } }
+    const braceOpen = html.indexOf('{', i);
+    let depth = 0, j = braceOpen;
+    for (; j < html.length; j++) { if (html[j] === '{') depth++; else if (html[j] === '}') { depth--; if (depth === 0) { j++; break; } } }
+    return html.slice(start, j);
+  }
+  let fn;
+  try { fn = eval('(function(){ function s(v){return v==null?"":String(v);} return ' + extractLangSource('normalizeLangRecord') + '; })()'); }
+  catch (e) { failures.push(`normalizeLangRecord: 추출 실패 — ${e.message}`); }
+  if (fn) {
+    const s = v => (v == null ? '' : String(v));
+    const refNorm = (r = {}) => {
+      const src = (r && typeof r === 'object') ? r : {};
+      const learn = (src.learning && typeof src.learning === 'object') ? src.learning : {};
+      const au = (src.audioUrl !== undefined) ? src.audioUrl : src.audio_url;
+      const upd = (src.updatedAt !== undefined) ? src.updatedAt : src.updated_at;
+      return {
+        id: s(src.id), domain: 'language', type: s(src.type), subtype: s(src.subtype), category: s(src.category), situation: s(src.situation),
+        uzbek: s(src.uzbek), korean: s(src.korean), english: s(src.english), ipa: s(src.ipa), note: s(src.note), example: s(src.example),
+        audioUrl: (au === undefined ? '' : au), model: s(src.model), date: s(src.date), updatedAt: s(upd),
+        learning: { level: Number.isFinite(+learn.level) ? +learn.level : 0, needCheck: !!learn.needCheck, starred: !!learn.starred, updatedAt: s(learn.updatedAt), ...(learn.reviewedAt ? { reviewedAt: s(learn.reviewedAt) } : {}) },
+        deletedAt: src.deletedAt || null,
+      };
+    };
+    const LANGBAT = [
+      { id: 'mq2okm', uzbek: 'Salom', korean: '안녕', english: 'Hi', ipa: '/x/', note: 'n', example: 'e', type: 'General', subtype: '', category: 'Daily', situation: 's', model: 'm', date: '2026-01-01', updated_at: '2026-02-02', audio_url: null, learning: { level: 3, needCheck: true, starred: false, updatedAt: '2026-02-02' } }, // audio_url null 보존 · reviewedAt 없음→키 없음
+      { id: 5, learning: { level: '2', reviewedAt: '2026-05-05', updatedAt: '2026-05-05' } },  // id 숫자→문자열 · level 문자열→숫자 · reviewedAt 보존(조건부)
+      { id: 'x', audioUrl: 'https://a', learning: {} },                                          // 자체형식 audioUrl · 빈 learning 기본값
+      { id: 'z', updated_at: '2026-09-09', learning: { level: 99, needCheck: 'yes', starred: 1 } }, // truthy 강제 · level 유지
+      {}, null, undefined,                                                                        // 방어
+    ];
+    for (const inp of LANGBAT) check(`normalizeLangRecord(${JSON.stringify(inp)})`, fn(inp), refNorm(inp));
+  }
+}
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 17종(정규화 6 + 식별/매칭키 7 + 스키마오류분류 1 + 기여판정 1 + stableForHash 직렬화 + _rnComputeHash 해시)이 기준과 일치.');
+console.log('✅ 골든테스트 통과 — 18종(정규화 6 + 식별/매칭키 7 + 스키마오류분류 1 + 기여판정 1 + stableForHash 직렬화 + _rnComputeHash 해시 + normalizeLangRecord 어학 정규화)이 기준과 일치.');

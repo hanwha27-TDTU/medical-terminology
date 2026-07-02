@@ -32,6 +32,10 @@ const REQUIRED_SYMBOLS = [
   'window.openIntegratedNoteModal', 'function renderDiseaseFrame',
   // 플래시카드(전 도메인 능동 회상) — 원본 불변·별도 로컬 기록
   'function buildFlashcardPool', 'function showFlashcards', 'function renderFlashcard',
+  // 어학(Language) 도메인 코어(L2~L4b) — 삭제/리네임 시 "어학 저장·복원·동기화·방·TTS·오디오 깨짐" 정적 감지.
+  'function installLanguageDomain', 'function normalizeLangRecord', 'function importLanguageBackupData',
+  'function langToRow', 'function syncLanguageWithCloud', 'function sbUploadLangAudio',
+  'KBG_MedicalNote.AppUI.roomClinicalLanguage', 'KBG_MedicalNote.AppUI.langOpenDetail', 'KBG_MedicalNote.AppUI.langSpeakEnglish',
 ];
 // 컬럼-스키마 점검 대상 도메인만(medical_notes는 jsonb-blob이라 컬럼 드리프트 점검 대상이 아님 — 의도적 제외).
 const REQUIRED_TABLES = ['medical_terms', 'medical_drugs', 'medical_formulas', 'medical_microbes', 'medical_diseases', 'research_notes_med'];
