@@ -89,6 +89,8 @@
 
 ## 9. 녹음 파일 처리
 
+> **어학(Language) 오디오(v2.57 L4b):** 어학 녹음은 **Supabase Storage `language-audio` 버킷**에 저장한다(저장소 역할: **오디오=Supabase Storage / 이미지·영상=Cloudinary**). 캡처 녹음은 `sbUploadLangAudio`(MIME 정규화·ASCII 파일명·x-upsert→public URL)로 업로드하고 `audioUrl` 갱신, 삭제 시 `langIsOwnAudioUrl`로 우리 버킷 파일만 정리하되 다른 레코드가 같은 URL을 참조하면 연결만 해제. 폐기 어학앱의 옛 녹음 55개 일괄 이관은 **다중 파일 선택**(JSZip 없이) + 파일명 `ID-{recordId}_` recordId 매칭(`langRecordIdFromFileName`). 아래 무결성 규칙을 그대로 따른다.
+
 녹음 데이터와 문장 데이터는 항상 연결 무결성을 우선한다.
 
 - 문장 기준본 저장 성공을 먼저 확인한다.

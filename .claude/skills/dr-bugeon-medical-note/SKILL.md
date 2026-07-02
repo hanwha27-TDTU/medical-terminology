@@ -1,8 +1,8 @@
 ---
 name: dr-bugeon-medical-note
 description: >-
-  Dr. Bugeon의 Medical Note 및 Dr. 김부건의 언어 마스터 여정처럼 단일 HTML 파일 +
-  localStorage/IndexedDB + Supabase 동기화 + Cloudinary 이미지로 만든 개인용 의학/어학
+  Dr. Bugeon의 Medical Note(폐기된 Dr. 김부건의 언어 마스터 여정을 v2.52~ 어학 도메인으로 흡수·통합)처럼 단일 HTML 파일 +
+  localStorage/IndexedDB + Supabase 동기화 + Cloudinary(이미지/영상)·Supabase Storage(오디오)로 만든 개인용 의학/어학
   학습 앱을 개발·수정·디버그·검증·배포할 때 사용한다. 다룰 수 있는 작업: 단일 HTML 앱 수정
   방법론, IndexedDB/localStorage 저장 계층, Supabase 저장·동기화(일반 동기화 vs 클라우드
   최종본 덮어쓰기 구분, canonical_version, tombstone 소프트삭제), 단권화 노트/오답노트,
@@ -69,7 +69,7 @@ description: >-
 - **[references/ui-features.md](references/ui-features.md)** — UI/기능별 지침: 표 편집기, UI/DOM/상태 관리, 테이블 수정, YouTube IFrame/외부 API, 데이터 관리 화면, 검사일별 판정 기준.
 - **[references/import-backup-media.md](references/import-backup-media.md)** — 가져오기/내보내기/백업, 녹음 파일 처리.
 - **[references/agents-rules.md](references/agents-rules.md)** — 모든 앱개발에 반복 적용하는 전역 필수·금지·완료 보고 규칙(디자인 회귀 방지, 데이터 규칙, 동기화 모드, 로컬 캐시, 패치/quoting/Playwright 검증 원칙 등) + 데이터 유실 회귀 방지(전수감사 일반화).
-- **[references/reconstruction-spec.md](references/reconstruction-spec.md)** — 복원용 설계 명세서. 앱 HTML이 전부 사라져도 이 문서로 재구축 가능. 아키텍처, 7 도메인 데이터 모델(용어·약물·공식·미생물·주요 질환·노트 + 학습상태), 저장 계층 키 목록, 동기화 설계, 노트 시스템, 연구노트(특허 증거 로그: 해시 체인·ECDSA 서명·RFC3161 TSA·멀티-앱 격리·끊김 경위 주석 — 불변조건 19), 무결성 해시 함정, 재구축 체크리스트. **§10 불변조건 & 함정은 동기화/삭제/노트 변경 전 필독.**
+- **[references/reconstruction-spec.md](references/reconstruction-spec.md)** — 복원용 설계 명세서. 앱 HTML이 전부 사라져도 이 문서로 재구축 가능. 아키텍처, 7 도메인 데이터 모델(용어·약물·공식·미생물·주요 질환·노트 + 학습상태) + **흡수된 어학 도메인(JSONB·id text, §12)**, 저장 계층 키 목록, 동기화 설계, 노트 시스템, 연구노트(특허 증거 로그: 해시 체인·ECDSA 서명·RFC3161 TSA·멀티-앱 격리·끊김 경위 주석 — 불변조건 19), 무결성 해시 함정, 재구축 체크리스트. **§10 불변조건 & 함정은 동기화/삭제/노트 변경 전 필독.**
 - **[references/install-deploy-guide.md](references/install-deploy-guide.md)** — 설치·배포 가이드. Supabase 프로젝트/SQL, Cloudinary unsigned preset, Edge Function `delete-cloudinary-image`(코드 포함), GitHub Pages 배포, 오류 해결표, 빠른 복구 절차.
 - **[references/code-review.md](references/code-review.md)** — 단일 HTML · GitHub PR 코드 리뷰 절차. 0단계 자동 게이트(check-index·golden·schema-drift·doc-sync) → 데이터흐름/도메인 parity/노트/UI 회귀 체크리스트, 🔴 CRITICAL ZONE(연구노트 해시) 코멘트-only, 보안 제외(별도 /security-review), 판정 3단계·출력 형식. **PR 리뷰 시 사용.**
 - **[references/feature-addition.md](references/feature-addition.md)** — 새 기능·필드 추가 **사전** 절차(9단계) + **필드 흐름 추적표**(입력→normalize→로컬→Supabase→해시 payload→export/import→검색/필터→UI). "보이기만 하고 저장 안 됨" 방지 + **"필드가 다른 기기에 안 뜬다" 디버그 역추적**. **기능/필드 추가 시·필드 유실 진단 시 사용.**
