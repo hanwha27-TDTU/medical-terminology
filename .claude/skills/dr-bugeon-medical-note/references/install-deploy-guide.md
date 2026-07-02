@@ -601,6 +601,23 @@ Mode: Unsigned
 Asset folder: Dr_bugeon_medical_notes
 ```
 
+### 7.7 GitHub Pages: "pages build and deployment" 실패 (deploy 단계 `Deployment failed, try again later`)
+
+증상: Actions의 "pages build and deployment" 실행에서 **build는 초록(성공)인데 deploy만 빨강**. deploy 로그 끝에:
+
+```text
+Getting Pages deployment status...
+##[error]Deployment failed, try again later.
+```
+
+원인: **우리 코드/빌드 문제가 아니다.** GitHub Pages 백엔드의 **일시적 오류**다. 이 저장소는 레거시 Pages("**Deploy from a branch**", 워크플로 `on: dynamic`)를 쓰는데 **동시성 제어가 없어**, main에 **짧은 시간 연속 푸시/머지**를 하면 뒤이은 배포가 서로 밀어내며 이 에러로 실패한다(실제 사례: v2.60 성공 → v2.61·v2.62를 몇 분 내 연속 머지 → 둘 다 deploy 실패).
+
+해결(둘 다 안전):
+- **재실행**: 실패한(=최신) run의 실패 잡만 재실행하면 대개 즉시 성공한다. (MCP: `actions_run_trigger` method `rerun_failed_jobs`, run_id=해당 run / UI: 실행 페이지 "Re-run failed jobs"). 재실행이 최신 main을 다시 배포하므로 코드 수정 불필요.
+- **예방**: **여러 PR을 촘촘히 연속 머지하지 말 것** — 변경을 한 PR로 묶거나, 앞 배포가 끝난 뒤 다음을 머지해 **Pages 배포가 하나씩** 돌게 한다. (근본 해결이 필요하면 Pages Source를 "GitHub Actions"로 바꾸면 concurrency group으로 자동 직렬화되지만, 레거시 소스 유지 시엔 위 예방이 현실적.)
+
+> ⚠️ deploy 실패 로그에 `Deployment failed, try again later` 외 다른 에러(예: 아티팩트 크기 초과, 환경 보호 규칙)가 있으면 그건 별개 원인이니 로그를 먼저 확인한다.
+
 ---
 
 ## 8. GitHub 배포 방법
