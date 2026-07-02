@@ -375,6 +375,9 @@ const KBG_MedicalNote = {
 
 ## 10. 다음 단계 실제 수정 파일/구역 (범위 최소화)
 
+> **구현 상태(v2.34):** 아래 shell 계층을 additive로 실제 구현 완료 — 헤더 `🏠 플랫폼` 버튼 + 좌측 사이드바 8개 방 오버레이(`KBG_MedicalNote` namespace). 6개 방은 기존 함수로 연결, Dashboard는 실데이터, Clinical Language·CPX/OSCE는 빈 방. CI(check-index/golden/version-bump/schema-drift/restore-drift) 전부 통과 + 브라우저 동작 검증(8방 렌더·라우팅·닫기·dispatch·양 화면폭 가로스크롤 없음). 기존 로직/DOM/저장/동기화/해시/TSA 무변경.
+
+
 | 파일 | 구역 | 변경 유형 | 검증 |
 |---|---|---|---|
 | `index.html` | 신규 `<script>` 블록(15 App Init 앞) | `KBG_MedicalNote` additive 객체(§3.2) | check-index-scripts |
