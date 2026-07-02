@@ -18828,7 +18828,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.39',
+  version: '2.40',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18837,7 +18837,14 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.39 — 디자인 전면 개편 1단계: 데스크톱 좌측 상시 사이드바(8룸 셸)',
+    title: '최신 · v2.40 — 사이드바 하단 "⚙️ Settings" 추가(API·Supabase·Cloudinary 키 관리 연결)',
+    items: [
+      '좌측 사이드바(및 모바일 🏠 오버레이) 하단에 "⚙️ Settings" 버튼을 추가했습니다. 누르면 기존 설정 화면이 열려 AI(API 키)·Supabase(URL/키)·Cloudinary(cloud name/preset/folder) 키를 한 곳에서 관리합니다.',
+      '새 설정 화면을 만들지 않고 기존 설정(showAISettings, 이미 3개 섹션 보유)으로 연결만 했습니다 — 중복 없음, 저장 구조·키 저장 위치(localStorage) 변경 없음. 헤더의 ⚙️ 설정 버튼도 그대로 동작합니다.',
+    ],
+  },
+  {
+    title: 'v2.39 — 디자인 전면 개편 1단계: 데스크톱 좌측 상시 사이드바(8룸 셸)',
     items: [
       '개념도대로 디자인 틀을 개편하는 첫 단계입니다. 넓은 화면(데스크톱, 1101px 이상)에서 좌측에 8룸 사이드바(Dashboard·Medical Core·Clinical Language·CPX/OSCE·Review Engine·Unified Search·Data Management·Evidence)가 상시 표시되고, 기존 앱은 오른쪽 메인 영역으로 배치됩니다. 사이드바에서 룸을 고르면 해당 화면이 메인 영역에 뜨고, "Medical Core"는 기존 라이브러리(용어·약물·미생물·공식·질환·노트)를 그대로 보여줍니다.',
       '표현(레이아웃)만 바꿨습니다 — 기존 코드/함수/DOM id/데이터/localStorage/IndexedDB/Supabase/해시체인/TSA/백업은 전혀 건드리지 않았고, 마크업도 옮기지 않고 CSS로 감쌌습니다. 모바일·태블릿(1100px 이하)은 기존 화면 그대로 유지되고 헤더 🏠 플랫폼 버튼으로 같은 8룸에 접근합니다(데스크톱은 사이드바 상시라 버튼 숨김).',
@@ -27507,6 +27514,13 @@ KBG_MedicalNote.AppSchema = {
   },
 };
 
+// ── 사이드바 푸터(공용): Settings → 기존 설정 화면(API·Supabase·Cloudinary 키 관리) 연결 ──
+KBG_MedicalNote.AppUI.sidebarFooterHtml = function () {
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
+    + '<button class="kbg-navbtn" onclick="showAISettings()" title="API · Supabase · Cloudinary 키 관리"><span class="kbg-ic">⚙️</span>Settings</button>'
+    + '</div>';
+};
+
 // ── 사이드바 ──
 KBG_MedicalNote.AppUI.renderSidebar = function () {
   const el = document.getElementById('kbgSidebar'); if (!el) return;
@@ -27514,7 +27528,7 @@ KBG_MedicalNote.AppUI.renderSidebar = function () {
     '<div class="kbg-brand"><span class="kbg-logo">🩺</span><b>KBG Medical Note</b></div>' +
     KBG_MedicalNote.AppConfig.rooms.map(r =>
       `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.AppRouter.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
-    ).join('');
+    ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
 };
 
 // ── 라우터: 방 전환(모두 오버레이 안에서 렌더) ──
@@ -27676,7 +27690,7 @@ KBG_MedicalNote.Shell = {
       '<div class="kbg-brand"><span class="kbg-logo">🩺</span><b>KBG Medical Note</b></div>' +
       KBG_MedicalNote.AppConfig.rooms.map(r =>
         `<button class="kbg-navbtn" data-room="${r.key}" onclick="KBG_MedicalNote.Shell.go('${r.key}')"><span class="kbg-ic">${r.icon}</span>${KBG_MedicalNote._esc(r.label)}</button>`
-      ).join('');
+      ).join('') + KBG_MedicalNote.AppUI.sidebarFooterHtml();
     this.go('medicalCore'); // 기본: 기존 라이브러리(패널 off) — Phase 1 안전 기본(Dashboard 랜딩은 Phase 3)
   },
   go(key) {
