@@ -18872,7 +18872,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.48',
+  version: '2.49',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18881,7 +18881,13 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.48 — 디자인 개편 4단계(일부): Clinical Language·CPX/OSCE 빈 방 구조화',
+    title: '최신 · v2.49 — "Unified Search" 룸 이름을 "통합검색"으로 변경',
+    items: [
+      '사이드바·룸 제목·Dashboard 빠른 이동 카드의 "Unified Search" 표기를 "통합검색"으로 바꿨습니다(표시 라벨만 변경, 기능·라우팅 키(unifiedSearch)는 그대로).',
+    ],
+  },
+  {
+    title: 'v2.48 — 디자인 개편 4단계(일부): Clinical Language·CPX/OSCE 빈 방 구조화',
     items: [
       'Clinical Language와 CPX/OSCE 방을 단순 칩 나열에서 구조화된 목록(아이콘·이름·설명·"준비 중" 배지)으로 다듬었습니다. 어학 소스가 이식될 자리(일반회화·의학문장·단어장·회화프레임·IPA/발음·녹음/재생 · CPX문진·CPX증례·OSCE술기·환자설명·진료실대화)를 한눈에 볼 수 있는 셸입니다.',
       '표시(레이아웃)만 변경했습니다. 시스템 코어(저장·동기화·연구노트·TSA·백업)는 그대로이며, 소스 확보 후 이 목록이 실제 기능으로 채워집니다.',
@@ -27528,7 +27534,7 @@ const KBG_MedicalNote = {
       { key: 'clinicalLanguage', icon: '🗣️', label: 'Clinical Language' },
       { key: 'cpxOsce',          icon: '🩺', label: 'CPX / OSCE' },
       { key: 'reviewEngine',     icon: '🔁', label: 'Review Engine' },
-      { key: 'unifiedSearch',    icon: '🔍', label: 'Unified Search' },
+      { key: 'unifiedSearch',    icon: '🔍', label: '통합검색' },
       { key: 'dataManagement',   icon: '💾', label: 'Data Management' },
       { key: 'evidence',         icon: '📜', label: 'Evidence / Research Note' },
     ],
@@ -27701,7 +27707,7 @@ KBG_MedicalNote.AppUI.roomDashboard = function () {
     <div class="kbg-cards" style="margin-bottom:20px">
       ${qcard('🧬', 'Medical Core', '용어·약물·미생물·공식·질환·노트', 'medicalCore')}
       ${qcard('🔁', 'Review Engine', '플래시카드·퀴즈', 'reviewEngine')}
-      ${qcard('🔍', 'Unified Search', '전체·도메인 검색', 'unifiedSearch')}
+      ${qcard('🔍', '통합검색', '전체·도메인 검색', 'unifiedSearch')}
       ${qcard('📜', 'Evidence', '연구노트·특허 증거', 'evidence')}
     </div>
     <div class="kbg-panel-grid">
