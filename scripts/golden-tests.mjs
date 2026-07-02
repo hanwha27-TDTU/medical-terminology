@@ -162,8 +162,25 @@ goldenD('diseaseMatchKeys', dz, dzMatchRef,
   }
 }
 
+// ── 연구노트 기여 판정(_rnContrib, v2.33) — 카드 👤/🤖 배지와 증거 보고서 집계의 단일 기준 → 골든 잠금 ──
+// 4종 시드(사람만/AI만/둘다/빈) + 트림 시맨틱(공백만='미기재') + 선시드 빈 ai_metadata 오탐 방지.
+golden('_rnContrib', e => {
+  const has = v => !!(v && String(v).trim());
+  const human = has(e.human_idea) || has(e.human_modification) || has(e.final_decision);
+  const ai = has(e.ai_prompt_summary) || has(e.ai_output_summary) || has(e.ai_prompt_full) || has(e.ai_output_full) || has(e.ai_metadata && e.ai_metadata.model_name);
+  return { human, ai, model: (e.ai_metadata && e.ai_metadata.model_name && String(e.ai_metadata.model_name).trim()) || '' };
+}, [
+  { human_idea: '사람의 착상' },                                                          // 사람만 → 👤
+  { ai_output_summary: 'AI 요약', ai_metadata: { model_name: 'Claude (Claude Code)' } },  // AI만 → 🤖 + 모델
+  { human_idea: '착상', final_decision: '확정', ai_prompt_summary: '프롬프트' },          // 둘 다
+  { human_idea: '', human_modification: '', final_decision: '', ai_prompt_summary: '', ai_metadata: { model_name: '' } }, // 선시드 빈값 → 미기재
+  { human_idea: '   ', ai_output_full: ' \n ' },                                          // 공백만 → 미기재(트림)
+  { ai_metadata: { model_name: 'GPT-5' } },                                               // 모델명 단독 → AI로 집계
+  {},
+]);
+
 if (failures.length) {
   console.error(`❌ 골든테스트 실패 (${failures.length}건):\n` + failures.map((f, i) => `${i + 1}. ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✅ 골든테스트 통과 — 16종(정규화 6 + 식별/매칭키 7 + 스키마오류분류 1 + stableForHash 직렬화 + _rnComputeHash 해시)이 기준과 일치.');
+console.log('✅ 골든테스트 통과 — 17종(정규화 6 + 식별/매칭키 7 + 스키마오류분류 1 + 기여판정 1 + stableForHash 직렬화 + _rnComputeHash 해시)이 기준과 일치.');

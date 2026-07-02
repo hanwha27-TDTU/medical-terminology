@@ -18717,7 +18717,7 @@ async function confirmDangerousDiseaseDelete() {
 
 const APP_INFO = {
   name: 'Dr. Bugeon의 Medical Note',
-  version: '2.32',
+  version: '2.33',
   developer: '김부건 (Kim Bugeon)',
   organization: 'Tashkent State Medical University',
   firstDeveloped: '2026년 6월 4일',
@@ -18726,7 +18726,16 @@ const APP_INFO = {
 
 const UPDATE_HISTORY = [
   {
-    title: '최신 · v2.32 — 전면 재점검(신규 모델 눈) 후속: 확정 결함 7건 일괄 수정',
+    title: '최신 · v2.33 — 연구노트: 기여 주체 배지(👤사람/🤖AI) 추가 — 발명자 입증을 한눈에',
+    items: [
+      '연구노트 카드마다 누가 기여했는지 배지로 표시합니다 — 사람(발명자)의 착상·수정·최종결정이 기록된 기록엔 "👤 사람", AI 프롬프트·출력·모델명이 기록된 기록엔 "🤖 AI(모델명)"가 붙습니다(둘 다면 둘 다, 아무것도 없으면 "기여 미기재"). 이 연구노트의 존재 이유인 "발명자=사람, AI=도구" 입증을 심사자가 카드만 봐도 알 수 있게 합니다.',
+      '중요: 기존 기록은 하나도 수정하지 않았습니다. 배지는 각 기록에 이미 해시로 봉인돼 있는 필드(human_idea·final_decision·ai_* 등)에서 화면에 그릴 때 파생할 뿐이라, 해시·서명·타임스탬프·체인 증거력에 어떤 영향도 없습니다.',
+      '증거 보고서의 "사람 vs AI 기여" 집계도 카드 배지와 똑같은 판정 기준(단일 함수)을 쓰도록 통일해, 카드와 보고서 수치가 어긋날 수 없게 했습니다. 판정 함수는 골든테스트로 잠갔습니다(사람만/AI만/둘다/빈 기록 4종 시드).',
+      '참고: 자매 앱(언어 마스터)에서 발견된 "모든 카드에 🏷️특허 배지가 뜨는 버그"는 이 앱을 점검한 결과 존재하지 않아(이미 값 기반 판정) 수정할 것이 없었습니다.',
+    ],
+  },
+  {
+    title: 'v2.32 — 전면 재점검(신규 모델 눈) 후속: 확정 결함 7건 일괄 수정',
     items: [
       '미완성 용어 목록보기가 상단 제목/하단 검색(홈) 버튼으로 해제되지 않던 문제를 고쳤습니다(해제 코드가 다른 함수에 잘못 들어가 있었음). 이제 라벨의 안내("홈으로 해제")대로 동작합니다.',
       '플래시카드에서 한 바퀴 끝내고 "다시 돌기"를 누르면 빈 모달이 뜨고 닫기를 두 번 눌러야 하던 문제를 고쳤습니다(재진입 시 기존 카드 모달을 먼저 정리).',
@@ -21442,6 +21451,20 @@ function rnRenderList() {
   if (!shown.length) { box.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:16px 2px">기록이 없습니다. "➕ 새 기록"으로 시작하세요. (전체 ${total}건${exportNote})</div>`; return; }
   box.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">표시 ${shown.length} / 전체 ${total}건 · 최신순${exportNote}</div>` + shown.map(e => rnCardHtml(e, notes)).join('');
 }
+// 기여 주체 판정(👤사람/🤖AI) — 해시에 이미 봉인된 기존 필드에서 "렌더 시 파생"만 한다(불변 엔트리 소급 수정 0).
+// 카드 배지와 증거 보고서 집계가 이 한 함수를 같이 쓴다(단일 기준 — 둘이 어긋날 수 없음). 순수함수·골든 잠금.
+function _rnContrib(e) {
+  const has = v => !!(v && String(v).trim());
+  const human = has(e.human_idea) || has(e.human_modification) || has(e.final_decision);
+  const ai = has(e.ai_prompt_summary) || has(e.ai_output_summary) || has(e.ai_prompt_full) || has(e.ai_output_full) || has(e.ai_metadata && e.ai_metadata.model_name);
+  return { human, ai, model: (e.ai_metadata && e.ai_metadata.model_name && String(e.ai_metadata.model_name).trim()) || '' };
+}
+function _rnContribBadges(e) {
+  const c = _rnContrib(e);
+  const h = c.human ? `<span title="사람(발명자) 기여 기록됨 — human_idea·human_modification·final_decision 중 1개 이상" style="background:rgba(37,99,235,0.12);color:#2563eb;border:1px solid rgba(37,99,235,0.45);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700">👤 사람</span>` : '';
+  const a = c.ai ? `<span title="AI(도구) 기여 기록됨${c.model ? ' · 모델: ' + escapeHtml(c.model) : ''}" style="background:rgba(124,58,237,0.10);color:#7c3aed;border:1px solid rgba(124,58,237,0.4);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700">🤖 AI${c.model ? ' · ' + escapeHtml(c.model.slice(0, 24)) : ''}</span>` : '';
+  return (h + a) || `<span title="human_*·final_decision·ai_* 필드가 모두 비어 있음" style="background:var(--surface2);color:var(--text3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;font-size:10px">기여 미기재</span>`;
+}
 function rnCardHtml(e, notes) {
   const del = _rnIsDeleted(e.id, notes);
   const p = e.patent_metadata || {};
@@ -21465,7 +21488,7 @@ function rnCardHtml(e, notes) {
           <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">${summary}</div>
           ${trustTags}
         </div>
-        <div style="display:flex;gap:4px;flex-shrink:0">${patentTag}${corr}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${_rnContribBadges(e)}${patentTag}${corr}</div>
       </div>
       <div style="font-size:10px;color:var(--text3);margin-top:9px;margin-bottom:4px">🔒 원본은 못 고칩니다 — 아래 버튼은 <b>원본을 보존한 채 연결된 새 기록</b>을 추가합니다 (상세는 열람만).</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px">
@@ -21670,8 +21693,10 @@ function rnExport(fmt) {
 function _rnReport(notes) {
   const live = notes.filter(e => !_rnIsDeleted(e.id, notes));
   const has = v => v && String(v).trim();
-  const humanCount = live.filter(e => has(e.human_idea) || has(e.human_modification) || has(e.final_decision)).length;
-  const aiCount = live.filter(e => has(e.ai_prompt_summary) || has(e.ai_output_summary) || has(e.ai_prompt_full) || has(e.ai_output_full)).length;
+  // 카드 배지(_rnContribBadges)와 같은 판정(_rnContrib) — 자체 조건식을 없애 카드/보고서 불일치를 구조적으로 차단.
+  // (aiCount에 ai_metadata.model_name 단독 기재 건도 포함되어 이전보다 미세하게 정확해짐.)
+  const humanCount = live.filter(e => _rnContrib(e).human).length;
+  const aiCount = live.filter(e => _rnContrib(e).ai).length;
   const models = {}; live.forEach(e => { const m = (e.ai_metadata || {}).model_name; if (has(m)) models[m] = (models[m] || 0) + 1; });
   const patentCand = live.filter(e => { const p = e.patent_metadata || {}; return e.event_type === 'patent_claim_candidate' || has(p.possible_claim) || has(p.novelty_point) || has(p.inventive_step_point); });
   const priorArt = live.flatMap(e => (e.prior_art || []).map(a => ({ ...a, from: e.feature_name })));
